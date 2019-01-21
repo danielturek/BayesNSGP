@@ -3,20 +3,21 @@
 library(devtools)
 library(roxygen2)
 
-## use roxygen comments to generate man/*.Rd help files
-setwd('~/github/BayesNSGP/BayesNSGP')
-document()
+## change this if you want:
+baseDir <- '~/github/BayesNSGP/'
 
-## build the package tarball file
-setwd('~/github/BayesNSGP')
-system('R CMD BUILD BayesNSGP')
+## use roxygen comments to generate man/*.Rd help files:
+document(paste0(baseDir, 'BayesNSGP'))
 
-## use check() to "check" the package
-setwd('~/github/BayesNSGP/BayesNSGP')
-check('.')
+## build the package tarball file:
+system(paste0('R CMD BUILD ', baseDir, 'BayesNSGP'))
 
-## install the package from GitHub:
+## check the package for passing CRAN tests and checks:
+check(paste0(baseDir, 'BayesNSGP'))
+
+## install the BayesNSGP package from GitHub:
 library(devtools)
+remove.packages('BayesNSGP')
 install_github('danielturek/BayesNSGP', subdir = 'BayesNSGP')
 library(BayesNSGP)
 
