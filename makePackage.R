@@ -16,6 +16,7 @@ system(paste0('R CMD BUILD ', baseDir, 'BayesNSGP'))
 check(paste0(baseDir, 'BayesNSGP'))
 
 ## install the BayesNSGP package from GitHub:
+## (make sure to build the package as above, and push to GitHub, first)
 library(devtools)
 remove.packages('BayesNSGP')
 install_github('danielturek/BayesNSGP', subdir = 'BayesNSGP')
