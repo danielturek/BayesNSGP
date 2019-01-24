@@ -1,7 +1,7 @@
 ---
 title: Test implementation of fullGP, NNGP, SGV in nimble
 author: Mark Risser
-date: 18 January 2019
+date: 24 January 2019
 output: html_document
 ---
 
@@ -25,7 +25,7 @@ We'll use some simulated data for now:
 
 ```{r}
 # Stationary/isotropic
-N <- 100
+N <- 500
 k <- 15
 set.seed(12)
 locs <- matrix(runif(2*N), ncol = 2)
@@ -62,8 +62,8 @@ constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3
                        dist12_3d = dist_SGV$dist12_3d, num_NZ = 3*N + k*N - (k*(k+1)/2),
                        nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord )
 
-niter <- 5000
-strt.kp <- 2001
+niter <- 3000
+strt.kp <- 1001
 ```
 
 \    
@@ -91,18 +91,18 @@ fullGP.tm <- proc.time() - prt
 postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
 
 par(mfrow = c(2,3))
-plot(postSamp_fullGP[,"Sigma11[1]"], type = "l")
-abline(h = phi^2, col = 2)
-plot(postSamp_fullGP[,"Sigma22[1]"], type = "l")
-abline(h = phi^2, col = 2)
-plot(postSamp_fullGP[,"Sigma12[1]"], type = "l")
-abline(h = 0, col = 2)
-plot(postSamp_fullGP[,"beta"], type = "l")
+plot(postSamp_fullGP[,"beta"], type = "l", ylab = "beta")
 abline(h = mu, col = 2)
-plot(exp(postSamp_fullGP[,"delta"])^2, type = "l")
+plot(exp(postSamp_fullGP[,"delta"])^2, type = "l", ylab = "tausq")
 abline(h = tausq, col = 2)
-plot(exp(postSamp_fullGP[,"alpha"])^2, type = "l")
+plot(exp(postSamp_fullGP[,"alpha"])^2, type = "l", ylab = "sigmasq")
 abline(h = sigsq, col = 2)
+plot(postSamp_fullGP[,"Sigma11[1]"], type = "l", ylab = "Sigma11")
+abline(h = phi, col = 2)
+plot(postSamp_fullGP[,"Sigma22[1]"], type = "l", ylab = "Sigma22")
+abline(h = phi, col = 2)
+plot(postSamp_fullGP[,"Sigma12[1]"], type = "l", ylab = "Sigma12")
+abline(h = 0, col = 2)
 
 # system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
 samplesList <- list(fullGP = postSamp_fullGP)
@@ -116,7 +116,7 @@ Next, we'll use the NNGP likelihood approximation, using $k=15$ nearest neighbor
 
 ```{r }
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
-Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z)
+Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z )
 
 compl_model_NNGP <- compileNimble( Rmodel_NNGP )
 conf_model_NNGP <- configureMCMC( Rmodel_NNGP )
@@ -133,18 +133,18 @@ NNGP.tm <- proc.time() - prt
 postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)[strt.kp:niter,]
 
 par(mfrow = c(2,3))
-plot(postSamp_NNGP[,"Sigma11[1]"], type = "l")
-abline(h = phi^2, col = 2)
-plot(postSamp_NNGP[,"Sigma22[1]"], type = "l")
-abline(h = phi^2, col = 2)
-plot(postSamp_NNGP[,"Sigma12[1]"], type = "l")
-abline(h = 0, col = 2)
-plot(postSamp_NNGP[,"beta"], type = "l")
+plot(postSamp_NNGP[,"beta"], type = "l", ylab = "beta")
 abline(h = mu, col = 2)
-plot(exp(postSamp_NNGP[,"delta"])^2, type = "l")
+plot(exp(postSamp_NNGP[,"delta"])^2, type = "l", ylab = "tausq")
 abline(h = tausq, col = 2)
-plot(exp(postSamp_NNGP[,"alpha"])^2, type = "l")
+plot(exp(postSamp_NNGP[,"alpha"])^2, type = "l", ylab = "sigmasq")
 abline(h = sigsq, col = 2)
+plot(postSamp_NNGP[,"Sigma11[1]"], type = "l", ylab = "Sigma11")
+abline(h = phi, col = 2)
+plot(postSamp_NNGP[,"Sigma22[1]"], type = "l", ylab = "Sigma22")
+abline(h = phi, col = 2)
+plot(postSamp_NNGP[,"Sigma12[1]"], type = "l", ylab = "Sigma12")
+abline(h = 0, col = 2)
 
 # system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
 samplesList$NNGP <- postSamp_NNGP
@@ -156,7 +156,6 @@ Finally, we'll use the SGV likelihood approximation, using $k=15$ nearest neighb
 
 ```{r }
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
-source("~/CASCADE_Projects/bayes_nsgp/CODE_REORG/nsgpSGV.R")
 Rmodel_SGV <- nsgpModel( likelihood = "SGV", constants = constants_SGV, z = z[SGV_setup$ord] )
 compl_model_SGV <- compileNimble( Rmodel_SGV, showCompilerOutput = TRUE )
 
@@ -175,9 +174,9 @@ postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]
 
 par(mfrow = c(2,3))
 plot(postSamp_SGV[,"Sigma11[1]"], type = "l")
-abline(h = phi^2, col = 2)
+abline(h = phi, col = 2)
 plot(postSamp_SGV[,"Sigma22[1]"], type = "l")
-abline(h = phi^2, col = 2)
+abline(h = phi, col = 2)
 plot(postSamp_SGV[,"Sigma12[1]"], type = "l")
 abline(h = 0, col = 2)
 plot(postSamp_SGV[,"beta"], type = "l")
