@@ -1,0 +1,238 @@
+---
+title: Test implementation of fullGP, NNGP, SGV in nimble
+author: Mark Risser
+date: 18 January 2019
+output: html_document
+---
+
+\   
+
+```{r, message = FALSE, warning = FALSE}
+library(nimble)
+library(coda)
+nimbleOptions(verbose = TRUE)
+source("../BayesNSGP/BayesNSGP/R/core.R")
+source("../BayesNSGP/BayesNSGP/R/NNGP.R")
+source("../BayesNSGP/BayesNSGP/R/SGV.R")
+
+```
+
+\   
+
+### Data
+
+We'll use some simulated data for now:
+
+```{r}
+# Stationary/isotropic
+N <- 100
+k <- 15
+set.seed(12)
+locs <- matrix(runif(2*N), ncol = 2)
+sigsq <- 1
+tausq <- 0.05
+phi <- 0.3162278^2
+mu <- 0
+C <- sigsq*exp(-as.matrix(dist(locs, upper = TRUE, diag = TRUE))/phi)
+D <- tausq*diag(N)
+set.seed(110)
+y <- rep(mu, N) + t(chol(C)) %*% rnorm(N)
+z <- as.numeric(y + rnorm(N, sd = sqrt(tausq)))
+```
+
+Now, set up the constants list for each likelihood:
+
+```{r }
+# FullGP 
+dist_fullGP <- nsDist(locs)
+constants_fullGP <- list( dist1_sq = dist_fullGP$dist1_sq, dist2_sq = dist_fullGP$dist2_sq, 
+                          dist12 = dist_fullGP$dist12, nu = 0.5, N = N )
+
+# NNGP
+nID_NNGP <- determineNeighbors(locs, k)
+dist_NNGP <- nsDist3d(locs, nID_NNGP)
+constants_NNGP <- list( dist1_3d = dist_NNGP$dist1_3d, dist2_3d = dist_NNGP$dist2_3d, 
+                        dist12_3d = dist_NNGP$dist12_3d, nu = 0.5, N = N, k = k, nID = nID_NNGP )
+
+# SGV
+SGV_setup <- sgvSetup(locs = locs, k = k)
+nID_SGV <- SGV_setup$nID_ord
+dist_SGV <- nsDist3d(locs[SGV_setup$ord,], nID_SGV)
+constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3d, 
+                       dist12_3d = dist_SGV$dist12_3d, num_NZ = 3*N + k*N - (k*(k+1)/2),
+                       nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord )
+
+niter <- 5000
+strt.kp <- 2001
+```
+
+\    
+
+### Full GP model
+
+First, we'll use the Full GP likelihood.
+
+```{r }
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
+Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP, z = z)
+
+compl_model_fullGP <- compileNimble( Rmodel_fullGP )
+conf_model_fullGP <- configureMCMC( Rmodel_fullGP )
+conf_model_fullGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))
+conf_model_fullGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")
+conf_model_fullGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))
+nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)
+nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)
+calculate(Rmodel_fullGP, paste("z[1:", N, "]", sep = ""))
+
+prt <- proc.time()
+nim_Cmcmc_fullGP$run(niter)
+fullGP.tm <- proc.time() - prt
+postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
+
+par(mfrow = c(2,3))
+plot(postSamp_fullGP[,"Sigma11[1]"], type = "l")
+abline(h = phi^2, col = 2)
+plot(postSamp_fullGP[,"Sigma22[1]"], type = "l")
+abline(h = phi^2, col = 2)
+plot(postSamp_fullGP[,"Sigma12[1]"], type = "l")
+abline(h = 0, col = 2)
+plot(postSamp_fullGP[,"beta"], type = "l")
+abline(h = mu, col = 2)
+plot(exp(postSamp_fullGP[,"delta"])^2, type = "l")
+abline(h = tausq, col = 2)
+plot(exp(postSamp_fullGP[,"alpha"])^2, type = "l")
+abline(h = sigsq, col = 2)
+
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
+samplesList <- list(fullGP = postSamp_fullGP)
+```
+
+\   
+
+### NNGP
+
+Next, we'll use the NNGP likelihood approximation, using $k=15$ nearest neighbors.
+
+```{r }
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
+Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z)
+
+compl_model_NNGP <- compileNimble( Rmodel_NNGP )
+conf_model_NNGP <- configureMCMC( Rmodel_NNGP )
+conf_model_NNGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))
+conf_model_NNGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")
+conf_model_NNGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))
+nim_mcmc_NNGP <- buildMCMC(conf_model_NNGP)
+nim_Cmcmc_NNGP <- compileNimble(nim_mcmc_NNGP, project = Rmodel_NNGP)
+calculate(Rmodel_NNGP, paste("z[1:", N, "]", sep = ""))
+
+prt <- proc.time()
+nim_Cmcmc_NNGP$run(niter)
+NNGP.tm <- proc.time() - prt
+postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)[strt.kp:niter,]
+
+par(mfrow = c(2,3))
+plot(postSamp_NNGP[,"Sigma11[1]"], type = "l")
+abline(h = phi^2, col = 2)
+plot(postSamp_NNGP[,"Sigma22[1]"], type = "l")
+abline(h = phi^2, col = 2)
+plot(postSamp_NNGP[,"Sigma12[1]"], type = "l")
+abline(h = 0, col = 2)
+plot(postSamp_NNGP[,"beta"], type = "l")
+abline(h = mu, col = 2)
+plot(exp(postSamp_NNGP[,"delta"])^2, type = "l")
+abline(h = tausq, col = 2)
+plot(exp(postSamp_NNGP[,"alpha"])^2, type = "l")
+abline(h = sigsq, col = 2)
+
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
+samplesList$NNGP <- postSamp_NNGP
+```
+
+### SGV
+
+Finally, we'll use the SGV likelihood approximation, using $k=15$ nearest neighbors.
+
+```{r }
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
+source("~/CASCADE_Projects/bayes_nsgp/CODE_REORG/nsgpSGV.R")
+Rmodel_SGV <- nsgpModel( likelihood = "SGV", constants = constants_SGV, z = z[SGV_setup$ord] )
+compl_model_SGV <- compileNimble( Rmodel_SGV, showCompilerOutput = TRUE )
+
+conf_model_SGV <- configureMCMC( Rmodel_SGV )
+conf_model_SGV$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))
+conf_model_SGV$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")
+conf_model_SGV$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))
+nim_mcmc_SGV <- buildMCMC(conf_model_SGV)
+nim_Cmcmc_SGV <- compileNimble(nim_mcmc_SGV, project = Rmodel_SGV, showCompilerOutput = TRUE)
+calculate(Rmodel_SGV, paste("z[1:", N, "]", sep = ""))
+
+prt <- proc.time()
+nim_Cmcmc_SGV$run(niter)
+SGV.tm <- proc.time() - prt
+postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]
+
+par(mfrow = c(2,3))
+plot(postSamp_SGV[,"Sigma11[1]"], type = "l")
+abline(h = phi^2, col = 2)
+plot(postSamp_SGV[,"Sigma22[1]"], type = "l")
+abline(h = phi^2, col = 2)
+plot(postSamp_SGV[,"Sigma12[1]"], type = "l")
+abline(h = 0, col = 2)
+plot(postSamp_SGV[,"beta"], type = "l")
+abline(h = mu, col = 2)
+plot(exp(postSamp_SGV[,"delta"])^2, type = "l")
+abline(h = tausq, col = 2)
+plot(exp(postSamp_SGV[,"alpha"])^2, type = "l")
+abline(h = sigsq, col = 2)
+
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
+samplesList$SGV <- postSamp_SGV
+```
+
+\   
+
+### Results
+
+Check agreement between the fullGP, NNGP, and SGV likelihoods.
+
+```{r }
+# chainsPlot(samplesList)
+```
+
+Check effective sample size between the fullGP, NNGP, and SGV likelihoods.
+
+```{r }
+# do.call('cbind', lapply(samplesList, function(x) apply(x, 2, effectiveSize)))
+```
+
+
+\   
+
+
+\   
+
+\   
+
+\   
+
+\    
+
+\    
+
+\   
+
+\   
+
+\   
+
+\   
+
+\    
+
+
+
+
+
+
