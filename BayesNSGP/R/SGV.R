@@ -389,7 +389,7 @@ R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
   require(Matrix)
   Asparse <- Matrix::sparseMatrix(i, j, x = x)
-  ans.dsCMatrix <- Matrix::solve(Asparse, z, system = "L")
+  ans.dsCMatrix <- Matrix::solve(Asparse, rev(z), system = "L")
   return(ans.dsCMatrix@x)
 }
 nimble_sparse_solve <- nimbleRcall(
@@ -412,14 +412,13 @@ dmnorm_sgv <- nimbleFunction(
                                      subset = seq(from = 1, to = 2*N, by = 2))
     Vmat_ord <- nimble_sparse_chol(i = Amat[,1], j = Amat[,2], x = Amat[,3], n = N)
     logdet_V <- sum(log(Vmat_ord[Vmat_ord[,1] == Vmat_ord[,2],3]))
-    z3 <- nimble_sparse_solve(i = Vmat_ord[,1], j = Vmat_ord[,2], x = Vmat_ord[,3], z = z2[N:1])
+    z3 <- nimble_sparse_solve(i = Vmat_ord[,1], j = Vmat_ord[,2], x = Vmat_ord[,3], z = z2)
     
     lp <- -(logdet_U + logdet_V + 0.5*sum(z1^2) - 0.5*sum(z3^2)) - 0.5*1.83787706649*N
     returnType(double())
     return(lp)
   }
 )
-Cdmnorm_sgv <- compileNimble(dmnorm_sgv)
 
 rmnorm_sgv <- nimbleFunction(
   run = function(n = integer(), mean = double(1), U = double(2), N = double(), k = double()) {

@@ -84,6 +84,9 @@ inverseEigen <- nimbleFunction(
     if( which_Sigma == 3 ){ # Return Sigma12
       return( Gam11*Gam21*Lam1 + Gam12*Gam22*Lam2 )
     }
+
+    stop('Error in inverseEigen function')  ## prevent compiler warning
+    return(numeric(10))                     ## prevent compiler warning
     
   })
 
