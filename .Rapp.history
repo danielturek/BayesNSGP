@@ -1,0 +1,1285 @@
+# NIMBLE model code =============================#
+anisoGP_code <- nimbleCode({#
+  # Likelihood: independent across segments; MVN within segment#
+  z[1:N] ~ dmnorm( mn[1:N], cov = C[1:N,1:N] )#
+  # Process structure: constant mean; anisotropic covariance#
+  mn[1:N] <- ones[1:N]*mu#
+  Siginv[1:2,1:2] <- f_kernel_cov_inv( phi1 = phi1, phi2 = phi2, eta = eta, #
+                                       Pmat = DPmat[1:2,1:2], Dmat = DPmat[1:2,1:2] )#
+  # Segment-specific anisotropic correlation#
+  C0[1:N,1:N] <- spatial_expcor_aniso( Sigma_inv = Siginv[1:2,1:2], d1.sq.mat = d1.sq.mat[1:N,1:N],#
+                                       d2.sq.mat = d2.sq.mat[1:N,1:N], d12.mat = d12.mat[1:N,1:N] )#
+  # Segment-specific covariance with nugget#
+  C[1:N,1:N] <- tausq*Imat[1:N,1:N] + sigmasq*C0[1:N,1:N]#
+  # Hyperparameters/priors#
+  mu ~ dnorm(0, sd = 100)#
+  tausq ~ dunif(0, 100)#
+#
+  phi1 <- phi.ubs*expit(logit_phi1)#
+  phi2 <- phi.ubs*expit(logit_phi2)#
+  eta <- 1.570796*expit(logit_eta)#
+  sigmasq <- exp(log_sigmasq)#
+  logit_phi1 ~ dunif(-10,10) #dnorm(0, sd = 100)#
+  logit_phi2 ~ dunif(-10,10) #dnorm(0, sd = 100)#
+  logit_eta ~ dnorm(0, sd = 100)#
+  log_sigmasq ~ dnorm(0, sd = 100)#
+})#
+#
+# Version 1: no adjustments to the MCMC#
+anisoGP_model <- nimbleModel( #
+  code = anisoGP_code, #
+  constants = list( N = N, phi.ubs = phi.ubs, #
+                    Imat = diag(rep(1,N)), ones = rep(1,N), DPmat = matrix(0,2,2),#
+                    d1.sq.mat = d1.sq.mat, d2.sq.mat = d2.sq.mat, d12.mat = d12.mat ),#
+  inits = list(mu = 0, logit_phi1 = 0, logit_phi2 = 0, logit_eta = 0, tausq = 1, #
+               log_sigmasq = 0, C0 = diag(rep(1,N)), C = diag(rep(1,N)), Siginv = diag(2) ),#
+  data = list(z = z)#
+)#
+#
+# Compile/configure#
+compl_anisoGP_model <- compileNimble( anisoGP_model )#
+conf_anisoGP_model <- configureMCMC( anisoGP_model ) #
+#
+# Edit samplers#
+conf_anisoGP_model$removeSamplers( "mu" )#
+conf_anisoGP_model$addSampler( target = "mu", type = "muGibbs" )#
+conf_anisoGP_model$removeSamplers( c("logit_phi1", "logit_phi2", "logit_eta", "log_sigmasq") )#
+conf_anisoGP_model$addSampler( target = c("logit_phi1", "logit_phi2", "logit_eta", "log_sigmasq"), type = "RW_block" )#
+#
+# Look at configuration#
+conf_anisoGP_model$getSamplers()#
+#
+# Build/compile MCMC#
+mcmc <- buildMCMC( conf_anisoGP_model )#
+Cmcmc <- compileNimble( mcmc, project = anisoGP_model )#
+#
+# Run MCMC using NIMBLE =========================#
+prt <- proc.time()#
+Cmcmc$run(5000)#
+ttm <- proc.time() - prt
+ttm
+plot(posterior.samples[,"mu"], type = "l", main = "Overall (constant) mean", xlab="Iteration", ylab="mu")
+posterior.samples <- as.matrix(Cmcmc$mvSamples)[1000:5000,]
+plot(posterior.samples[,"mu"], type = "l", main = "Overall (constant) mean", xlab="Iteration", ylab="mu")
+plot(posterior.samples[,"log_sigmasq"], type = "l", xlab="Iteration", ylab="sigmasq" )#
+lines(postsamp1[,"sigmasq"], col = "gray")#
+abline(h = log(sigmasq.true), col = 2)#
+abline(h = test.fit$MLEs.save$sigmasq, col = 3 )
+plot(posterior.samples[,"logit_phi1"], type = "l", xlab="Iteration", ylab="phi1" )
+plot(phi.ubs*expit(posterior.samples[,"logit_phi1"]), type = "l", xlab="Iteration", ylab="phi1" )
+abline(h = phi1.true, col = 2)
+plot(posterior.samples[,"phi2"], type = "l", xlab="Iteration", ylab="phi2" )
+plot(posterior.samples[,"logit_phi2"], type = "l", xlab="Iteration", ylab="phi2" )
+plot((pi/2)*expit(posterior.samples[,"logit_eta"]), type = "l", xlab="Iteration", ylab="eta" )
+plot((posterior.samples[,"logit_eta"]), type = "l", xlab="Iteration", ylab="eta" )
+# NIMBLE model code =============================#
+anisoGP_code <- nimbleCode({#
+  # Likelihood: independent across segments; MVN within segment#
+  z[1:N] ~ dmnorm( mn[1:N], cov = C[1:N,1:N] )#
+  # Process structure: constant mean; anisotropic covariance#
+  mn[1:N] <- ones[1:N]*mu#
+  Siginv[1:2,1:2] <- f_kernel_cov_inv( phi1 = phi1, phi2 = phi2, eta = eta, #
+                                       Pmat = DPmat[1:2,1:2], Dmat = DPmat[1:2,1:2] )#
+  # Segment-specific anisotropic correlation#
+  C0[1:N,1:N] <- spatial_expcor_aniso( Sigma_inv = Siginv[1:2,1:2], d1.sq.mat = d1.sq.mat[1:N,1:N],#
+                                       d2.sq.mat = d2.sq.mat[1:N,1:N], d12.mat = d12.mat[1:N,1:N] )#
+  # Segment-specific covariance with nugget#
+  C[1:N,1:N] <- tausq*Imat[1:N,1:N] + sigmasq*C0[1:N,1:N]#
+  # Hyperparameters/priors#
+  mu ~ dnorm(0, sd = 100)#
+  tausq ~ dunif(0, 100)#
+#
+  phi1 <- phi.ubs*expit(logit_phi1)#
+  phi2 <- phi.ubs*expit(logit_phi2)#
+  eta <- 1.570796*expit(logit_eta)#
+  sigmasq <- exp(log_sigmasq)#
+  logit_phi1 ~ dunif(-10,10) #dnorm(0, sd = 100)#
+  logit_phi2 ~ dunif(-10,10) #dnorm(0, sd = 100)#
+  logit_eta ~ dunif(-10,10) #dnorm(0, sd = 100)#
+  log_sigmasq ~ dnorm(0, sd = 100)#
+})#
+#
+# Version 1: no adjustments to the MCMC#
+anisoGP_model <- nimbleModel( #
+  code = anisoGP_code, #
+  constants = list( N = N, phi.ubs = phi.ubs, #
+                    Imat = diag(rep(1,N)), ones = rep(1,N), DPmat = matrix(0,2,2),#
+                    d1.sq.mat = d1.sq.mat, d2.sq.mat = d2.sq.mat, d12.mat = d12.mat ),#
+  inits = list(mu = 0, logit_phi1 = 0, logit_phi2 = 0, logit_eta = 0, tausq = 1, #
+               log_sigmasq = 0, C0 = diag(rep(1,N)), C = diag(rep(1,N)), Siginv = diag(2) ),#
+  data = list(z = z)#
+)#
+#
+# Compile/configure#
+compl_anisoGP_model <- compileNimble( anisoGP_model )#
+conf_anisoGP_model <- configureMCMC( anisoGP_model ) #
+#
+# Edit samplers#
+conf_anisoGP_model$removeSamplers( "mu" )#
+conf_anisoGP_model$addSampler( target = "mu", type = "muGibbs" )#
+conf_anisoGP_model$removeSamplers( c("logit_phi1", "logit_phi2", "logit_eta", "log_sigmasq") )#
+conf_anisoGP_model$addSampler( target = c("logit_phi1", "logit_phi2", "logit_eta", "log_sigmasq"), type = "RW_block" )#
+#
+# Look at configuration#
+conf_anisoGP_model$getSamplers()#
+#
+# Build/compile MCMC#
+mcmc <- buildMCMC( conf_anisoGP_model )#
+Cmcmc <- compileNimble( mcmc, project = anisoGP_model )#
+#
+# Run MCMC using NIMBLE =========================#
+prt <- proc.time()#
+Cmcmc$run(5000)#
+ttm <- proc.time() - prt#
+#
+# Extract posterior samples#
+posterior.samples <- as.matrix(Cmcmc$mvSamples)[1000:5000,]#
+# postsamp2 <- posterior.samples#
+# postsamp1 <- posterior.samples#
+# save(posterior.sample
+plot(posterior.samples[,"mu"], type = "l", main = "Overall (constant) mean", xlab="Iteration", ylab="mu")
+lines(postsamp1[,"mu"], col = "gray")
+plot(posterior.samples[,"log_sigmasq"], type = "l", xlab="Iteration", ylab="sigmasq" )
+plot(phi.ubs*expit(posterior.samples[,"logit_phi1"]), type = "l", xlab="Iteration", ylab="phi1" )
+plot(posterior.samples[,"logit_phi2"], type = "l", xlab="Iteration", ylab="phi2" )
+Cmcmc$run(15000, reset = FALSE)
+posterior.samples <- as.matrix(Cmcmc$mvSamples)[10000:15000,]
+dim(as.matrix(Cmcmc$mvSamples))
+posterior.samples <- as.matrix(Cmcmc$mvSamples)[10001:20000,]
+plot(posterior.samples[,"mu"], type = "l", main = "Overall (constant) mean", xlab="Iteration", ylab="mu")
+plot(posterior.samples[,"tausq"], type = "l", xlab="Iteration", ylab="tausq" )
+plot(posterior.samples[,"log_sigmasq"], type = "l", xlab="Iteration", ylab="sigmasq" )
+plot(phi.ubs*expit(posterior.samples[,"logit_phi1"]), type = "l", xlab="Iteration", ylab="phi1" )
+plot(posterior.samples[,"logit_phi2"], type = "l", xlab="Iteration", ylab="phi2" )
+plot((posterior.samples[,"logit_eta"]), type = "l", xlab="Iteration", ylab="eta" )
+# NIMBLE model code =============================#
+anisoGP_code <- nimbleCode({#
+  # Likelihood: independent across segments; MVN within segment#
+  z[1:N] ~ dmnorm( mn[1:N], cov = C[1:N,1:N] )#
+  # Process structure: constant mean; anisotropic covariance#
+  mn[1:N] <- ones[1:N]*mu#
+  Siginv[1:2,1:2] <- f_kernel_cov_inv( phi1 = phi1, phi2 = phi2, eta = eta, #
+                                       Pmat = DPmat[1:2,1:2], Dmat = DPmat[1:2,1:2] )#
+  # Segment-specific anisotropic correlation#
+  C0[1:N,1:N] <- spatial_expcor_aniso( Sigma_inv = Siginv[1:2,1:2], d1.sq.mat = d1.sq.mat[1:N,1:N],#
+                                       d2.sq.mat = d2.sq.mat[1:N,1:N], d12.mat = d12.mat[1:N,1:N] )#
+  # Segment-specific covariance with nugget#
+  C[1:N,1:N] <- tausq*Imat[1:N,1:N] + sigmasq*C0[1:N,1:N]#
+  # Hyperparameters/priors#
+  mu ~ dnorm(0, sd = 100)#
+  tausq ~ dunif(0, 100)#
+#
+  phi1 <- phi.ubs*expit(logit_phi1)#
+  phi2 <- phi.ubs*expit(logit_phi2)#
+  eta <- 1.570796*expit(logit_eta)#
+  sigmasq <- 100*expit(log_sigmasq)#
+  logit_phi1 ~ dnorm(0, sd = 1)#
+  logit_phi2 ~ dnorm(0, sd = 1)#
+  logit_eta ~ dnorm(0, sd = 1)#
+  log_sigmasq ~ dnorm(0, sd = 1.65)#
+})#
+#
+# Version 1: no adjustments to the MCMC#
+anisoGP_model <- nimbleModel( #
+  code = anisoGP_code, #
+  constants = list( N = N, phi.ubs = phi.ubs, #
+                    Imat = diag(rep(1,N)), ones = rep(1,N), DPmat = matrix(0,2,2),#
+                    d1.sq.mat = d1.sq.mat, d2.sq.mat = d2.sq.mat, d12.mat = d12.mat ),#
+  inits = list(mu = 0, logit_phi1 = 0, logit_phi2 = 0, logit_eta = 0, tausq = 1, #
+               log_sigmasq = 0, C0 = diag(rep(1,N)), C = diag(rep(1,N)), Siginv = diag(2) ),#
+  data = list(z = z)#
+)#
+#
+# Compile/configure#
+compl_anisoGP_model <- compileNimble( anisoGP_model )#
+conf_anisoGP_model <- configureMCMC( anisoGP_model ) #
+#
+# Edit samplers#
+conf_anisoGP_model$removeSamplers( "mu" )#
+conf_anisoGP_model$addSampler( target = "mu", type = "muGibbs" )#
+conf_anisoGP_model$removeSamplers( c("logit_phi1", "logit_phi2", "logit_eta", "log_sigmasq") )#
+conf_anisoGP_model$addSampler( target = c("logit_phi1", "logit_phi2", "logit_eta", "log_sigmasq"), type = "RW_block" )#
+#
+# Look at configuration#
+conf_anisoGP_model$getSamplers()#
+#
+# Build/compile MCMC#
+mcmc <- buildMCMC( conf_anisoGP_model )#
+Cmcmc <- compileNimble( mcmc, project = anisoGP_model )
+Cmcmc$run(5000, reset = FALSE)
+plot(posterior.samples[,"mu"], type = "l", main = "Overall (constant) mean", xlab="Iteration", ylab="mu")
+plot(posterior.samples[,"tausq"], type = "l", xlab="Iteration", ylab="tausq" )
+plot(posterior.samples[,"log_sigmasq"], type = "l", xlab="Iteration", ylab="sigmasq" )
+plot(phi.ubs*expit(posterior.samples[,"logit_phi1"]), type = "l", xlab="Iteration", ylab="phi1" )
+plot(posterior.samples[,"logit_phi2"], type = "l", xlab="Iteration", ylab="phi2" )
+plot((posterior.samples[,"logit_eta"]), type = "l", xlab="Iteration", ylab="eta" )
+load("/Users/MDRisser/mon_atmos_WRAF05_NAT_1_50.RData")
+library(ncdf4)
+wraf10 <- nc_open("~/CASCADE_Projects/data_sets/WRAF10/region_fx-WRAF10-v4-0_WRAF_All-Hist_est1_v4-0_run000_000000-000000.nc")
+wraf10
+wraf10_regions <- ncvar_get(wraf10, "nameshort")
+wraf10_regions
+wraf5 <- nc_open("~/CASCADE_Projects/data_sets/WRAF5/region_fx-WRAF5-v4-0_WRAF_All-Hist_est1_v4-0_run000_000000-000000.nc")
+wraf5_regions <- ncvar_get(wraf5, "nameshort")
+wraf5_regions
+wraf2 <- nc_open("~/CASCADE_Projects/data_sets/WRAF2/shape_files/region_fx-WRAF2-v4-0_WRAF_All-Hist_est1_v4-0_run000_000000-000000.nc")
+wraf2_regions <- ncvar_get(wraf2, "nameshort")
+wraf2_regions
+load("/Users/MDRisser/M2_fit_results_ts1.RData")
+length(M2.results.all)
+length(M2.results.all[[1]])
+length(M2.results.all[[1]][[1]])
+length(M2.results.all[[1]][[1]][[1]])
+class(M2.results.all[[1]][[1]][[1]])
+class(M2.results.all[[1]][[1]][[1]][[1]])
+M2.results.all[[1]][[1]][[1]][[1]]
+M2.results.all[[1]][[1]][[1]][[100]]
+load("/Users/MDRisser/M2_fit_results_ts2.RData")
+M2.results.all[[1]][[1]][[1]][[100]]
+M2.results.all[[2]][[1]][[1]][[100]]
+M2.results.all[[2]][[1]][[1]][[1]]
+version(ncdf4)
+citation(ncdf4)
+citation("ncdf4")
+citation(nimble)
+citation("nimble")
+citation("geoR")
+citation("MASS")
+citation("ggplot2")
+citation("ggmap")
+citation("ggalt")
+citation("geosphere")
+citation("colorspace")
+citation("RColorBrewer")
+citation("maptools")
+citation("plyr")
+citation("gridExtra")
+load("/Users/MDRisser/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4b_kfold_cv/model1/DJF_model1.RData")
+model1 <- model1[is.na(model1$mu0) == FALSE,]
+dim(model1)
+plot(model1$longitude, model1$latitude, pch = "+", asp = 1.2)
+load("/Users/MDRisser/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4b_kfold_cv/model1/MAM_model1.RData")
+model1 <- model1[is.na(model1$mu0) == FALSE,]
+dim(model1)
+plot(model1$longitude, model1$latitude, pch = "+", asp = 1.2)
+load("/Users/MDRisser/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4b_kfold_cv/model1/SON_model1.RData")
+model1 <- model1[is.na(model1$mu0) == FALSE,]
+dim(model1)
+plot(model1$longitude, model1$latitude, pch = "+", asp = 1.2)
+load("/Users/MDRisser/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4b_kfold_cv/model1/JJA_model1.RData")
+model1 <- model1[is.na(model1$mu0) == FALSE,]
+dim(model1)
+plot(model1$longitude, model1$latitude, pch = "+", asp = 1.2)
+load("/Users/MDRisser/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4b_kfold_cv/model1/lcc_grids_radii_lambda.RData")
+points(lcc_mc_grids[[1]], col = 3)
+plot(model1$lcc_x, model1$lcc_y, pch = "+", asp = 1.2)
+plot(model1$lcc_x, model1$lcc_y, pch = "+", asp = 1)
+points(lcc_mc_grids[[1]], col = 3)
+plot(model1$lcc_x, model1$lcc_y, pch = "+", asp = 1)
+points(lcc_mc_grids[[2]], col = 3)
+plot(model1$lcc_x, model1$lcc_y, pch = "+", asp = 1)
+points(lcc_mc_grids[[3]], col = 3)
+install.packages("convoSPAT")
+library(convoSPAT)
+??NSconvo_fit
+?NSconvo_fit
+library(fields)
+library(climextRemes)#
+library(extRemes)#
+#
+load("~/CASCADE_Projects/data_sets/GHCN_D/GHCND_processed/CONUS_long66.RData")#
+load("~/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4a_POTfits/DJF_model1.RData")#
+load("~/CASCADE_Projects/GEV_smoothing/seasonal_fits/step4b_kfold_cv/code_model1/lcc_grids_radii_lambda.RData")#
+#
+conus_djf <- CONUS_long66[CONUS_long66$raw.month %in% c(12,1,2),]#
+#
+# Remove NA's#
+model1 <- model1[is.na(model1$mu0) == FALSE,]#
+# Remove outliers#
+model1 <- model1[model1$mu1 > -200 & model1$mu1 < 200,]#
+model1 <- model1[model1$xi < 1 & model1$xi > -1,]#
+#
+# Select a subset for faster fitting#
+model1_sub <- model1[sample(1:nrow(model1), 0.4*nrow(model1)),]#
+#
+# Create a K-fold partition#
+N <- nrow(model1_sub)#
+set.seed(0)#
+hdt.ind.df <- data.frame( position = 1:N, runi = runif(N) )#
+hdt.ind.df <- hdt.ind.df[order(hdt.ind.df$runi),]#
+hdt.ind.df$hdt.set <- rep(NA, N)#
+hdt.set.size <- ceiling(N/8)#
+for(t in 1:7){#
+  hdt.ind.df$hdt.set[ (hdt.set.size*(t-1) + 1):(hdt.set.size*t) ] <- t#
+}#
+hdt.ind.df$hdt.set[ is.na(hdt.ind.df$hdt.set) == TRUE ] <- 8#
+hdt.ind.df <- hdt.ind.df[order(hdt.ind.df$position),]#
+model1_sub$holdout_ind <- hdt.ind.df$hdt.set#
+#
+# Test fit#
+train.lcc <- model1_sub[model1_sub$holdout_ind != 1,c("lcc_x", "lcc_y")]#
+train.X <- model1_sub[model1_sub$holdout_ind != 1,c("elevation")]#
+train.param.df <- model1_sub[model1_sub$holdout_ind != 1,c(10:13,16:19)]#
+test.lcc <- model1_sub[model1_sub$holdout_ind == 1,c("lcc_x", "lcc_y")]#
+test.X <- model1_sub[model1_sub$holdout_ind == 1,c("elevation")]#
+test.data <- cbind( conus_djf[,c("time","season.year")], conus_djf[,c(model1_sub$stationID[model1_sub$holdout_ind == 1])])#
+test.data <- test.data[test.data$season.year >= 1950 & test.data$season.year <= 2015,]#
+sv.mean <- TRUE#
+mc.grid <- lcc_mc_grids[[3]]#
+fit.rad <- lcc_fit_rad_use[2,3]#
+lambda.w <- lcc_lambdaw_use[3]
+prnt.switch <- FALSE # Print progress, TRUE or FALSE#
+start.yr <- min(test.data$season.year)#
+end.yr <- max(test.data$season.year)#
+save.out <- TRUE # Save output other than the log-likelihood?
+conus_djf <- CONUS_long66[CONUS_long66$raw.month %in% c(12,1,2),]#
+#
+# Remove NA's#
+model1 <- model1[is.na(model1$mu0) == FALSE,]#
+# Remove outliers#
+model1 <- model1[model1$mu1 > -200 & model1$mu1 < 200,]#
+model1 <- model1[model1$xi < 1 & model1$xi > -1,]#
+#
+# Select a subset for faster fitting#
+model1_sub <- model1[sample(1:nrow(model1), 0.35*nrow(model1)),]#
+#
+# Create a K-fold partition#
+N <- nrow(model1_sub)#
+set.seed(0)#
+hdt.ind.df <- data.frame( position = 1:N, runi = runif(N) )#
+hdt.ind.df <- hdt.ind.df[order(hdt.ind.df$runi),]#
+hdt.ind.df$hdt.set <- rep(NA, N)#
+hdt.set.size <- ceiling(N/8)#
+for(t in 1:7){#
+  hdt.ind.df$hdt.set[ (hdt.set.size*(t-1) + 1):(hdt.set.size*t) ] <- t#
+}#
+hdt.ind.df$hdt.set[ is.na(hdt.ind.df$hdt.set) == TRUE ] <- 8#
+hdt.ind.df <- hdt.ind.df[order(hdt.ind.df$position),]#
+model1_sub$holdout_ind <- hdt.ind.df$hdt.set#
+#
+# Test fit#
+train.lcc <- model1_sub[model1_sub$holdout_ind != 1,c("lcc_x", "lcc_y")]#
+train.X <- model1_sub[model1_sub$holdout_ind != 1,c("elevation")]#
+train.param.df <- model1_sub[model1_sub$holdout_ind != 1,c(10:13,16:19)]#
+test.lcc <- model1_sub[model1_sub$holdout_ind == 1,c("lcc_x", "lcc_y")]#
+test.X <- model1_sub[model1_sub$holdout_ind == 1,c("elevation")]#
+test.data <- cbind( conus_djf[,c("time","season.year")], conus_djf[,c(model1_sub$stationID[model1_sub$holdout_ind == 1])])#
+test.data <- test.data[test.data$season.year >= 1950 & test.data$season.year <= 2015,]#
+sv.mean <- TRUE#
+mc.grid <- lcc_mc_grids[[3]]#
+fit.rad <- lcc_fit_rad_use[2,3]#
+lambda.w <- lcc_lambdaw_use[3]#
+prnt.switch <- FALSE # Print progress, TRUE or FALSE#
+start.yr <- min(test.data$season.year)#
+end.yr <- max(test.data$season.year)#
+save.out <- TRUE # Save output other than the log-likelihood?
+N
+hdt.set.size
+0.35*nrow(model1)
+0.4*nrow(model1)
+# Fixed quantities#
+  lcc_maxdist <- 53.87423 # Maximum distance in the data set (LCC coordinate space)#
+  mu0.residvar <- summary(lm( train.param.df$mu0 ~ train.X ))$sigma^2#
+  mu1.residvar <- summary(lm( train.param.df$mu1 ~ train.X ))$sigma^2#
+  logsigma.residvar <- summary(lm( train.param.df$logsigma ~ train.X ))$sigma^2#
+  xi.residvar <- summary(lm( train.param.df$xi ~ train.X ))$sigma^2#
+#
+  #================================================#
+  # mu0#
+  #================================================#
+  # Fits/smoothing #
+  mu0_nsfit <- NSconvo_fit( #
+    coords = train.lcc, data = train.param.df$mu0,#
+    mean.model = mu0 ~ train.X, #
+    mean.model.df = data.frame( mu0 = train.param.df$mu0, train.X = train.X ),#
+    fit.radius = fit.rad, mc.locations = mc.grid, lambda.w = lambda.w, #
+    fixed.nugg2.var = train.param.df$mu0_se^2,#
+    ns.nugget = TRUE, ns.variance = TRUE, ns.mean = sv.mean,#
+    local.pars.LB = c(0.1, 0.1, 1e-5, 1e-5, 1e-5),#
+    local.ini.pars = c(lcc_maxdist/15, lcc_maxdist/15, 0.1*mu0.residvar, #
+                       0.9*mu0.residvar, 100),#
+    local.pars.UB = c(lcc_maxdist/5, lcc_maxdist/5, 2*mu0.residvar, #
+                      2*mu0.residvar, 100 ),#
+    print.progress = prnt.switch ) #
+  # Holdout predictions#
+  Xpred <- matrix( unname( lm( rnorm(length(test.X)) ~ test.X, x = TRUE )$x ), nrow = length(test.X) )#
+  mu0_outpred <- predict( mu0_nsfit, pred.covariates = as.matrix(Xpred[,-1]), pred.coords = test.lcc )#
+  # Output#
+  mu0_out <- list(#
+    mc_kernels = mu0_nsfit$mc.kernels,#
+    MLEs = mu0_nsfit$MLEs.save,#
+    beta_GLS = mu0_nsfit$beta.GLS,#
+    mu0_outpred = mu0_outpred#
+  )#
+  #================================================#
+  # mu1#
+  #================================================#
+  # Fits/smoothing #
+  mu1_nsfit <- NSconvo_fit( #
+    coords = train.lcc, data = train.param.df$mu1,#
+    mean.model = mu1 ~ train.X, #
+    mean.model.df = data.frame( mu1 = train.param.df$mu1, train.X = train.X ),#
+    fit.radius = fit.rad, mc.locations = mc.grid, lambda.w = lambda.w, #
+    fixed.nugg2.var = train.param.df$mu1_se^2,#
+    ns.nugget = TRUE, ns.variance = TRUE, ns.mean = sv.mean,#
+    local.pars.LB = c(0.1, 0.1, 1e-5, 1e-5, 1e-5),#
+    local.ini.pars = c(lcc_maxdist/15, lcc_maxdist/15, 0.1*mu1.residvar, #
+                       0.9*mu1.residvar, 100),#
+    local.pars.UB = c(lcc_maxdist/5, lcc_maxdist/5, 2*mu1.residvar, #
+                      2*mu1.residvar, 100 ),#
+    print.progress = prnt.switch ) #
+  # Holdout predictions#
+  Xpred <- matrix( unname( lm( rnorm(length(test.X)) ~ test.X, x = TRUE )$x ), nrow = length(test.X) )#
+  mu1_outpred <- predict( mu1_nsfit, pred.covariates = as.matrix(Xpred[,-1]), pred.coords = test.lcc )#
+  # Output#
+  mu1_out <- list(#
+    mc_kernels = mu1_nsfit$mc.kernels,#
+    MLEs = mu1_nsfit$MLEs.save,#
+    beta_GLS = mu1_nsfit$beta.GLS,#
+    mu1_outpred = mu1_outpred#
+  )#
+  #================================================#
+  # logsigma#
+  #================================================#
+  # Fits/smoothing #
+  logsigma_nsfit <- NSconvo_fit( #
+    coords = train.lcc, data = train.param.df$logsigma,#
+    mean.model = logsigma ~ train.X, #
+    mean.model.df = data.frame( logsigma = train.param.df$logsigma, train.X = train.X ),#
+    fit.radius = fit.rad, mc.locations = mc.grid, lambda.w = lambda.w, #
+    fixed.nugg2.var = train.param.df$logsigma_se^2,#
+    ns.nugget = TRUE, ns.variance = TRUE, ns.mean = sv.mean,#
+    local.pars.LB = c(0.1, 0.1, 1e-5, 1e-5, 1e-5),#
+    local.ini.pars = c(lcc_maxdist/15, lcc_maxdist/15, 0.1*logsigma.residvar, #
+                       0.9*logsigma.residvar, 100),#
+    local.pars.UB = c(lcc_maxdist/5, lcc_maxdist/5, 2*logsigma.residvar, #
+                      2*logsigma.residvar, 100 ),#
+    print.progress = prnt.switch ) #
+  # Holdout predictions#
+  Xpred <- matrix( unname( lm( rnorm(length(test.X)) ~ test.X, x = TRUE )$x ), nrow = length(test.X) )#
+  logsigma_outpred <- predict( logsigma_nsfit, pred.covariates = as.matrix(Xpred[,-1]), pred.coords = test.lcc )#
+  # Output#
+  logsigma_out <- list(#
+    mc_kernels = logsigma_nsfit$mc.kernels,#
+    MLEs = logsigma_nsfit$MLEs.save,#
+    beta_GLS = logsigma_nsfit$beta.GLS,#
+    logsigma_outpred = logsigma_outpred#
+  )#
+  #================================================#
+  # xi#
+  #================================================#
+  # Fits/smoothing #
+  xi_nsfit <- NSconvo_fit( #
+    coords = train.lcc, data = train.param.df$xi,#
+    mean.model = xi ~ train.X, #
+    mean.model.df = data.frame( xi = train.param.df$xi, train.X = train.X ),#
+    fit.radius = fit.rad, mc.locations = mc.grid, lambda.w = lambda.w, #
+    fixed.nugg2.var = train.param.df$xi_se^2,#
+    ns.nugget = TRUE, ns.variance = TRUE, ns.mean = sv.mean,#
+    local.pars.LB = c(0.1, 0.1, 1e-5, 1e-5, 1e-5),#
+    local.ini.pars = c(lcc_maxdist/15, lcc_maxdist/15, 0.1*xi.residvar, #
+                       0.9*xi.residvar, 100),#
+    local.pars.UB = c(lcc_maxdist/5, lcc_maxdist/5, 2*xi.residvar, #
+                      2*xi.residvar, 100 ),#
+    print.progress = prnt.switch ) #
+  # Holdout predictions#
+  Xpred <- matrix( unname( lm( rnorm(length(test.X)) ~ test.X, x = TRUE )$x ), nrow = length(test.X) )#
+  xi_outpred <- predict( xi_nsfit, pred.covariates = as.matrix(Xpred[,-1]), pred.coords = test.lcc )#
+  # Output#
+  xi_out <- list(#
+    mc_kernels = xi_nsfit$mc.kernels,#
+    MLEs = xi_nsfit$MLEs.save,#
+    beta_GLS = xi_nsfit$beta.GLS,#
+    xi_outpred = xi_outpred#
+  )
+start.yr
+end.yr
+year.poly <- poly( start.yr:end.yr, 2 )
+year.lin <- as.numeric(year.poly[,1])
+loglik.mat <- matrix(NA, length(start.yr:end.yr), ncol(test.data) - 2)
+all.obs <- test.data[is.na(test.data[,s]) == FALSE,c(2,s)]
+s = 3
+all.obs <- test.data[is.na(test.data[,s]) == FALSE,c(2,s)]
+thresh <- quantile(all.obs[all.obs[,2] >= 1 & is.na(all.obs[,2]) == FALSE,2], 0.95)
+thresh
+exc.obs <- all.obs[all.obs[,2] > thresh,]
+loglik.vec <- rep(NA, ncol(test.data) - 2)
+exc.obs
+ns_pp_ll( z = exc.obs[,2], thresh = thresh, nBlocks = length(1950:2015),#
+                       x = year.lin, blockIndex = exc.obs$season.year, firstBlock = 1950,#
+                       mu0 = mu0_outpred$pred.means[s-2], #
+                       mu1 = mu1_outpred$pred.means[s-2], #
+                       sigma = exp(logsigma_outpred$pred.means[s-2]), #
+                       xi = xixi_outpred$pred.means[s-2] )
+loglik_poisproc_linloc <- function( z, thresh, nBlocks, x, blockIndex, firstBlock, mu0, mu1, sigma, xi ){#
+  mu.all <- mu0 + mu1*x#
+  sigma.all <- rep(sigma, nBlocks)#
+  xi.all <- rep(xi, nBlocks)#
+  x.obs <- merge( data.frame( x = x, block = firstBlock:(firstBlock+nBlocks-1)), #
+                  data.frame( block = blockIndex ) )$x#
+  mu.obs <- mu0 + mu1*x.obs#
+  sigma.obs <- rep(sigma, length(z))#
+  xi.obs <- rep(xi, length(z))#
+  if( xi != 0 ){#
+    normconst <- -sum( (1 + xi.all*(thresh - mu.all)/sigma.all)^(-1/xi.all) )#
+    scaleterm <- -sum(log(sigma.obs))#
+    dataterm <- -sum((1+1/xi.obs)*log( 1+xi.obs*(z - mu.obs)/sigma.obs ))#
+  }#
+  else{#
+  	print("Warning: xi = 0")	#
+  }#
+  return( as.numeric(normconst + scaleterm + dataterm) )#
+}
+loglik_poisproc_linloc( z = exc.obs[,2], thresh = thresh, nBlocks = length(1950:2015),#
+                       x = year.lin, blockIndex = exc.obs$season.year, firstBlock = 1950,#
+                       mu0 = mu0_outpred$pred.means[s-2], #
+                       mu1 = mu1_outpred$pred.means[s-2], #
+                       sigma = exp(logsigma_outpred$pred.means[s-2]), #
+                       xi = xixi_outpred$pred.means[s-2] )
+loglik_poisproc_linloc( z = exc.obs[,2], thresh = thresh, nBlocks = length(1950:2015),#
+                       x = year.lin, blockIndex = exc.obs$season.year, firstBlock = 1950,#
+                       mu0 = mu0_outpred$pred.means[s-2], #
+                       mu1 = mu1_outpred$pred.means[s-2], #
+                       sigma = exp(logsigma_outpred$pred.means[s-2]), #
+                       xi = xi_outpred$pred.means[s-2] )
+# Loop over holdout station; year#
+  loglik.vec <- rep(NA, ncol(test.data) - 2)#
+  for( s in 3:ncol(test.data) ){#
+    all.obs <- test.data[is.na(test.data[,s]) == FALSE,c(2,s)]#
+    thresh <- quantile(all.obs[all.obs[,2] >= 1 & is.na(all.obs[,2]) == FALSE,2], 0.95)#
+    exc.obs <- all.obs[all.obs[,2] > thresh,]#
+    loglik.vec[s] <- loglik_poisproc_linloc( z = exc.obs[,2], thresh = thresh, nBlocks = length(1950:2015),#
+                       x = year.lin, blockIndex = exc.obs$season.year, firstBlock = 1950,#
+                       mu0 = mu0_outpred$pred.means[s-2], #
+                       mu1 = mu1_outpred$pred.means[s-2], #
+                       sigma = exp(logsigma_outpred$pred.means[s-2]), #
+                       xi = xi_outpred$pred.means[s-2] )    #
+   }
+s
+exc.obs
+z = exc.obs[,2]
+nBlocks = length(1950:2015)
+x = year.lin
+blockIndex = exc.obs$season.year
+firstBlock = 1950
+mu0 = mu0_outpred$pred.means[s-2]
+mu1 = mu1_outpred$pred.means[s-2]
+sigma = exp(logsigma_outpred$pred.means[s-2])
+xi = xi_outpred$pred.means[s-2]
+ncol(test.data)
+loglik.vec
+for( s in 3:ncol(test.data) ){#
+    all.obs <- test.data[is.na(test.data[,s]) == FALSE,c(2,s)]#
+    thresh <- quantile(all.obs[all.obs[,2] >= 1 & is.na(all.obs[,2]) == FALSE,2], 0.95)#
+    exc.obs <- all.obs[all.obs[,2] > thresh,]#
+    loglik.vec[s-2] <- loglik_poisproc_linloc( z = exc.obs[,2], thresh = thresh, nBlocks = length(1950:2015),#
+                       x = year.lin, blockIndex = exc.obs$season.year, firstBlock = 1950,#
+                       mu0 = mu0_outpred$pred.means[s-2], #
+                       mu1 = mu1_outpred$pred.means[s-2], #
+                       sigma = exp(logsigma_outpred$pred.means[s-2]), #
+                       xi = xi_outpred$pred.means[s-2] )    #
+   }
+loglik.vec
+s = 13
+all.obs <- test.data[is.na(test.data[,s]) == FALSE,c(2,s)]#
+    thresh <- quantile(all.obs[all.obs[,2] >= 1 & is.na(all.obs[,2]) == FALSE,2], 0.95)#
+    exc.obs <- all.obs[all.obs[,2] > thresh,]
+exc.obs
+z = exc.obs[,2]
+nBlocks = length(1950:2015)
+blockIndex = exc.obs$season.year
+firstBlock = 1950
+mu0 = mu0_outpred$pred.means[s-2]
+mu1 = mu1_outpred$pred.means[s-2]
+sigma = exp(logsigma_outpred$pred.means[s-2])
+xi = xi_outpred$pred.means[s-2]
+mu.all <- mu0 + mu1*x
+sigma.all <- rep(sigma, nBlocks)
+xi.all <- rep(xi, nBlocks)
+x.obs <- merge( data.frame( x = x, block = firstBlock:(firstBlock+nBlocks-1)),
+mu.obs <- mu0 + mu1*x.obs
+x.obs <- merge( data.frame( x = x, block = firstBlock:(firstBlock+nBlocks-1)), #
+                  data.frame( block = blockIndex ) )$x#
+  mu.obs <- mu0 + mu1*x.obs#
+  sigma.obs <- rep(sigma, length(z))#
+  xi.obs <- rep(xi, length(z))
+xi.obs
+(1 + xi.all*(thresh - mu.all)/sigma.all)^(-1/xi.all)
+log(sigma.obs)
+1+xi.obs*(z - mu.obs)/sigma.obs
+z
+xi
+loglik_poisproc_linloc <- function( z, thresh, nBlocks, x, blockIndex, firstBlock, mu0, mu1, sigma, xi ){#
+  mu.all <- mu0 + mu1*x#
+  sigma.all <- rep(sigma, nBlocks)#
+  xi.all <- rep(xi, nBlocks)#
+  x.obs <- merge( data.frame( x = x, block = firstBlock:(firstBlock+nBlocks-1)), #
+                  data.frame( block = blockIndex ) )$x#
+  mu.obs <- mu0 + mu1*x.obs#
+  sigma.obs <- rep(sigma, length(z))#
+  xi.obs <- rep(xi, length(z))#
+  if( xi != 0 ){#
+    normconst <- -sum( (1 + xi.all*(thresh - mu.all)/sigma.all)^(-1/xi.all) )#
+    scaleterm <- -sum(log(sigma.obs))#
+    temp <- 1+xi.obs*(z - mu.obs)/sigma.obs#
+    dataterm <- -sum((1+1/xi.obs[temp>0])*log( temp[temp>0] ))#
+  }#
+  else{#
+  	print("Warning: xi = 0")	#
+  }#
+  return( as.numeric(normconst + scaleterm + dataterm) )#
+}
+loglik.vec <- rep(NA, ncol(test.data) - 2)#
+  for( s in 3:ncol(test.data) ){#
+    all.obs <- test.data[is.na(test.data[,s]) == FALSE,c(2,s)]#
+    thresh <- quantile(all.obs[all.obs[,2] >= 1 & is.na(all.obs[,2]) == FALSE,2], 0.95)#
+    exc.obs <- all.obs[all.obs[,2] > thresh,]#
+    loglik.vec[s-2] <- loglik_poisproc_linloc( z = exc.obs[,2], thresh = thresh, nBlocks = length(1950:2015),#
+                       x = year.lin, blockIndex = exc.obs$season.year, firstBlock = 1950,#
+                       mu0 = mu0_outpred$pred.means[s-2], #
+                       mu1 = mu1_outpred$pred.means[s-2], #
+                       sigma = exp(logsigma_outpred$pred.means[s-2]), #
+                       xi = xi_outpred$pred.means[s-2] )    #
+   }
+loglik.vec
+temp <- 1+xi.obs*(z - mu.obs)/sigma.obs
+temp
+(1+1/xi.obs[temp>0])*log( temp[temp>0] )
+log( temp[temp>0] )
+(1+1/xi.obs[temp>0])*log( temp[temp>0] )
+(1+1/xi.obs)*log( temp )
+cbind(temp,(1+1/xi.obs)*log( temp ))
+plot(temp,(1+1/xi.obs)*log( temp ))
+normconst <- -sum( (1 + xi.all*(thresh - mu.all)/sigma.all)^(-1/xi.all) )#
+    scaleterm <- -sum(log(sigma.obs))#
+    temp <- 1+xi.obs*(z - mu.obs)/sigma.obs#
+    temp[temp<=0] <- 1e-5#
+    dataterm <- -sum((1+1/xi.obs)*log( temp ))
+as.numeric(normconst + scaleterm + dataterm)
+(1+1/xi.obs)*log( temp )
+temp
+normconst <- -sum( (1 + xi.all*(thresh - mu.all)/sigma.all)^(-1/xi.all) )#
+    scaleterm <- -sum(log(sigma.obs))#
+    temp <- 1+xi.obs*(z - mu.obs)/sigma.obs#
+    temp[temp<=0] <- 0.01#
+    dataterm <- -sum((1+1/xi.obs)*log( temp ))
+as.numeric(normconst + scaleterm + dataterm)
+dataterm <- -sum((1+1/xi.obs[temp>0])*log( temp[temp>0] ))
+as.numeric(normconst + scaleterm + dataterm)
+temp <- 1+xi.obs*(z - mu.obs)/sigma.obs
+dataterm <- -sum((1+1/xi.obs[temp>0])*log( temp[temp>0] ))
+as.numeric(normconst + scaleterm + dataterm)
+normconst
+scaleterm
+temp
+normconst <- -sum( (1 + xi.all*(thresh - mu.all)/sigma.all)^(-1/xi.all) )#
+    scaleterm <- -sum(log(sigma.obs))#
+    temp <- 1+xi.obs*(z - mu.obs)/sigma.obs#
+    temp[temp<=0] <- 0.001#
+    dataterm <- -sum((1+1/xi.obs)*log( temp ))
+temp
+(temp - 1)*sigma.obs/xi.obs + mu.obs
+z
+temp <- 1+xi.obs*(z - mu.obs)/sigma.obs#
+    temp[temp<=0] <- 0#.001
+(temp - 1)*sigma.obs/xi.obs + mu.obs
+?coord_map
+library(ggmap)
+?coord_map
+load("/Users/MDRisser/Season1_Parameter2_fullDataFit.RData")
+library(convoSPAT)
+plot(out$theta_nsfit, asp = 1, ylim = c(-33, 0))
+library(fields)
+?tps
+?Tps
+?predict.Krig
+library(convoSPAT)
+version(convoSPAT)
+cite(convoSPAT)
+cite("convoSPAT")
+citation("convoSPAT")
+NSconvo_fit
+178 + 0.69*180
+#================================================#
+# NNGP with regression-based covariance#
+# functions, using nimble#
+# Mark Risser#
+# Lawrence Berkeley National Laboratory#
+# January, 2018#
+#================================================#
+#
+#================================================#
+# For now, using a standard (isotropic #
+# exponential) covariance function #
+#================================================#
+#
+library(nimble)#
+library(FNN)#
+library(MASS)#
+library(fields)#
+library(ggplot2)#
+library(RColorBrewer)#
+#
+# Sample data#
+n <- 200 # number of locations#
+set.seed(0)#
+coords <- cbind(runif(n), runif(n))#
+dsts <- as.matrix(dist(coords, upper = T, diag = T))#
+plot(coords, asp = 1)#
+#
+# Sample covariance matrix#
+tausq <- 0.1#
+phi <- 0.25#
+sigmasq <- 1.1#
+C <- tausq*diag(n) + sigmasq*exp(-dsts/phi) #
+#
+# Sample data#
+set.seed(1)#
+z <- mvrnorm(n = 1, m = rep(4,n), Sigma = C)#
+ggplot(data.frame( lon = coords[,1], lat = coords[,2], z = z ), aes(x = lon, y = lat, color = z)) +#
+  geom_point() + coord_fixed() + theme_bw() +#
+  scale_color_gradientn( colors = brewer.pal(9, "Spectral"))#
+#
+#================================================#
+# Exponential covariance for spatial GP#
+#================================================#
+# Later we can get fancy with incorporating a nonstationary#
+# covariance function#
+# For now, use an isotropic exponential covariance:#
+iso_expcov <- nimbleFunction(     #
+  run = function(distances = double(2), psi = double(0), sigmasq = double(0)) {#
+    returnType(double(2))#
+    result <- sigmasq*exp(-(distances/psi))#
+    return(result)#
+  })#
+#
+# Create the model #
+isoGP_code <- nimbleCode({#
+  # likelihood#
+  z[1:n] ~ dmnorm( mean = mn[1:N], cov = Cov[1:N,1:N] )#
+#
+  # process structure#
+  mn[1:n] <- ones[1:n]*beta#
+  Cov[1:n,1:n] <- tausq*Imat[1:n, 1:n] + spatial_expcov(dsts[1:n,1:n], psi, sigmasq)#
+  # hyperparameters#
+  beta ~ dnorm(0, sd = beta.sd)#
+  tausq ~ dunif(0, tausq.ub)#
+  sigmasq ~ dunif(0, sigmasq.ub)#
+  psi ~ dunif(0, psi.ub)#
+})#
+#
+isoGP_model <- nimbleModel( #
+  code = isoGP_code, #
+  constants = list(n = n, psi.ub = max(dsts)/2, dsts = dsts, ones = rep(1,n), Imat = diag(n),#
+                   beta.sd = 100, tausq.ub = 100, sigmasq.ub = 100 ),#
+  inits = list( beta = 0, psi = 0.5, tausq = 1, sigmasq = 1, Cov = diag(n) ),#
+  data = list(z = z)#
+)#
+#
+compl_isoGP_model <- compileNimble( isoGP_model )#
+conf_isoGP_model <- configureMCMC( isoGP_model ) #
+#
+# Look at configuration#
+conf_isoGP_model$getSamplers()#
+#
+mcmc <- buildMCMC( conf_isoGP_model )#
+Cmcmc <- compileNimble(mcmc, project = isoGP_model )#
+#
+Cmcmc$run(1000)#
+samp <- as.matrix(Cmcmc$mvSamples)
+# For now, use an isotropic exponential covariance:#
+iso_expcov <- nimbleFunction(     #
+  run = function(distances = double(2), psi = double(0), sigmasq = double(0)) {#
+    returnType(double(2))#
+    result <- sigmasq*exp(-(distances/psi))#
+    return(result)#
+  })#
+#
+# Create the model #
+isoGP_code <- nimbleCode({#
+  # likelihood#
+  z[1:n] ~ dmnorm( mean = mn[1:n], cov = Cov[1:n,1:n] )#
+#
+  # process structure#
+  mn[1:n] <- ones[1:n]*beta#
+  Cov[1:n,1:n] <- tausq*Imat[1:n, 1:n] + spatial_expcov(dsts[1:n,1:n], psi, sigmasq)#
+  # hyperparameters#
+  beta ~ dnorm(0, sd = beta.sd)#
+  tausq ~ dunif(0, tausq.ub)#
+  sigmasq ~ dunif(0, sigmasq.ub)#
+  psi ~ dunif(0, psi.ub)#
+})#
+#
+isoGP_model <- nimbleModel( #
+  code = isoGP_code, #
+  constants = list(n = n, psi.ub = max(dsts)/2, dsts = dsts, ones = rep(1,n), Imat = diag(n),#
+                   beta.sd = 100, tausq.ub = 100, sigmasq.ub = 100 ),#
+  inits = list( beta = 0, psi = 0.5, tausq = 1, sigmasq = 1, Cov = diag(n) ),#
+  data = list(z = z)#
+)#
+#
+compl_isoGP_model <- compileNimble( isoGP_model )#
+conf_isoGP_model <- configureMCMC( isoGP_model ) #
+#
+# Look at configuration#
+conf_isoGP_model$getSamplers()#
+#
+mcmc <- buildMCMC( conf_isoGP_model )#
+Cmcmc <- compileNimble(mcmc, project = isoGP_model )
+# For now, use an isotropic exponential covariance:#
+iso_expcov <- nimbleFunction(     #
+  run = function(distances = double(2), psi = double(0), sigmasq = double(0)) {#
+    returnType(double(2))#
+    result <- sigmasq*exp(-(distances/psi))#
+    return(result)#
+  })#
+#
+# Create the model #
+isoGP_code <- nimbleCode({#
+  # likelihood#
+  z[1:n] ~ dmnorm( mean = mn[1:n], cov = Cov[1:n,1:n] )#
+#
+  # process structure#
+  mn[1:n] <- ones[1:n]*beta#
+  Cov[1:n,1:n] <- tausq*Imat[1:n, 1:n] + iso_expcov(dsts[1:n,1:n], psi, sigmasq)#
+  # hyperparameters#
+  beta ~ dnorm(0, sd = beta.sd)#
+  tausq ~ dunif(0, tausq.ub)#
+  sigmasq ~ dunif(0, sigmasq.ub)#
+  psi ~ dunif(0, psi.ub)#
+})#
+#
+isoGP_model <- nimbleModel( #
+  code = isoGP_code, #
+  constants = list(n = n, psi.ub = max(dsts)/2, dsts = dsts, ones = rep(1,n), Imat = diag(n),#
+                   beta.sd = 100, tausq.ub = 100, sigmasq.ub = 100 ),#
+  inits = list( beta = 0, psi = 0.5, tausq = 1, sigmasq = 1, Cov = diag(n) ),#
+  data = list(z = z)#
+)#
+#
+compl_isoGP_model <- compileNimble( isoGP_model )#
+conf_isoGP_model <- configureMCMC( isoGP_model ) #
+#
+# Look at configuration#
+conf_isoGP_model$getSamplers()#
+#
+mcmc <- buildMCMC( conf_isoGP_model )#
+Cmcmc <- compileNimble(mcmc, project = isoGP_model )#
+#
+Cmcmc$run(1000)#
+samp <- as.matrix(Cmcmc$mvSamples)
+plot(samp[,"beta"], type = "l")
+plot(samp[,"psi"], type = "l")
+psi
+phi
+plot(samp[,"tausq"], type = "l")
+plot(samp[,"sigmasq"], type = "l")
+isoGP_model <- nimbleModel( #
+  code = isoGP_code, #
+  constants = list(n = n, psi.ub = max(dsts)/2, dsts = dsts, ones = rep(1,n), Imat = diag(n),#
+                   beta.sd = 100, tausq.ub = 100, sigmasq.ub = 100 ),#
+  inits = list( beta = 0, psi = 0.5, tausq = 1, sigmasq = 1, Cov = diag(n) ),#
+  data = list(z = z)#
+)#
+#
+compl_isoGP_model <- compileNimble( isoGP_model )#
+conf_isoGP_model <- configureMCMC( isoGP_model ) #
+#
+# Look at configuration#
+conf_isoGP_model$removeSamplers( c("psi", "tausq", "sigmasq") )#
+conf_isoGP_model$addSampler( target =  c("psi", "tausq", "sigmasq") ,#
+                                 type = "AF_slice" )#
+#
+conf_isoGP_model$getSamplers()#
+#
+mcmc <- buildMCMC( conf_isoGP_model )#
+Cmcmc <- compileNimble(mcmc, project = isoGP_model )#
+#
+Cmcmc$run(1000)#
+samp <- as.matrix(Cmcmc$mvSamples)
+plot(samp[,"beta"], type = "l")
+plot(samp[,"sigmasq"], type = "l")
+plot(samp[,"tausq"], type = "l")
+plot(samp[,"psi"], type = "l")
+Cmcmc$run(10000)
+isoGP_model <- nimbleModel( #
+  code = isoGP_code, #
+  constants = list(n = n, psi.ub = max(dsts)/2, dsts = dsts, ones = rep(1,n), Imat = diag(n),#
+                   beta.sd = 100, tausq.ub = 100, sigmasq.ub = 100 ),#
+  inits = list( beta = 0, psi = 0.5, tausq = 1, sigmasq = 1, Cov = diag(n) ),#
+  data = list(z = z)#
+)#
+#
+compl_isoGP_model <- compileNimble( isoGP_model )#
+conf_isoGP_model <- configureMCMC( isoGP_model ) #
+#
+# Look at configuration#
+conf_isoGP_model$removeSamplers( c("psi", "sigmasq") )#
+conf_isoGP_model$addSampler( target =  c("psi", "sigmasq") ,#
+                                 type = "AF_slice" )#
+#
+conf_isoGP_model$getSamplers()#
+#
+mcmc <- buildMCMC( conf_isoGP_model )#
+Cmcmc <- compileNimble(mcmc, project = isoGP_model )#
+#
+Cmcmc$run(10000)#
+samp <- as.matrix(Cmcmc$mvSamples)[5001:10000,]
+par(mfrow(2,2))#
+plot(samp[,"beta"], type = "l")#
+plot(samp[,"sigmasq"], type = "l")#
+plot(samp[,"tausq"], type = "l")#
+plot(samp[,"psi"], type = "l")
+par(mfrow = c(2,2))#
+plot(samp[,"beta"], type = "l")#
+plot(samp[,"sigmasq"], type = "l")#
+plot(samp[,"tausq"], type = "l")#
+plot(samp[,"psi"], type = "l")
+par(mfrow = c(2,2))#
+plot(samp[,"beta"], type = "l")#
+abline(h = 4, col = 2)#
+plot(samp[,"sigmasq"], type = "l")#
+abline(h = sigmasq, col = 2)#
+plot(samp[,"tausq"], type = "l")#
+abline(h = tausq, col = 2)#
+plot(samp[,"psi"], type = "l")#
+abline(h = phi, col = 2)
+head(expand.grid( ptn = 1:10, samp = 1:nSamp ))
+nSamp = 10000
+head(expand.grid( ptn = 1:10, samp = 1:nSamp ))
+616+749+303+249+208+189+504
+616+749+303+249+208+189+504+31+7+28+95+21+247+299+542+102+113+186+169+1130+199
+library(nimble)#
+library(coda)#
+nimbleOptions(verbose = TRUE)#
+source("../BayesNSGP/BayesNSGP/R/core.R")#
+source("../BayesNSGP/BayesNSGP/R/NNGP.R")#
+source("../BayesNSGP/BayesNSGP/R/SGV.R")#
+# Stationary/isotropic#
+N <- 1000#
+k <- 15#
+set.seed(12)#
+locs <- matrix(runif(2*N), ncol = 2)#
+sigsq <- 1#
+tausq <- 0.05#
+phi <- 0.3162278^2#
+mu <- 0#
+C <- sigsq*exp(-as.matrix(dist(locs, upper = TRUE, diag = TRUE))/phi)#
+D <- tausq*diag(N)#
+set.seed(110)#
+y <- rep(mu, N) + t(chol(C)) %*% rnorm(N)#
+z <- as.numeric(y + rnorm(N, sd = sqrt(tausq)))#
+# FullGP #
+dist_fullGP <- nsDist(locs)#
+constants_fullGP <- list( dist1_sq = dist_fullGP$dist1_sq, dist2_sq = dist_fullGP$dist2_sq, #
+                          dist12 = dist_fullGP$dist12, nu = 0.5, N = N )#
+#
+# NNGP#
+nID_NNGP <- determineNeighbors(locs, k)#
+dist_NNGP <- nsDist3d(locs, nID_NNGP)#
+constants_NNGP <- list( dist1_3d = dist_NNGP$dist1_3d, dist2_3d = dist_NNGP$dist2_3d, #
+                        dist12_3d = dist_NNGP$dist12_3d, nu = 0.5, N = N, k = k, nID = nID_NNGP )#
+#
+# SGV#
+SGV_setup <- sgvSetup(locs = locs, k = k)#
+nID_SGV <- SGV_setup$nID_ord#
+dist_SGV <- nsDist3d(locs[SGV_setup$ord,], nID_SGV)#
+constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3d, #
+                       dist12_3d = dist_SGV$dist12_3d, num_NZ = 3*N + k*N - (k*(k+1)/2),#
+                       nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord )#
+#
+niter <- 3000#
+strt.kp <- 1001#
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"#
+Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP, z = z)#
+#
+compl_model_fullGP <- compileNimble( Rmodel_fullGP )#
+conf_model_fullGP <- configureMCMC( Rmodel_fullGP )#
+conf_model_fullGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))#
+conf_model_fullGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")#
+conf_model_fullGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))#
+nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)#
+nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)#
+calculate(Rmodel_fullGP, paste("z[1:", N, "]", sep = ""))#
+#
+prt <- proc.time()#
+nim_Cmcmc_fullGP$run(niter)#
+fullGP.tm <- proc.time() - prt#
+postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]#
+#
+par(mfrow = c(2,3))#
+plot(postSamp_fullGP[,"beta"], type = "l", ylab = "beta")#
+abline(h = mu, col = 2)#
+plot(exp(postSamp_fullGP[,"delta"])^2, type = "l", ylab = "tausq")#
+abline(h = tausq, col = 2)#
+plot(exp(postSamp_fullGP[,"alpha"])^2, type = "l", ylab = "sigmasq")#
+abline(h = sigsq, col = 2)#
+plot(postSamp_fullGP[,"Sigma11[1]"], type = "l", ylab = "Sigma11")#
+abline(h = phi, col = 2)#
+plot(postSamp_fullGP[,"Sigma22[1]"], type = "l", ylab = "Sigma22")#
+abline(h = phi, col = 2)#
+plot(postSamp_fullGP[,"Sigma12[1]"], type = "l", ylab = "Sigma12")#
+abline(h = 0, col = 2)#
+#
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))#
+samplesList <- list(fullGP = postSamp_fullGP)#
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"#
+Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z )#
+#
+compl_model_NNGP <- compileNimble( Rmodel_NNGP )#
+conf_model_NNGP <- configureMCMC( Rmodel_NNGP )#
+conf_model_NNGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))#
+conf_model_NNGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")#
+conf_model_NNGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))#
+nim_mcmc_NNGP <- buildMCMC(conf_model_NNGP)#
+nim_Cmcmc_NNGP <- compileNimble(nim_mcmc_NNGP, project = Rmodel_NNGP)#
+calculate(Rmodel_NNGP, paste("z[1:", N, "]", sep = ""))#
+#
+prt <- proc.time()#
+nim_Cmcmc_NNGP$run(niter)#
+NNGP.tm <- proc.time() - prt#
+postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)[strt.kp:niter,]#
+#
+par(mfrow = c(2,3))#
+plot(postSamp_NNGP[,"beta"], type = "l", ylab = "beta")#
+abline(h = mu, col = 2)#
+plot(exp(postSamp_NNGP[,"delta"])^2, type = "l", ylab = "tausq")#
+abline(h = tausq, col = 2)#
+plot(exp(postSamp_NNGP[,"alpha"])^2, type = "l", ylab = "sigmasq")#
+abline(h = sigsq, col = 2)#
+plot(postSamp_NNGP[,"Sigma11[1]"], type = "l", ylab = "Sigma11")#
+abline(h = phi, col = 2)#
+plot(postSamp_NNGP[,"Sigma22[1]"], type = "l", ylab = "Sigma22")#
+abline(h = phi, col = 2)#
+plot(postSamp_NNGP[,"Sigma12[1]"], type = "l", ylab = "Sigma12")#
+abline(h = 0, col = 2)#
+#
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))#
+samplesList$NNGP <- postSamp_NNGP#
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"#
+Rmodel_SGV <- nsgpModel( likelihood = "SGV", constants = constants_SGV, z = z[SGV_setup$ord] )#
+compl_model_SGV <- compileNimble( Rmodel_SGV, showCompilerOutput = TRUE )#
+#
+conf_model_SGV <- configureMCMC( Rmodel_SGV )#
+conf_model_SGV$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))#
+conf_model_SGV$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")#
+conf_model_SGV$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))#
+nim_mcmc_SGV <- buildMCMC(conf_model_SGV)#
+nim_Cmcmc_SGV <- compileNimble(nim_mcmc_SGV, project = Rmodel_SGV, showCompilerOutput = TRUE)#
+calculate(Rmodel_SGV, paste("z[1:", N, "]", sep = ""))#
+#
+prt <- proc.time()#
+nim_Cmcmc_SGV$run(niter)#
+SGV.tm <- proc.time() - prt#
+postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]#
+#
+par(mfrow = c(2,3))#
+plot(postSamp_SGV[,"Sigma11[1]"], type = "l")#
+abline(h = phi, col = 2)#
+plot(postSamp_SGV[,"Sigma22[1]"], type = "l")#
+abline(h = phi, col = 2)#
+plot(postSamp_SGV[,"Sigma12[1]"], type = "l")#
+abline(h = 0, col = 2)#
+plot(postSamp_SGV[,"beta"], type = "l")#
+abline(h = mu, col = 2)#
+plot(exp(postSamp_SGV[,"delta"])^2, type = "l")#
+abline(h = tausq, col = 2)#
+plot(exp(postSamp_SGV[,"alpha"])^2, type = "l")#
+abline(h = sigsq, col = 2)#
+#
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))#
+samplesList$SGV <- postSamp_SGV#
+par(mfrow = c(2,3))#
+plot(samplesList[[1]][,"Sigma11[1]"], type = "l")#
+lines(samplesList[[2]][,"Sigma11[1]"], col = 4)#
+lines(samplesList[[3]][,"Sigma11[1]"], col = 3)#
+abline(h = phi, col = 2)#
+plot(samplesList[[1]][,"Sigma22[1]"], type = "l")#
+lines(samplesList[[2]][,"Sigma22[1]"], col = 4)#
+lines(samplesList[[3]][,"Sigma22[1]"], col = 3)#
+abline(h = phi, col = 2)#
+plot(samplesList[[1]][,"Sigma12[1]"], type = "l")#
+lines(samplesList[[2]][,"Sigma12[1]"], col = 4)#
+lines(samplesList[[3]][,"Sigma12[1]"], col = 3)#
+abline(h = 0, col = 2)#
+plot(samplesList[[1]][,"beta"], type = "l")#
+lines(samplesList[[2]][,"beta"], col = 4)#
+lines(samplesList[[3]][,"beta"], col = 3)#
+abline(h = mu, col = 2)#
+plot(exp(samplesList[[1]][,"delta"])^2, type = "l")#
+lines(exp(samplesList[[2]][,"delta"])^2, col = 4)#
+lines(exp(samplesList[[3]][,"delta"])^2, col = 3)#
+abline(h = tausq, col = 2)#
+plot(exp(samplesList[[1]][,"alpha"])^2, type = "l")#
+lines(exp(samplesList[[2]][,"alpha"])^2, col = 4)#
+lines(exp(samplesList[[3]][,"alpha"])^2, col = 3)#
+abline(h = sigsq, col = 2)
+source("BayesNSGP/R/core.R")
+library(nimble)#
+library(coda)#
+nimbleOptions(verbose = TRUE)#
+source("BayesNSGP/R/core.R")#
+source("BayesNSGP/R/NNGP.R")#
+source("BayesNSGP/R/SGV.R")#
+# Stationary/isotropic#
+N <- 1000#
+k <- 15#
+set.seed(12)#
+locs <- matrix(runif(2*N), ncol = 2)#
+sigsq <- 1#
+tausq <- 0.05#
+phi <- 0.3162278^2#
+mu <- 0#
+C <- sigsq*exp(-as.matrix(dist(locs, upper = TRUE, diag = TRUE))/phi)#
+D <- tausq*diag(N)#
+set.seed(110)#
+y <- rep(mu, N) + t(chol(C)) %*% rnorm(N)#
+z <- as.numeric(y + rnorm(N, sd = sqrt(tausq)))#
+# FullGP #
+dist_fullGP <- nsDist(locs)#
+constants_fullGP <- list( dist1_sq = dist_fullGP$dist1_sq, dist2_sq = dist_fullGP$dist2_sq, #
+                          dist12 = dist_fullGP$dist12, nu = 0.5, N = N )#
+#
+# NNGP#
+nID_NNGP <- determineNeighbors(locs, k)#
+dist_NNGP <- nsDist3d(locs, nID_NNGP)#
+constants_NNGP <- list( dist1_3d = dist_NNGP$dist1_3d, dist2_3d = dist_NNGP$dist2_3d, #
+                        dist12_3d = dist_NNGP$dist12_3d, nu = 0.5, N = N, k = k, nID = nID_NNGP )#
+#
+# SGV#
+SGV_setup <- sgvSetup(locs = locs, k = k)#
+nID_SGV <- SGV_setup$nID_ord#
+dist_SGV <- nsDist3d(locs[SGV_setup$ord,], nID_SGV)#
+constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3d, #
+                       dist12_3d = dist_SGV$dist12_3d, num_NZ = 3*N + k*N - (k*(k+1)/2),#
+                       nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord )#
+#
+niter <- 3000#
+strt.kp <- 1001#
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"#
+Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP, z = z)#
+#
+compl_model_fullGP <- compileNimble( Rmodel_fullGP )#
+conf_model_fullGP <- configureMCMC( Rmodel_fullGP )#
+conf_model_fullGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))#
+conf_model_fullGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")#
+conf_model_fullGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))#
+nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)#
+nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)#
+calculate(Rmodel_fullGP, paste("z[1:", N, "]", sep = ""))#
+#
+prt <- proc.time()#
+nim_Cmcmc_fullGP$run(niter)#
+fullGP.tm <- proc.time() - prt#
+postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]#
+#
+par(mfrow = c(2,3))#
+plot(postSamp_fullGP[,"beta"], type = "l", ylab = "beta")#
+abline(h = mu, col = 2)#
+plot(exp(postSamp_fullGP[,"delta"])^2, type = "l", ylab = "tausq")#
+abline(h = tausq, col = 2)#
+plot(exp(postSamp_fullGP[,"alpha"])^2, type = "l", ylab = "sigmasq")#
+abline(h = sigsq, col = 2)#
+plot(postSamp_fullGP[,"Sigma11[1]"], type = "l", ylab = "Sigma11")#
+abline(h = phi, col = 2)#
+plot(postSamp_fullGP[,"Sigma22[1]"], type = "l", ylab = "Sigma22")#
+abline(h = phi, col = 2)#
+plot(postSamp_fullGP[,"Sigma12[1]"], type = "l", ylab = "Sigma12")#
+abline(h = 0, col = 2)#
+#
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))#
+samplesList <- list(fullGP = postSamp_fullGP)#
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"#
+Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z )#
+#
+compl_model_NNGP <- compileNimble( Rmodel_NNGP )#
+conf_model_NNGP <- configureMCMC( Rmodel_NNGP )#
+conf_model_NNGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))#
+conf_model_NNGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")#
+conf_model_NNGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))#
+nim_mcmc_NNGP <- buildMCMC(conf_model_NNGP)#
+nim_Cmcmc_NNGP <- compileNimble(nim_mcmc_NNGP, project = Rmodel_NNGP)#
+calculate(Rmodel_NNGP, paste("z[1:", N, "]", sep = ""))#
+#
+prt <- proc.time()#
+nim_Cmcmc_NNGP$run(niter)#
+NNGP.tm <- proc.time() - prt#
+postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)[strt.kp:niter,]#
+#
+par(mfrow = c(2,3))#
+plot(postSamp_NNGP[,"beta"], type = "l", ylab = "beta")#
+abline(h = mu, col = 2)#
+plot(exp(postSamp_NNGP[,"delta"])^2, type = "l", ylab = "tausq")#
+abline(h = tausq, col = 2)#
+plot(exp(postSamp_NNGP[,"alpha"])^2, type = "l", ylab = "sigmasq")#
+abline(h = sigsq, col = 2)#
+plot(postSamp_NNGP[,"Sigma11[1]"], type = "l", ylab = "Sigma11")#
+abline(h = phi, col = 2)#
+plot(postSamp_NNGP[,"Sigma22[1]"], type = "l", ylab = "Sigma22")#
+abline(h = phi, col = 2)#
+plot(postSamp_NNGP[,"Sigma12[1]"], type = "l", ylab = "Sigma12")#
+abline(h = 0, col = 2)#
+#
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))#
+samplesList$NNGP <- postSamp_NNGP#
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"#
+Rmodel_SGV <- nsgpModel( likelihood = "SGV", constants = constants_SGV, z = z[SGV_setup$ord] )#
+compl_model_SGV <- compileNimble( Rmodel_SGV, showCompilerOutput = TRUE )#
+#
+conf_model_SGV <- configureMCMC( Rmodel_SGV )#
+conf_model_SGV$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"))#
+conf_model_SGV$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha"), type = "RW_block")#
+conf_model_SGV$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))#
+nim_mcmc_SGV <- buildMCMC(conf_model_SGV)#
+nim_Cmcmc_SGV <- compileNimble(nim_mcmc_SGV, project = Rmodel_SGV, showCompilerOutput = TRUE)#
+calculate(Rmodel_SGV, paste("z[1:", N, "]", sep = ""))#
+#
+prt <- proc.time()#
+nim_Cmcmc_SGV$run(niter)#
+SGV.tm <- proc.time() - prt#
+postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]#
+#
+par(mfrow = c(2,3))#
+plot(postSamp_SGV[,"Sigma11[1]"], type = "l")#
+abline(h = phi, col = 2)#
+plot(postSamp_SGV[,"Sigma22[1]"], type = "l")#
+abline(h = phi, col = 2)#
+plot(postSamp_SGV[,"Sigma12[1]"], type = "l")#
+abline(h = 0, col = 2)#
+plot(postSamp_SGV[,"beta"], type = "l")#
+abline(h = mu, col = 2)#
+plot(exp(postSamp_SGV[,"delta"])^2, type = "l")#
+abline(h = tausq, col = 2)#
+plot(exp(postSamp_SGV[,"alpha"])^2, type = "l")#
+abline(h = sigsq, col = 2)#
+#
+# system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))#
+samplesList$SGV <- postSamp_SGV#
+par(mfrow = c(2,3))#
+plot(samplesList[[1]][,"Sigma11[1]"], type = "l")#
+lines(samplesList[[2]][,"Sigma11[1]"], col = 4)#
+lines(samplesList[[3]][,"Sigma11[1]"], col = 3)#
+abline(h = phi, col = 2)#
+plot(samplesList[[1]][,"Sigma22[1]"], type = "l")#
+lines(samplesList[[2]][,"Sigma22[1]"], col = 4)#
+lines(samplesList[[3]][,"Sigma22[1]"], col = 3)#
+abline(h = phi, col = 2)#
+plot(samplesList[[1]][,"Sigma12[1]"], type = "l")#
+lines(samplesList[[2]][,"Sigma12[1]"], col = 4)#
+lines(samplesList[[3]][,"Sigma12[1]"], col = 3)#
+abline(h = 0, col = 2)#
+plot(samplesList[[1]][,"beta"], type = "l")#
+lines(samplesList[[2]][,"beta"], col = 4)#
+lines(samplesList[[3]][,"beta"], col = 3)#
+abline(h = mu, col = 2)#
+plot(exp(samplesList[[1]][,"delta"])^2, type = "l")#
+lines(exp(samplesList[[2]][,"delta"])^2, col = 4)#
+lines(exp(samplesList[[3]][,"delta"])^2, col = 3)#
+abline(h = tausq, col = 2)#
+plot(exp(samplesList[[1]][,"alpha"])^2, type = "l")#
+lines(exp(samplesList[[2]][,"alpha"])^2, col = 4)#
+lines(exp(samplesList[[3]][,"alpha"])^2, col = 3)#
+abline(h = sigsq, col = 2)
+fullGP.tm
+NNGP.tm
+SGV.tm

@@ -517,18 +517,20 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   ## Models for tau
   ##============================================
-  
   tau_model_list <- list(
     constant = list(
       ## 1. log_tau_HP1          Standard deviation for the log-linear standard deviation
       ## 2. delta                Scalar; represents log-linear standard deviation (constant over the domain)
       ## 3. ones                 N-vector of 1's
       code = quote({
-        log_tau_vec[1:N] <- delta*ones[1:N] 
-        delta ~ dnorm(0, sd = log_tau_HP1)
+        # log_tau_vec[1:N] <- delta*ones[1:N]
+        # delta ~ dnorm(0, sd = log_tau_HP1)
+        log_tau_vec[1:N] <- log(sqrt(delta))*ones[1:N]
+        delta ~ dunif(0, log_tau_HP1)
+        
       }),
       constants_needed = c("ones", "log_tau_HP1"),
-      inits = list(delta = 0)),
+      inits = list(delta = 1)),
     logLinReg = list(
       ## 1. X_tau                  N x p_tau design matrix; leading column of 1's with (p_tau - 1) other covariates
       ## 2. log_tau_HP1            Standard deviation for the log-linear regression coefficients
@@ -599,11 +601,15 @@ nsgpModel <- function( tau_model   = "constant",
       ## 2. alpha                  Scalar; represents log-linear standard deviation (constant over the domain)
       ## 3. ones                   N-vector of 1's
       code = quote({
-        log_sigma_vec[1:N] <- alpha*ones[1:N] 
-        alpha ~ dnorm(0, sd = log_sigma_HP1)
+        
+        # log_sigma_vec[1:N] <- alpha*ones[1:N]
+        # alpha ~ dnorm(0, sd = log_sigma_HP1)
+        log_sigma_vec[1:N] <- log(sqrt(alpha))*ones[1:N]
+        alpha ~ dunif(0, log_sigma_HP1)
+        
       }),
       constants_needed = c("ones", "log_sigma_HP1"),
-      inits = list(alpha = 0)),
+      inits = list(alpha = 1)),
     logLinReg = list(
       ## 1. X_sigma                N x p_sigma design matrix; leading column of 1's with (p_sigma - 1) other covariates
       ## 2. log_sigma_HP1          Standard deviation for the log-linear regression coefficients
@@ -681,22 +687,29 @@ nsgpModel <- function( tau_model   = "constant",
       ## 3. Sigma_coef{1,2,3}    Vectors of length p_Sigma; represents the anisotropy components
       code = quote({
         
-        eigen_comp1[1:N] <- Sigma_coef1*ones[1:N]
-        eigen_comp2[1:N] <- Sigma_coef2*ones[1:N]
-        eigen_comp3[1:N] <- Sigma_coef3*ones[1:N]
-        Sigma11[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 1)
-        Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3)
-        Sigma22[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 2)
+        Sigma11[1:N] <- ones[1:N]*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
+        Sigma22[1:N] <- ones[1:N]*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
+        Sigma12[1:N] <- ones[1:N]*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
+
+        Sigma_coef1 ~ dunif(0, Sigma_HP1) # phi1
+        Sigma_coef2 ~ dunif(0, Sigma_HP1) # phi2
+        Sigma_coef3 ~ dunif(0, 1.570796) # eta --> 1.570796 = pi/2
         
-        Sigma_coef1 ~ dnorm(0, sd = Sigma_HP1)
-        Sigma_coef2 ~ dnorm(0, sd = Sigma_HP1)
-        Sigma_coef3 ~ dnorm(0, sd = Sigma_HP1)
+        # eigen_comp1[1:N] <- Sigma_coef1*ones[1:N]
+        # eigen_comp2[1:N] <- Sigma_coef2*ones[1:N]
+        # eigen_comp3[1:N] <- Sigma_coef3*ones[1:N]
+        # Sigma11[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 1)
+        # Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3)
+        # Sigma22[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 2)
+        # Sigma_coef1 ~ dnorm(0, sd = Sigma_HP1)
+        # Sigma_coef2 ~ dnorm(0, sd = Sigma_HP1)
+        # Sigma_coef3 ~ dnorm(0, sd = Sigma_HP1)
       }),
       constants_needed = c("ones", "Sigma_HP1"),
       inits = list(
-        Sigma_coef1 = 0,
-        Sigma_coef2 = 2,
-        Sigma_coef3 = 1
+        Sigma_coef1 = 1,
+        Sigma_coef2 = 1,
+        Sigma_coef3 = 0.7853982 # pi/4
       )
     ),
     
@@ -975,7 +988,7 @@ nsgpModel <- function( tau_model   = "constant",
   if(missing(z)) stop("must provide data as 'z' argument")
   N <- length(z)
   
-  sd_default <- 10
+  sd_default <- 100
   mu_default <- 0
   matern_rho_default <- 1
   matern_nu_default <- 0.5     ## Mark: is this 0.5 good default choice for 'nu'?
@@ -991,7 +1004,7 @@ nsgpModel <- function( tau_model   = "constant",
     log_sigma_HP2 = mu_default,            ## mean
     log_sigma_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
     log_sigma_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
-    Sigma_HP1 = 1,     ## standard deviation
+    Sigma_HP1 = 10,    ## standard deviation
     Sigma_HP2 = 10,    ## uniform upper bound for covReg 'psi' parameters
     mu_HP1 = sd_default,            ## standard deviation
     nu = matern_nu_default         ## matern_corr 'nu'  parameter

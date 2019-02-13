@@ -250,7 +250,8 @@ calculateU_ns <- nimbleFunction(
       Cov_loc <- exp(log_sigma_vec[i])^2 # Formerly pt3
       
       ####################################
-      b_i <- nimNumeric( value = (Crosscov %*% inverse(Cov_cond))[1,1:nNei], length = nNei)
+      # b_i <- nimNumeric( value = (Crosscov %*% inverse(Cov_cond))[1,1:nNei], length = nNei)
+      b_i <- nimNumeric( value = solve(Cov_cond, t(Crosscov))[1:nNei,1], length = nNei)
       r_i <- Cov_loc - inprod( b_i, nimNumeric(value = (Crosscov)[1,1:nNei], length = nNei) ) 
       ####################################
 
@@ -320,7 +321,7 @@ calculateU_ns <- nimbleFunction(
 # Matrix::tcrossprod
 R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
   require(Matrix)
-  Asparse <- Matrix::sparseMatrix(i, j, x = x)
+  Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   if(subset[1] < 0){ # No subset
     ans.dsCMatrix <- Matrix::tcrossprod(Asparse)
   } else{
@@ -344,14 +345,14 @@ R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
   require(Matrix)
   # zSparse <- Matrix::sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
   if(transp == 1){ # use crossprod
-    Asparse <- Matrix::sparseMatrix(i, j, x = x)
+    Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
     if(subset[1] < 0){ # No subset
       ans.dsCMatrix <- Matrix::crossprod(Asparse, zSparse)
     } else{
       ans.dsCMatrix <- Matrix::crossprod(Asparse[subset,], as.numeric(z))
     }
   } else{ # Use %*%
-    Asparse <- Matrix::sparseMatrix(j, i, x = x)
+    Asparse <- Matrix::sparseMatrix(i = j, j = i, x = x)
     if(subset[1] < 0){ # No subset
       ans.dsCMatrix <- Matrix::crossprod(Asparse, zSparse)
     } else{
@@ -369,7 +370,7 @@ nimble_sparse_crossprod <- nimbleRcall(
 # Matrix::chol
 R_sparse_chol <- function(i, j, x, n) {
   require(Matrix)
-  Asparse <- Matrix::sparseMatrix(i, j, x = x)
+  Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   ans.dsCMatrix <- t(Matrix::chol(Asparse[n:1,n:1]))
   ans.dgTMatrix <- as(ans.dsCMatrix, 'dgTMatrix')
   i <- ans.dgTMatrix@i + 1
@@ -388,8 +389,9 @@ nimble_sparse_chol <- nimbleRcall(
 R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
   require(Matrix)
-  Asparse <- Matrix::sparseMatrix(i, j, x = x)
-  ans.dsCMatrix <- Matrix::solve(Asparse, rev(z), system = "L")
+  Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
+  z_rev <- rev(z)
+  ans.dsCMatrix <- Matrix::solve(Asparse, z_rev, system = "L")
   return(ans.dsCMatrix@x)
 }
 nimble_sparse_solve <- nimbleRcall(
