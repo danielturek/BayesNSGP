@@ -1,0 +1,281 @@
+---
+title: Application 1: annual precipitation in Colorado, 1981
+author: Mark Risser
+date: 15 February 2019
+output: html_document
+---
+
+\   
+
+```{r, message = FALSE, warning = FALSE}
+library(nimble)
+library(coda)
+library(StatMatch)
+nimbleOptions(verbose = TRUE)
+source("../BayesNSGP/BayesNSGP/R/core.R")
+source("../BayesNSGP/BayesNSGP/R/NNGP.R")
+source("../BayesNSGP/BayesNSGP/R/SGV.R")
+
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+library(viridis)
+# Shortcut function for plotting spatial data
+plot_spat <- function( coords, param.hat, ttle.txt = NULL, col.lim = range(param.hat, na.rm = TRUE),
+                        pt.size = 1.15, shp = 15, col.pal = brewer.pal(9, "RdYlBu")[9:1], brk_rd = 2,
+                       plot.grid = FALSE, border.wd = 0.3 ){
+  
+  param.hat[!is.na(param.hat) & param.hat < col.lim[1]] <- col.lim[1]
+  param.hat[!is.na(param.hat) & param.hat > col.lim[2]] <- col.lim[2]
+  
+  brks <- seq(from = col.lim[1], to = col.lim[2], length = 10)
+  brks <- round(brks, brk_rd)
+  
+  Longitude <- coords[,1]
+  Latitude <- coords[,2]
+  
+  if(!plot.grid){
+    ggplot( data.frame(coords), aes( x = Longitude, y = Latitude, 
+                                   color = cut(param.hat, brks, include.lowest = TRUE) ) ) +
+      geom_polygon( data = map_data("state"), aes(x = long, y = lat, group = group),
+                    color = NA, fill = "white", size = border.wd) +
+    geom_point(size = pt.size, shape = shp, alpha = 1 ) +
+      geom_polygon( data = map_data("state"), aes(x = long, y = lat, group = group),
+                    color = "gray60", fill = NA, size = border.wd) +
+    scale_color_manual( values = col.pal, name = "", drop = FALSE,
+                        labels = c(paste("<", brks[2]),
+                                   levels(cut(param.hat, brks, include.lowest = TRUE))[2:8],
+                                   paste(">", brks[9]))) +
+    ylab(NULL) + xlab(NULL) +
+    coord_cartesian(xlim = range(Longitude), ylim = range(Latitude)) +
+    guides(color = guide_legend( reverse = TRUE, override.aes = list(size=5) )) +
+    ggtitle(ttle.txt) + theme_bw()
+
+  } else{
+      ggplot( data.frame(coords), aes( x = Longitude, y = Latitude, 
+                                   fill = cut(param.hat, brks, include.lowest = TRUE) ) ) +
+      geom_polygon( data = map_data("state"), aes(x = long, y = lat, group = group),
+                    color = NA, fill = "white", size = border.wd) +
+    geom_tile(na.rm = TRUE) +
+      geom_polygon( data = map_data("state"), aes(x = long, y = lat, group = group),
+                    color = "gray60", fill = NA, size = border.wd) +
+    scale_fill_manual( values = col.pal, name = "", drop = FALSE,
+                        labels = c(paste("<", brks[2]),
+                                   levels(cut(param.hat, brks, include.lowest = TRUE))[2:8],
+                                   paste(">", brks[9]))) +
+    ylab(NULL) + xlab(NULL) +
+    coord_cartesian(xlim = range(Longitude), ylim = range(Latitude)) +
+    guides(fill = guide_legend( reverse = TRUE)) +
+    ggtitle(ttle.txt) + theme_bw()
+
+  }
+}
+
+```
+
+\   
+
+
+### Introduction
+
+In this application, we reproduce an analysis of the precipitation data set used by Paciorek and Schervish (2006) from Colorado, a state in the western United States of America. The data used here consist of monthly precipitation recorded at each of approximately 400 weather stations in Colorado; we specifically analyze annual precipitation from 1981, as this year has the most stations (217) without missing monthly values. Annual precipitation totals are given in millimeters, and we analyze the log of total precipitation to make the Gaussian process assumption more appropriate.
+
+The specific analysis is an illustration of two previous analyses of this data set: (1) the original analysis in Paciorek and Schervish (2006), and (2) the regression-based nonstationary covariance function from Risser and Calder (2015). The goal is to demonstrate how both of these models can be quickly implemented using the `BayesNSGP` package and NIMBLE.
+
+First, load the data to be used in both analyses and create the constants needed for the NIMBLE functionality:
+
+```{r, message = FALSE}
+# Load data =====================================
+COprecip <- read.csv("data/COprecip1981.csv")
+coords <- as.matrix(COprecip[,c("Longitude", "Latitude")])
+z <- COprecip$logPrecip
+Xmat <- unname(lm(logPrecip ~ Zelevation*Zslope10, x = TRUE, data = COprecip)$x)
+N <- nrow(COprecip)
+
+# Distance matrices and constants ===============
+dist_mats <- nsDist(coords)
+
+# Load prediction grid: elevation and slope =====
+COpredDF <- read.csv("data/COpredDF.csv")
+
+```
+
+Take a quick look at the data and covariates:
+
+```{r, echo = FALSE, fig.height=6, fig.width=10, warning = FALSE}
+grid.arrange(
+  plot_spat(COpredDF[,1:2], COpredDF$elevation, brk_rd = 0, plot.grid = TRUE,
+            ttle.txt = "Elevation (m)", col.pal = terrain.colors(9)),
+  plot_spat(COpredDF[,1:2], COpredDF$slope, brk_rd = 0, plot.grid = TRUE, col.lim = c(-2200,2200),
+            ttle.txt = "Slope (m/deg longitude, west to east)", col.pal = brewer.pal(9, "RdBu")),
+  plot_spat(coords, z, pt.size = 1.25, shp = 16, brk_rd = 1, ttle.txt = "Annual precipitation, 1981 (log mm)",
+            col.pal = viridis_pal(option = "viridis")(9)),
+  nrow = 2
+)
+
+```
+
+
+#### (1) Analysis of Paciorek and Schervish (2006)
+
+In the original analysis, each of the mean, the nugget variance, and the spatial variance were modeled as an unknown constants, while the kernel matrix function was modeled using an approximation to a Gaussian process.
+
+
+```{r }
+niter <- 2#0000
+strt.kp <- 1#0001
+
+# Set up the knot locations
+x_min <- min(coords[,1])
+x_max <- max(coords[,1])
+y_min <- min(coords[,2])
+y_max <- max(coords[,2])
+N_knots <- 64
+knot_coords <- expand.grid(
+  lon = seq(from = x_min + 0.5*(x_max - x_min)/sqrt(N_knots), 
+            to = x_max - 0.5*(x_max - x_min)/sqrt(N_knots), 
+            length = sqrt(N_knots)),
+  lat = seq(from = y_min + 0.5*(y_max - y_min)/sqrt(N_knots), 
+            to = y_max - 0.5*(y_max - y_min)/sqrt(N_knots), 
+            length = sqrt(N_knots))
+)
+dist_coords <- as.matrix(dist(coords, upper = T, diag = T))
+Sigma_knot_dist <- as.matrix(dist(knot_coords, upper = T, diag = T))
+Sigma_cross_dist <- mahalanobis.dist(coords, knot_coords, diag(2))
+
+constants_PacScher <- list( 
+  dist1_sq = dist_mats$dist1_sq, dist2_sq = dist_mats$dist2_sq, 
+  dist12 = dist_mats$dist12, nu = 0.5, N = N,
+  Sigma_HP1 = c(10,10), Sigma_HP2 = rep(5,2), Sigma_HP3 = rep(4,2), Sigma_HP4 = c(10,20), Sigma_HP5 = 16,
+  dist = dist_coords, Sigma_cross_dist = Sigma_cross_dist, Sigma_knot_dist = Sigma_knot_dist,
+  p_Sigma = N_knots, mu_HP1 = 10 )
+
+# Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant"
+Rmodel_PacScher <- nsgpModel( likelihood = "fullGP", constants = constants_PacScher, z = z,
+                              Sigma_model = "npApproxGP" )
+compl_model_PacScher <- compileNimble( Rmodel_PacScher )
+conf_model_PacScher <- configureMCMC( Rmodel_PacScher )
+conf_model_PacScher$addMonitors(c("Sigma11", "Sigma22", "Sigma12"))
+# conf_model_PacScher$addMonitors(c("eigen_comp1", "eigen_comp2", "eigen_comp3"))
+# conf_model_PacScher$getSamplers()
+nim_mcmc_PacScher <- buildMCMC(conf_model_PacScher)
+nim_Cmcmc_PacScher <- compileNimble(nim_mcmc_PacScher, project = Rmodel_PacScher)
+
+prt <- proc.time()
+nim_Cmcmc_PacScher$run(niter)
+PacScher.tm <- proc.time() - prt
+postSamp_PacScher <- as.matrix(nim_Cmcmc_PacScher$mvSamples)[strt.kp:niter,]
+
+plot(postSamp_PacScher[,"alpha"], type = "l")
+plot(postSamp_PacScher[,"delta"], type = "l")
+plot(postSamp_PacScher[,"beta"], type = "l")
+# plot(postSamp_PacScher[,"eigen_comp1[14]"], type = "l")
+# plot(postSamp_PacScher[,"eigen_comp2[14]"], type = "l")
+# plot(postSamp_PacScher[,"eigen_comp3[14]"], type = "l")
+plot(postSamp_PacScher[,"Sigma11[14]"], type = "l")
+plot(postSamp_PacScher[,"Sigma12[14]"], type = "l")
+plot(postSamp_PacScher[,"Sigma22[14]"], type = "l")
+plot(postSamp_PacScher[,"gp_mu[1]"], type = "l")
+plot(postSamp_PacScher[,"gp_mu[2]"], type = "l")
+plot(postSamp_PacScher[,"gp_sigma[1]"], type = "l")
+plot(postSamp_PacScher[,"gp_sigma[2]"], type = "l")
+plot(postSamp_PacScher[,"gp_phi[1]"], type = "l")
+plot(postSamp_PacScher[,"gp_phi[2]"], type = "l")
+
+```
+
+
+```{r}
+# Look at ellipses
+Sigma_postMed <- matrix(apply(postSamp_PacScher[,1:651], 2, median), ncol = 3, byrow = FALSE)
+# Closest to knot locs
+N_knots <- 36
+knot_coords <- expand.grid(
+  lon = seq(from = x_min + 0.5 * (x_max - x_min)/floor(sqrt(N_knots)), 
+            to = x_max - 0.5 * (x_max - x_min)/floor(sqrt(N_knots)), 
+            length = floor(sqrt(N_knots))),
+  lat = seq(from = y_min + 0.5 * (y_max - y_min)/floor(sqrt(N_knots)), 
+            to = y_max - 0.5 * (y_max - y_min)/floor(sqrt(N_knots)), 
+            length = floor(sqrt(N_knots)))
+)
+Sigma_cross_dist2 <- mahalanobis.dist(coords, knot_coords, diag(2))
+
+coord_knot_loc <- apply(Sigma_cross_dist2, 2, which.min)
+Sigma_use <- Sigma_postMed[coord_knot_loc,]
+coords_use <- coords[coord_knot_loc,]
+Sigma_array <- array(NA, dim=c(2,2,N_knots))
+for(i in 1:N_knots){
+  Sigma_array[1,1,i] <- Sigma_use[i,1]
+  Sigma_array[1,2,i] <- Sigma_use[i,2]
+  Sigma_array[2,1,i] <- Sigma_use[i,2]
+  Sigma_array[2,2,i] <- Sigma_use[i,3]
+}
+
+library(ellipse)
+plotEllip <- function(locs, kernel_array){
+
+  mc.locations <- locs
+  mc.kernels <- kernel_array
+    K <- dim(mc.locations)[1]
+
+    plot(ellipse(mc.kernels[, , 1], centre = mc.locations[1,], level = 0.2),
+         type = "l", col = 2, xlim = range(mc.locations[,1]), ylim = range(mc.locations[,2]), asp = 1 )
+   points(mc.locations[1,1], mc.locations[1,2], cex = 1, pch="+" ) 
+
+    for (k in 2:K) {
+
+      lines(ellipse(mc.kernels[, , k], centre = mc.locations[k,], level = 0.2), col = 2 )
+      points(mc.locations[k,1], mc.locations[k,2], cex = 1, pch="+" ) 
+    }
+
+}
+
+plotEllip(coords_use, Sigma_array)
+
+```
+
+
+#### (2) Analysis of Risser and Calder (2015)
+
+Using the regression-based methodology of Risser and Calder (2015), covariate information can be included in three parts of the nonstationary model: the mean function, the spatial variance function, and the kernel matrix function. Risser and Calder (2015) consider elevation as well as a covariate that describes change in elevation ("slope"), measured as a west-to-east gradient. Here, we reproduce the FNS-M2 implementation, which includes the main effects of elevation and slope, as well as their interaction, in each of the mean, variance, and kernel matrix functions. Following Risser and Calder (2015), elevation and slope measurements are standardized in order to put the coefficient estimates on a similar scale.
+
+```{r }
+niter <- 20000
+strt.kp <- 10001
+
+constants_RisserCalder <- list( dist1_sq = dist_mats$dist1_sq, 
+                   dist2_sq = dist_mats$dist2_sq, 
+                   dist12 = dist_mats$dist12, nu = 0.5, N = N,
+                   X_mu = Xmat, p_mu = ncol(Xmat), mu_HP1 = 10,
+                   X_sigma = Xmat, p_sigma = ncol(Xmat), log_sigma_HP1 = 10,
+                   X_Sigma = Xmat, p_Sigma = ncol(Xmat), Sigma_HP1 = c(10,10), Sigma_HP2 = c(2,2))
+
+# Defaults: tau_model = "constant"
+Rmodel_RisserCalder <- nsgpModel( likelihood = "fullGP", constants = constants_RisserCalder, z = z,
+                                  mu_model = "linReg", sigma_model = "logLinReg",
+                                  Sigma_model = "covReg" )
+compl_model_RisserCalder <- compileNimble( Rmodel_RisserCalder )
+conf_model_RisserCalder <- configureMCMC( Rmodel_RisserCalder )
+conf_model_RisserCalder$removeSamplers( c("psi11", "psi22", "rho") )
+conf_model_RisserCalder$addSampler( target = c("psi11", "psi22", "rho"), type = "RW_block" )
+nim_mcmc_RisserCalder <- buildMCMC(conf_model_RisserCalder)
+nim_Cmcmc_RisserCalder <- compileNimble(nim_mcmc_RisserCalder, project = Rmodel_RisserCalder)
+
+prt <- proc.time()
+nim_Cmcmc_RisserCalder$run(niter)
+RisserCalder.tm <- proc.time() - prt
+postSamp_RisserCalder <- as.matrix(nim_Cmcmc_RisserCalder$mvSamples)[strt.kp:niter,]
+
+```
+
+
+```{r }
+
+```
+
+
+# Questions for Daniel:
+1. besselK -- outputting a vector vs. matrix
+2. prediction functions -- how to calculate Sigma11, etc. based on Sigma_model, etc.?
+
+

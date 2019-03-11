@@ -61,19 +61,52 @@ require(FNN)
 #' @export
 #' @importFrom nimble nimbleFunction
 
+# inverseEigen <- nimbleFunction(     
+#   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
+#                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
+#     returnType(double(1))
+#     
+#     Gam_denom <- sqrt( eigen_comp2^2 + eigen_comp3^2 )
+#     Gam11 <- eigen_comp2/Gam_denom
+#     Gam22 <- eigen_comp2/Gam_denom
+#     Gam12 <- -eigen_comp3/Gam_denom
+#     Gam21 <- eigen_comp3/Gam_denom
+#     
+#     Lam2 <- exp(eigen_comp1)
+#     Lam1 <- eigen_comp2^2 + eigen_comp3^2 
+#     
+#     if( which_Sigma == 1 ){ # Return Sigma11
+#       return( Gam11^2*Lam1 + Gam12^2*Lam2 )
+#     }
+#     if( which_Sigma == 2 ){ # Return Sigma22
+#       return( Gam21^2*Lam1 + Gam22^2*Lam2 )
+#     }
+#     if( which_Sigma == 3 ){ # Return Sigma12
+#       return( Gam11*Gam21*Lam1 + Gam12*Gam22*Lam2 )
+#     }
+# 
+#     stop('Error in inverseEigen function')  ## prevent compiler warning
+#     return(numeric(10))                     ## prevent compiler warning
+#     
+#   })
+
+# Alternatively, parameterize in terms of the two log eigenvalues and rotation parameter
+# eigen_comp1 = log(lambda1)
+# eigen_comp2 = log(lambda2)
+# eigen_comp3 = logit(2*gamma/pi)
 inverseEigen <- nimbleFunction(     
   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
     returnType(double(1))
     
-    Gam_denom <- sqrt( eigen_comp2^2 + eigen_comp3^2 )
-    Gam11 <- eigen_comp2/Gam_denom
-    Gam22 <- eigen_comp2/Gam_denom
-    Gam12 <- -eigen_comp3/Gam_denom
-    Gam21 <- eigen_comp3/Gam_denom
+    rotAngle <- (3.141593/2)*exp(eigen_comp3)/(1 + exp(eigen_comp3)) # pi = 3.141593
+    Gam11 <- cos(rotAngle)
+    Gam22 <- cos(rotAngle)
+    Gam12 <- -sin(rotAngle)
+    Gam21 <- sin(rotAngle)
     
-    Lam2 <- exp(eigen_comp1)
-    Lam1 <- eigen_comp2^2 + eigen_comp3^2 
+    Lam1 <- exp(eigen_comp1)
+    Lam2 <- exp(eigen_comp2)
     
     if( which_Sigma == 1 ){ # Return Sigma11
       return( Gam11^2*Lam1 + Gam12^2*Lam2 )
@@ -84,12 +117,39 @@ inverseEigen <- nimbleFunction(
     if( which_Sigma == 3 ){ # Return Sigma12
       return( Gam11*Gam21*Lam1 + Gam12*Gam22*Lam2 )
     }
-
+    
     stop('Error in inverseEigen function')  ## prevent compiler warning
     return(numeric(10))                     ## prevent compiler warning
     
   })
 
+#==============================================================================
+# Compiled besselK function 
+#==============================================================================
+
+# ROxygen comments ----
+#' Compiled besselK function 
+#'
+#' \code{RbesselK} and \code{CbesselK} calculates the modified Bessel function
+#' of the third kind.
+#' 
+#' @param dist Matrix; contains distances for the besselK function
+#' @param nu Scalar; smoothness.
+#' 
+#' @return A matrix with values of the corresponding Bessel function.
+#'
+#' @examples
+#' # TODO
+#'
+#' @importFrom nimble nimbleFunction
+RbesselK <- nimbleFunction(
+  run = function(dst = double(2), nu = double(0)) {
+    xVector <- besselK(dst, nu)
+    xMatrix <- matrix(xVector, dim(dst)[1], dim(dst)[2])
+    returnType(double(2))
+    return(xMatrix)
+  }
+)
 
 #==============================================================================
 # Calculate a nonstationary Matern correlation matrix 
@@ -169,12 +229,62 @@ nsCorr <- nimbleFunction(
       if( nu == Inf ){ # Gaussian (squared exponential) correlation
         Unscl.corr <- exp(-(Dist.mat^2)) 
       } else{ # Else: Matern with smoothness nu
-        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * besselK( x = Dist.mat, nu = nu )
+        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * RbesselK(Dist.mat, nu) # besselK( x = Dist.mat, nu = nu )
         diag(Unscl.corr) <- 1
       } 
     }
     nsCorr <- Scale.mat*Unscl.corr
     return(nsCorr)
+  })
+
+#==============================================================================
+# Calculate a stationary Matern correlation matrix 
+#==============================================================================
+
+# ROxygen comments ----
+#' Calculate a stationary Matern correlation matrix
+#'
+#' \code{matern_corr} calculates a stationary Matern correlation matrix for a 
+#' fixed set of locations, based on a range and smoothness parameter. This 
+#' function is primarily used for the "npGP" and "approxGP" models. The 
+#' function is coded as a \code{nimbleFunction} (see the \code{nimble} package) 
+#' but can also be used as a regular R function.
+#' 
+#' @param dist N x N matrix; contains values of pairwise Euclidean distances in 
+#' the x-y plane.
+#' @param rho Scalar; "range" parameter used to rescale distances
+#' @param nu Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
+#' to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
+#' correlation function.
+#' 
+#' @return A correlation matrix for a fixed set of stations and fixed
+#' parameter values.
+#'
+#' @examples
+#' # TODO
+#'
+#' @export
+#' @importFrom nimble nimbleFunction
+
+matern_corr <- nimbleFunction(     
+  run = function( dist = double(2), rho = double(0), nu = double(0) ) {
+    returnType(double(2))
+    
+    Nr <- dim(dist)[1]
+    Nc <- dim(dist)[2]
+    if( nu == 0.5 ){ # Exponential correlation
+      return(exp(-dist/rho))
+    }
+    if( nu == Inf ){ # Gaussian (squared exponential) correlation
+      return(exp(-(dist/rho)^2))
+    } 
+    
+    # Else: Matern with smoothness nu
+    temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * RbesselK(dist/rho, nu) # besselK( x = dist/rho, nu = nu )
+    if(Nr == Nc){
+      diag(temp) <- 1
+    }
+    return(temp)
   })
 
 #==============================================================================
@@ -226,10 +336,6 @@ nsCorr <- nimbleFunction(
 #' @export
 #' @importFrom nimble nimbleFunction
 
-# Xdist1_sq = Xd1; Xdist2_sq = Xd2; Xdist12 = Xd12; 
-# Sigma11 = S1; Sigma22 = S2; Sigma12 = S12;
-# PSigma11 = xS1; PSigma22 = xS2; PSigma12 = xS12; nu = nu
-
 nsCrosscorr <- nimbleFunction(     
   run = function( Xdist1_sq = double(2), Xdist2_sq = double(2), Xdist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
@@ -280,8 +386,9 @@ nsCrosscorr <- nimbleFunction(
       if( nu == Inf ){ # Gaussian (squared exponential) correlation
         Unscl.corr <- exp(-(Dist.mat^2)) 
       } else{ # Else: Matern with smoothness nu
-        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * besselK( x = Dist.mat, nu = nu )
-        diag(Unscl.corr) <- 1
+        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * RbesselK(Dist.mat, nu) # besselK( x = Dist.mat, nu = nu )
+        Unscl.corr[Unscl.corr == Inf] <- 1
+        # diag(Unscl.corr) <- 1
       } 
     }
     nsCrosscorr <- Scale.mat*Unscl.corr
@@ -303,6 +410,10 @@ nsCrosscorr <- nimbleFunction(
 #' 
 #' @param coords N x 2 matrix; contains the x-y coordinates of stations
 #' @param scale_factor Scalar; optional argument for re-scaling the distances.
+#' @param isotropic Logical; indicates whether distances should be calculated
+#' separately for each coordinate dimension (FALSE) or simultaneously for all
+#' coordinate dimensions (TRUE). \code{isotropic = TRUE} can only be used for
+#' two-dimensional coordinate systems.
 #'
 #' @return A list of distances matrices, with the following components:
 #' \item{dist1_sq}{N x N matrix; contains values of pairwise squared distances
@@ -318,30 +429,38 @@ nsCrosscorr <- nimbleFunction(
 #'
 #' @export
 
-nsDist <- function( coords, scale_factor = NULL ){
+nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
   
   N <- nrow(coords)
-  
-  # Calculate distances
-  dists1 <- as.matrix(dist(coords[,1], upper = T, diag = T))
-  dists2 <- as.matrix(dist(coords[,2], upper = T, diag = T))
-  
-  temp1 <- matrix(coords[,1], nrow = N, ncol = N) 
-  temp2 <- matrix(coords[,2], nrow = N, ncol = N) 
-  
-  sgn_mat1 <- ( temp1 - t(temp1) >= 0 )
-  sgn_mat1[sgn_mat1 == FALSE] <- -1 
-  sgn_mat2 <- ( temp2 - t(temp2) >= 0 )
-  sgn_mat2[sgn_mat2 == FALSE] <- -1 
-  
-  dist1_sq <- dists1^2
-  dist2_sq <- dists2^2
-  dist12 <- sgn_mat1*dists1*sgn_mat2*dists2
+  if(!isotropic){
+    # Calculate distances
+    dists1 <- as.matrix(dist(coords[,1], upper = T, diag = T))
+    dists2 <- as.matrix(dist(coords[,2], upper = T, diag = T))
+    
+    temp1 <- matrix(coords[,1], nrow = N, ncol = N) 
+    temp2 <- matrix(coords[,2], nrow = N, ncol = N) 
+    
+    sgn_mat1 <- ( temp1 - t(temp1) >= 0 )
+    sgn_mat1[sgn_mat1 == FALSE] <- -1 
+    sgn_mat2 <- ( temp2 - t(temp2) >= 0 )
+    sgn_mat2[sgn_mat2 == FALSE] <- -1 
+    
+    dist1_sq <- dists1^2
+    dist2_sq <- dists2^2
+    dist12 <- sgn_mat1*dists1*sgn_mat2*dists2
+  } else{
+    dists1_sq <- as.matrix(dist(coords, upper = T, diag = T))^2
+    dists2_sq <- matrix(0, N, N)
+    dists2_sq[1,1] <- -1
+    dist12 <- matrix(0, N, N)
+  }
+
+  # Rescale if needed
   if( !is.null(scale_factor) ){
     dist1_sq <- dist1_sq/scale_factor  
     dist2_sq <- dist2_sq/scale_factor  
     dist12 <- dist12/scale_factor     
-  } 
+  }   
   
   return(list( 
     dist1_sq = dist1_sq, dist2_sq = dist2_sq, 
@@ -365,7 +484,11 @@ nsDist <- function( coords, scale_factor = NULL ){
 #' @param coords N x 2 matrix; contains the x-y coordinates of stations.
 #' @param nID N x k matrix; contains indices of nearest neighbors.
 #' @param scale_factor Scalar; optional argument for re-scaling the distances.
-
+#' @param isotropic Logical; indicates whether distances should be calculated
+#' separately for each coordinate dimension (FALSE) or simultaneously for all
+#' coordinate dimensions (TRUE). \code{isotropic = TRUE} can only be used for
+#' two-dimensional coordinate systems.
+#' 
 #' @return Arrays with nearest neighbor distances in each coordinate 
 #' direction.
 #'
@@ -375,29 +498,43 @@ nsDist <- function( coords, scale_factor = NULL ){
 #' @export
 #' @importFrom nimble nimbleFunction
 
-nsDist3d <- function(coords, nID, scale_factor = NULL) {
+nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
   N <- nrow(coords)
   k <- ncol(nID)
   dist1_3d <- array(0, c(N, k+1, k+1))
   dist2_3d <- array(0, c(N, k+1, k+1))
   dist12_3d <- array(0, c(N, k+1, k+1))
-  for(i in 2:N) {
-    if(i<=k)     nNei <- i-1      else      nNei <- k
-    ind <- c( nID[i,1:nNei], i )
-    thisN <- nNei + 1
-    theseCoords <- coords[ind, ]
-    dists1 <- as.matrix(dist(theseCoords[,1]))
-    dists2 <- as.matrix(dist(theseCoords[,2]))
-    temp1 <- matrix(theseCoords[,1], nrow = thisN, ncol = thisN)
-    temp2 <- matrix(theseCoords[,2], nrow = thisN, ncol = thisN)
-    sgn_mat1 <- ( temp1 - t(temp1) >= 0 )
-    sgn_mat1[sgn_mat1 == FALSE] <- -1
-    sgn_mat2 <- ( temp2 - t(temp2) >= 0 )
-    sgn_mat2[sgn_mat2 == FALSE] <- -1
-    dist1_3d[i, 1:thisN, 1:thisN] <- dists1^2
-    dist2_3d[i, 1:thisN, 1:thisN] <- dists2^2
-    dist12_3d[i, 1:thisN, 1:thisN] <- sgn_mat1*dists1*sgn_mat2*dists2
+  
+  if(!isotropic){
+    for(i in 2:N) {
+      if(i<=k)     nNei <- i-1      else      nNei <- k
+      ind <- c( nID[i,1:nNei], i )
+      thisN <- nNei + 1
+      theseCoords <- coords[ind, ]
+      dists1 <- as.matrix(dist(theseCoords[,1]))
+      dists2 <- as.matrix(dist(theseCoords[,2]))
+      temp1 <- matrix(theseCoords[,1], nrow = thisN, ncol = thisN)
+      temp2 <- matrix(theseCoords[,2], nrow = thisN, ncol = thisN)
+      sgn_mat1 <- ( temp1 - t(temp1) >= 0 )
+      sgn_mat1[sgn_mat1 == FALSE] <- -1
+      sgn_mat2 <- ( temp2 - t(temp2) >= 0 )
+      sgn_mat2[sgn_mat2 == FALSE] <- -1
+      dist1_3d[i, 1:thisN, 1:thisN] <- dists1^2
+      dist2_3d[i, 1:thisN, 1:thisN] <- dists2^2
+      dist12_3d[i, 1:thisN, 1:thisN] <- sgn_mat1*dists1*sgn_mat2*dists2
+    }  
+  } else{
+    for(i in 2:N) {
+      if(i<=k)     nNei <- i-1      else      nNei <- k
+      ind <- c( nID[i,1:nNei], i )
+      thisN <- nNei + 1
+      theseCoords <- coords[ind, ]
+      dists1 <- as.matrix(dist(theseCoords))
+      dist1_3d[i, 1:thisN, 1:thisN] <- dists1^2
+      dist2_3d[i, 1, 1] <- -1
+    }
   }
+  
   if(!is.null(scale_factor)) {
     dist1_3d  <- dist1_3d  / scale_factor
     dist2_3d  <- dist2_3d  / scale_factor
@@ -519,75 +656,88 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   tau_model_list <- list(
     constant = list(
-      ## 1. log_tau_HP1          Standard deviation for the log-linear standard deviation
-      ## 2. delta                Scalar; represents log-linear standard deviation (constant over the domain)
-      ## 3. ones                 N-vector of 1's
+      ## 1. tau_HP1          Standard deviation for the log-linear standard deviation
+      ## 2. delta            Scalar; represents the standard deviation (constant over the domain)
+      ## 3. ones             N-vector of 1's
       code = quote({
-        # log_tau_vec[1:N] <- delta*ones[1:N]
-        # delta ~ dnorm(0, sd = log_tau_HP1)
         log_tau_vec[1:N] <- log(sqrt(delta))*ones[1:N]
-        delta ~ dunif(0, log_tau_HP1)
-        
+        delta ~ dunif(0, tau_HP1)
       }),
-      constants_needed = c("ones", "log_tau_HP1"),
-      inits = list(delta = 1)),
+      constants_needed = c("ones", "tau_HP1"),
+      inits = list(delta = quote(tau_HP1/10))),
+    
     logLinReg = list(
-      ## 1. X_tau                  N x p_tau design matrix; leading column of 1's with (p_tau - 1) other covariates
-      ## 2. log_tau_HP1            Standard deviation for the log-linear regression coefficients
-      ## 3. p_tau                  Number of design columns
-      ## 4. delta                  Vector of length p_tau; represents log-linear regression coefficients
+      ## 1. X_tau            N x p_tau design matrix; leading column of 1's with (p_tau - 1) other covariates
+      ## 2. tau_HP1          Standard deviation for the log-linear regression coefficients
+      ## 3. p_tau            Number of design columns
+      ## 4. delta            Vector of length p_tau; represents log-linear regression coefficients
       code = quote({
         log_tau_vec[1:N] <- X_tau[1:N,1:p_tau] %*% delta[1:p_tau]
         for(l in 1:p_tau){
-          delta[l] ~ dnorm(0, sd = log_tau_HP1)
+          delta[l] ~ dnorm(0, sd = tau_HP1)
         }
       }),
-      constants_needed = c("X_tau", "p_tau", "log_tau_HP1"),
+      constants_needed = c("X_tau", "p_tau", "tau_HP1"),
       inits = list(delta = quote(rep(0, p_tau)))),
     
-    ## "mixComp" model is identical to "logLinReg" model, above.
-    ## Thus, the "mixComp" model is added as a duplicate of the "logLinReg" model, below.
-    
     GP = list(
-      ## 1. log_tau_HP1            Gaussian process standard deviation 
-      ## 2. log_tau_HP2            Gaussian process mean
-      ## 3. log_tau_HP3            Gaussian process range
-      ## 4. log_tau_HP4            Gaussian process smoothness
-      ## 5. ones                   N-vector of 1's
-      ## 6. dist                   N x N matrix of inter-point Euclidean distances
+      ## 1. tau_HP1         Gaussian process standard deviation 
+      ## 2. tau_HP2         Gaussian process mean
+      ## 3. tau_HP3         Gaussian process range
+      ## 4. tau_HP4         Gaussian process smoothness
+      ## 5. ones            N-vector of 1's
+      ## 6. dist            N x N matrix of inter-point Euclidean distances
       code = quote({
         log_tau_vec[1:N] ~ dmnorm(mean = log_tau_mn[1:N], cov = log_tau_C[1:N,1:N])
-        log_tau_mn[1:N] <- log_tau_HP2*ones[1:N] 
-        log_tau_C[1:N,1:N] <- log_tau_HP1^2 * matern_corr(dist[1:N,1:N], log_tau_HP3, log_tau_HP4)
+        log_tau_mn[1:N] <- tauGP_mu*ones[1:N] 
+        log_tau_C[1:N,1:N] <- tauGP_sigma^2 * matern_corr(dist[1:N,1:N], tauGP_phi, tau_HP2)
+        
+        # Hyperparameters
+        tauGP_mu ~ dnorm(0, sd = tau_HP1)
+        tauGP_phi ~ dunif(0, tau_HP3) # Range parameter, GP
+        tauGP_sigma ~ dunif(0, tau_HP4) # SD parameter, GP
+        
       }),
-      constants_needed = c("ones", "dist", "log_tau_HP1", "log_tau_HP2", "log_tau_HP3", "log_tau_HP4"),
-      inits = list(log_tau_vec = quote(rep(0, N)))),
+      constants_needed = c("ones", "dist", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4"),
+      inits = list(
+        log_tau_vec = quote(rep(0, N)),
+        tauGP_mu = quote(0),
+        tauGP_phi = quote(tau_HP3/2),
+        tauGP_sigma = quote(tau_HP4/2)
+      )
+    ),
+    
     approxGP = list(
-      ## 1. log_tau_HP1            Gaussian process standard deviation
-      ## 2. log_tau_HP2            Gaussian process mean
-      ## 3. log_tau_HP3            Gaussian process range
-      ## 4. log_tau_HP4            Gaussian process smoothness
-      ## 5. ones                   N-vector of 1's
-      ## 6. tau_cross_dist         N x p_tau matrix of inter-point Euclidean distances, obs. coords vs. knot locations
-      ## 7. tau_knot_dist          p_tau x p_tau matrix of inter-point Euclidean distances, knot locations
-      ## 8. p_tau                  Number of knot locations
+      ## 1. tau_HP1          Gaussian process standard deviation
+      ## 2. tau_HP2          Gaussian process mean
+      ## 3. tau_HP3          Gaussian process range
+      ## 4. tau_HP4          Gaussian process smoothness
+      ## 5. ones             N-vector of 1's
+      ## 6. tau_cross_dist   N x p_tau matrix of inter-point Euclidean distances, obs. coords vs. knot locations
+      ## 7. tau_knot_dist    p_tau x p_tau matrix of inter-point Euclidean distances, knot locations
+      ## 8. p_tau            Number of knot locations
       code = quote({
         
-        # Note: in the following, instead of calculating Vmat_tau^(-1/2) %*% u_tau with
-        # u_tau ~ N(0, I), use P_mat %*% w_tau where w_tau ~ N(0, Vmat^{-1})
-        # log_tau_vec[1:N] <- log_tau_HP2 * ones[1:N] + log_tau_HP1 * Pmat_tau[1:N,1:p_tau] %*% Vu_mat[1:p_tau,1:p_tau]
-        
-        log_tau_vec[1:N] <- log_tau_HP2 * ones[1:N] + log_tau_HP1 * Pmat_tau[1:N,1:p_tau] %*% w_tau[1:p_tau]
-        
-        Pmat_tau[1:N,1:p_tau] <- matern_corr(tau_cross_dist[1:N,1:p_tau], log_tau_HP3, log_tau_HP4)
-        
-        Vmat_tau[1:p_tau,1:p_tau] <- matern_corr(tau_knot_dist[1:p_tau,1:p_tau], log_tau_HP3, log_tau_HP4)
-        
+        log_tau_vec[1:N][1:N] <- tauGP_mu*ones[1:N] + tauGP_sigma*Pmat_tau[1:N,1:p_tau] %*% w_tau[1:p_tau]
+        Pmat_tau[1:N,1:p_tau] <- matern_corr(tau_cross_dist[1:N,1:p_tau], tauGP_phi, tau_HP2)
+        Vmat_tau[1:p_tau,1:p_tau] <- matern_corr(tau_knot_dist[1:p_tau,1:p_tau], tauGP_phi, tau_HP2)
         w_tau_mean[1:p_tau] <- 0*ones[1:p_tau]
         w_tau[1:p_tau] ~ dmnorm( mean = w_tau_mean[1:p_tau], prec = Vmat_tau[1:p_tau,1:p_tau] )
+        
+        # Hyperparameters
+        tauGP_mu ~ dnorm(0, sd = tau_HP1)
+        tauGP_phi ~ dunif(0, tau_HP3) # Range parameter, GP
+        tauGP_sigma ~ dunif(0, tau_HP4) # SD parameter, GP
+        
       }),
-      constants_needed = c("ones", "tau_cross_dist", "tau_knot_dist", "p_tau", "log_tau_HP1", "log_tau_HP2", "log_tau_HP3", "log_tau_HP4"),
-      inits = list(w_tau = quote(rep(0, p_tau)))
+      constants_needed = c("ones", "tau_cross_dist", "tau_knot_dist", "p_tau", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4"),
+      inits = list(
+        w_tau = quote(rep(0, p_tau)),
+        tauGP_mu = quote(0),
+        tauGP_phi = quote(tau_HP3/2),
+        tauGP_sigma = quote(tau_HP4/2)
+      )
+      
     )
   )
   
@@ -597,80 +747,87 @@ nsgpModel <- function( tau_model   = "constant",
   
   sigma_model_list <- list(
     constant = list(
-      ## 1. log_sigma_HP1          Standard deviation for the log-linear standard deviation
-      ## 2. alpha                  Scalar; represents log-linear standard deviation (constant over the domain)
-      ## 3. ones                   N-vector of 1's
+      ## 1. sigma_HP1        Standard deviation for the log-linear standard deviation
+      ## 2. alpha            Scalar; represents the standard deviation (constant over the domain)
+      ## 3. ones             N-vector of 1's
       code = quote({
-        
-        # log_sigma_vec[1:N] <- alpha*ones[1:N]
-        # alpha ~ dnorm(0, sd = log_sigma_HP1)
         log_sigma_vec[1:N] <- log(sqrt(alpha))*ones[1:N]
-        alpha ~ dunif(0, log_sigma_HP1)
-        
+        alpha ~ dunif(0, sigma_HP1)
       }),
-      constants_needed = c("ones", "log_sigma_HP1"),
-      inits = list(alpha = 1)),
+      constants_needed = c("ones", "sigma_HP1"),
+      inits = list(alpha = quote(sigma_HP1/10))
+    ),
+    
     logLinReg = list(
-      ## 1. X_sigma                N x p_sigma design matrix; leading column of 1's with (p_sigma - 1) other covariates
-      ## 2. log_sigma_HP1          Standard deviation for the log-linear regression coefficients
-      ## 3. p_sigma                Number of design columns
-      ## 4. alpha                  Vector of length p_sigma; represents log-linear regression coefficients
+      ## 1. X_sigma          N x p_sigma design matrix; leading column of 1's with (p_sigma - 1) other covariates
+      ## 2. sigma_HP1        Standard deviation for the log-linear regression coefficients
+      ## 3. p_sigma          Number of design columns
+      ## 4. alpha            Vector of length p_sigma; represents log-linear regression coefficients
       code = quote({
         log_sigma_vec[1:N] <- X_sigma[1:N,1:p_sigma] %*% alpha[1:p_sigma]
         for(l in 1:p_sigma){
-          alpha[l] ~ dnorm(0, sd = log_sigma_HP1)
+          alpha[l] ~ dnorm(0, sd = sigma_HP1)
         }
       }),
-      constants_needed = c("X_sigma", "p_sigma", "log_sigma_HP1"),
-      inits = list(alpha = quote(rep(0, p_sigma)))),
-    ##
-    ## "mixComp" model is identical to "logLinReg" model, above.
-    ## Thus, the "mixComp" model is added as a duplicate of the "logLinReg" model, below.
-    ##
+      constants_needed = c("X_sigma", "p_sigma", "sigma_HP1"),
+      inits = list(alpha = quote(rep(0, p_sigma)))
+    ),
+
     GP = list(
-      ## 1. log_sigma_HP1          Gaussian process standard deviation 
-      ## 2. log_sigma_HP2          Gaussian process mean
-      ## 3. log_sigma_HP3          Gaussian process range
-      ## 4. log_sigma_HP4          Gaussian process smoothness
-      ## 5. ones                   N-vector of 1's
-      ## 6. dist                   N x N matrix of inter-point Euclidean distances
+      ## 1. sigma_HP1        Gaussian process standard deviation 
+      ## 2. sigma_HP2        Gaussian process mean
+      ## 3. sigma_HP3        Gaussian process range
+      ## 4. sigma_HP4        Gaussian process smoothness
+      ## 5. ones             N-vector of 1's
+      ## 6. dist             N x N matrix of inter-point Euclidean distances
       code = quote({
         log_sigma_vec[1:N] ~ dmnorm(mean = log_sigma_mn[1:N], cov = log_sigma_C[1:N,1:N])
-        log_sigma_mn[1:N] <- log_sigma_HP2*ones[1:N] 
-        log_sigma_C[1:N,1:N] <- log_sigma_HP1^2 * matern_corr(dist[1:N,1:N], log_sigma_HP3, log_sigma_HP4)
+        log_sigma_mn[1:N] <- sigmaGP_mu*ones[1:N] 
+        log_sigma_C[1:N,1:N] <- sigmaGP_sigma^2 * matern_corr(dist[1:N,1:N], sigmaGP_phi, sigma_HP2)
+        
+        # Hyperparameters
+        sigmaGP_mu ~ dnorm(0, sd = sigma_HP1)
+        sigmaGP_phi ~ dunif(0, sigma_HP3) # Range parameter, GP
+        sigmaGP_sigma ~ dunif(0, sigma_HP4) # SD parameter, GP
       }),
-      constants_needed = c("ones", "dist", "log_sigma_HP1", "log_sigma_HP2", "log_sigma_HP3", "log_sigma_HP4"),
+      constants_needed = c("ones", "dist", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4"),
       inits = list(
-        log_sigma_vec = quote(rep(0, N))
-      )),
+        log_sigma_vec = quote(rep(0, N)),
+        sigmaGP_mu = quote(0),
+        sigmaGP_phi = quote(sigma_HP3/2),
+        sigmaGP_sigma = quote(sigma_HP4/2)
+      )
+    ),
+    
     approxGP = list(
-      ## 1. log_sigma_HP1          Gaussian process standard deviation
-      ## 2. log_sigma_HP2          Gaussian process mean
-      ## 3. log_sigma_HP3          Gaussian process range
-      ## 4. log_sigma_HP4          Gaussian process smoothness
-      ## 5. ones                   N-vector of 1's
-      ## 6. sigma_cross_dist       N x p_sigma matrix of inter-point Euclidean distances, obs. coords vs. knot locations
-      ## 7. sigma_knot_dist        p_sigma x p_sigma matrix of inter-point Euclidean distances, knot locations
-      ## 8. p_sigma                Number of knot locations
+      ## 1. sigma_HP1        Gaussian process standard deviation
+      ## 2. sigma_HP2        Gaussian process mean
+      ## 3. sigma_HP3        Gaussian process range
+      ## 4. sigma_HP4        Gaussian process smoothness
+      ## 5. ones             N-vector of 1's
+      ## 6. sigma_cross_dist N x p_sigma matrix of inter-point Euclidean distances, obs. coords vs. knot locations
+      ## 7. sigma_knot_dist  p_sigma x p_sigma matrix of inter-point Euclidean distances, knot locations
+      ## 8. p_sigma          Number of knot locations
       code = quote({
-        ## Model statement
         
-        # Note: in the following, instead of calculating Vmat_sigma^(-1/2) %*% u_sigma with
-        # u_sigma ~ N(0, I), use P_mat %*% w_sigma where w_sigma ~ N(0, Vmat^{-1})
-        # log_sigma_vec[1:N] <- log_sigma_HP2 * ones[1:N] + log_sigma_HP1 * Pmat_sigma[1:N,1:p_sigma] %*% Vu_mat[1:p_sigma,1:p_sigma]
-        
-        log_sigma_vec[1:N] <- log_sigma_HP2 * ones[1:N] + log_sigma_HP1 * Pmat_sigma[1:N,1:p_sigma] %*% w_sigma[1:p_sigma]
-        
-        Pmat_sigma[1:N,1:p_sigma] <- matern_corr(sigma_cross_dist[1:N,1:p_sigma], log_sigma_HP3, log_sigma_HP4)
-        
-        Vmat_sigma[1:p_sigma,1:p_sigma] <- matern_corr(sigma_knot_dist[1:p_sigma,1:p_sigma], log_sigma_HP3, log_sigma_HP4)
-        
+        log_sigma_vec[1:N][1:N] <- sigmaGP_mu*ones[1:N] + sigmaGP_sigma*Pmat_sigma[1:N,1:p_sigma] %*% w_sigma[1:p_sigma]
+        Pmat_sigma[1:N,1:p_sigma] <- matern_corr(sigma_cross_dist[1:N,1:p_sigma], sigmaGP_phi, sigma_HP2)
+        Vmat_sigma[1:p_sigma,1:p_sigma] <- matern_corr(sigma_knot_dist[1:p_sigma,1:p_sigma], sigmaGP_phi, sigma_HP2)
         w_sigma_mean[1:p_sigma] <- 0*ones[1:p_sigma]
         w_sigma[1:p_sigma] ~ dmnorm( mean = w_sigma_mean[1:p_sigma], prec = Vmat_sigma[1:p_sigma,1:p_sigma] )
-        
+
+        # Hyperparameters
+        sigmaGP_mu ~ dnorm(0, sd = sigma_HP1)
+        sigmaGP_phi ~ dunif(0, sigma_HP3) # Range parameter, GP
+        sigmaGP_sigma ~ dunif(0, sigma_HP4) # SD parameter, GP
       }),
-      constants_needed = c("ones", "sigma_cross_dist", "sigma_knot_dist", "p_sigma", "log_sigma_HP1", "log_sigma_HP2", "log_sigma_HP3", "log_sigma_HP4"),
-      inits = list(w_sigma = quote(rep(0, p_sigma)))
+      constants_needed = c("ones", "sigma_cross_dist", "sigma_knot_dist", "p_sigma", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4"),
+      inits = list(
+        w_sigma = quote(rep(0, p_sigma)),
+        sigmaGP_mu = quote(0),
+        sigmaGP_phi = quote(sigma_HP3/2),
+        sigmaGP_sigma = quote(sigma_HP4/2)
+      )
     )
   )
   
@@ -680,11 +837,10 @@ nsgpModel <- function( tau_model   = "constant",
   
   Sigma_model_list <- list(
     
-    # Version 1 -- parameterized as in Paciorek and Schervish
     constant = list(
-      ## 1. ones                 N-vector of 1's
-      ## 2. Sigma_HP1            Standard deviation for the anisotropy components
-      ## 3. Sigma_coef{1,2,3}    Vectors of length p_Sigma; represents the anisotropy components
+      ## 1. ones                N-vector of 1's
+      ## 2. Sigma_HP1           Upper bound for the eigenvalues
+      ## 3. Sigma_coef{1,2,3}   Vectors of length p_Sigma; represents the anisotropy components
       code = quote({
         
         Sigma11[1:N] <- ones[1:N]*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
@@ -693,24 +849,29 @@ nsgpModel <- function( tau_model   = "constant",
 
         Sigma_coef1 ~ dunif(0, Sigma_HP1) # phi1
         Sigma_coef2 ~ dunif(0, Sigma_HP1) # phi2
-        Sigma_coef3 ~ dunif(0, 1.570796) # eta --> 1.570796 = pi/2
+        Sigma_coef3 ~ dunif(0, 1.570796)  # eta --> 1.570796 = pi/2
         
-        # eigen_comp1[1:N] <- Sigma_coef1*ones[1:N]
-        # eigen_comp2[1:N] <- Sigma_coef2*ones[1:N]
-        # eigen_comp3[1:N] <- Sigma_coef3*ones[1:N]
-        # Sigma11[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 1)
-        # Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3)
-        # Sigma22[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 2)
-        # Sigma_coef1 ~ dnorm(0, sd = Sigma_HP1)
-        # Sigma_coef2 ~ dnorm(0, sd = Sigma_HP1)
-        # Sigma_coef3 ~ dnorm(0, sd = Sigma_HP1)
       }),
       constants_needed = c("ones", "Sigma_HP1"),
       inits = list(
-        Sigma_coef1 = 1,
-        Sigma_coef2 = 1,
+        Sigma_coef1 = quote(Sigma_HP1/2),
+        Sigma_coef2 = quote(Sigma_HP1/2),
         Sigma_coef3 = 0.7853982 # pi/4
       )
+    ),
+    constant_iso = list( # Isotropic version of 
+      ## 1. ones                 N-vector of 1's
+      ## 2. Sigma_HP1            Standard deviation for the anisotropy components
+      ## 3. Sigma_coef{1,2,3}    Vectors of length p_Sigma; represents the anisotropy components
+      code = quote({
+        Sigma11[1:N] <- ones[1:N]*Sigma_coef1
+        Sigma22[1:N] <- ones[1:N]*Sigma_coef1
+        Sigma12[1:N] <- ones[1:N]*0
+        
+        Sigma_coef1 ~ dunif(0, Sigma_HP1) # phi1
+      }),
+      constants_needed = c("ones", "Sigma_HP1"),
+      inits = list( Sigma_coef1 = quote(Sigma_HP1[1]/2) )
     ),
     
     covReg = list(
@@ -734,8 +895,8 @@ nsgpModel <- function( tau_model   = "constant",
       }),
       constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2"),
       inits = list(
-        psi11 = quote(Sigma_HP2/2),
-        psi22 = quote(Sigma_HP2/2),
+        psi11 = quote(Sigma_HP2[1]/2),
+        psi22 = quote(Sigma_HP2[1]/2),
         rho = 0,
         gamma1 = quote(rep(0, p_Sigma)),
         gamma2 = quote(rep(0, p_Sigma))
@@ -762,22 +923,37 @@ nsgpModel <- function( tau_model   = "constant",
       constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1"),
       inits = list(
         Sigma_coef1 = quote(rep(0, p_Sigma)),
-        Sigma_coef2 = quote(rep(2, p_Sigma)),
-        Sigma_coef3 = quote(rep(1, p_Sigma))
+        Sigma_coef2 = quote(rep(0, p_Sigma)),
+        Sigma_coef3 = quote(rep(0, p_Sigma))
       )
     ),
-    ##
-    ## "npMixComp" model is identical to "compReg" model, above.
-    ## Thus, the "npMixComp" model is added as a duplicate of the "compReg" model, below.
-    ##
+    
+    compReg_iso = list( # Isotropic version of compReg
+      code = quote({
+        ## 1. X_Sigma                N x p_Sigma design matrix; leading column of 1's with (p_Sigma - 1) other covariates
+        ## 2. Sigma_HP1              Standard deviation for the component regression coefficients
+        ## 3. p_Sigma                Number of design columns
+        ## 4. Sigma_coef{1,2,3}      Vectors of length p_Sigma; represents component regression coefficients
+        eigen_comp1[1:N] <- X_Sigma[1:N,1:p_Sigma] %*% Sigma_coef1[1:p_Sigma]
+        Sigma11[1:N] <- exp(eigen_comp1[1:N])
+        Sigma22[1:N] <- exp(eigen_comp1[1:N])
+        Sigma12[1:N] <- ones[1:N]*0
+        for(j in 1:p_Sigma){
+          Sigma_coef1[j] ~ dnorm(0, sd = Sigma_HP1)
+        }
+      }),
+      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1"),
+      inits = list(
+        Sigma_coef1 = quote(rep(0, p_Sigma))
+      )
+    ),
+
     npGP = list( 
       code = quote({
-        ## 1. Sigma_HP1          3-vector; Gaussian process standard deviation 
-        ## 2. Sigma_HP2          3-vector; Gaussian process mean
-        ## 3. Sigma_HP3          3-vector; Gaussian process range
-        ## 4. Sigma_HP4          3-vector; Gaussian process smoothness
-        ## 5. ones                   N-vector of 1's
-        ## 6. dist                   N x N matrix of inter-point Euclidean distances
+        ## 1. Sigma_HP1          3-vector; Gaussian process mean
+        ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
+        ## 3. ones                   N-vector of 1's
+        ## 4. dist                   N x N matrix of inter-point Euclidean distances
         
         Sigma11[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 1)
         Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3) 
@@ -785,33 +961,74 @@ nsgpModel <- function( tau_model   = "constant",
         
         # GP1
         eigen_comp1[1:N] ~ dmnorm(mean = eigen1_mn[1:N], cov = eigen1_C[1:N,1:N])
-        eigen1_mn[1:N] <- Sigma_HP2[1]*ones[1:N] 
-        eigen1_C[1:N,1:N] <- Sigma_HP1[1]^2 * matern_corr(dist[1:N,1:N], Sigma_HP3[1], Sigma_HP4[1])
+        eigen1_mn[1:N] <- SigmaGP_mu[1]*ones[1:N] 
+        eigen1_C[1:N,1:N] <- SigmaGP_sigma[1]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[1], Sigma_HP2[1])
         
         # GP2
         eigen_comp2[1:N] ~ dmnorm(mean = eigen2_mn[1:N], cov = eigen2_C[1:N,1:N])
-        eigen2_mn[1:N] <- Sigma_HP2[2]*ones[1:N] 
-        eigen2_C[1:N,1:N] <- Sigma_HP1[2]^2 * matern_corr(dist[1:N,1:N], Sigma_HP3[2], Sigma_HP4[2])
+        eigen2_mn[1:N] <- SigmaGP_mu[1]*ones[1:N] 
+        eigen2_C[1:N,1:N] <- SigmaGP_sigma[1]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[1], Sigma_HP2[2])
         
         # GP3
         eigen_comp3[1:N] ~ dmnorm(mean = eigen3_mn[1:N], cov = eigen3_C[1:N,1:N])
-        eigen3_mn[1:N] <- Sigma_HP2[3]*ones[1:N] 
-        eigen3_C[1:N,1:N] <- Sigma_HP1[3]^2 * matern_corr(dist[1:N,1:N], Sigma_HP3[3], Sigma_HP4[3])
+        eigen3_mn[1:N] <- SigmaGP_mu[2]*ones[1:N] 
+        eigen3_C[1:N,1:N] <- SigmaGP_sigma[2]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[2], Sigma_HP2[3])
+        
+        # Hyperparameters
+        for(w in 1:2){
+          SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
+          SigmaGP_phi[w] ~ dunif(0, Sigma_HP3[w]) # Range parameter, GP
+          SigmaGP_sigma[w] ~ dunif(0, Sigma_HP4[w]) # SD parameter, GP
+        }
         
       }),
       constants_needed = c("ones", "dist", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4"),    
       inits = list(
         eigen_comp1 = quote(rep(0,N)),
         eigen_comp2 = quote(rep(0,N)),
-        eigen_comp3 = quote(rep(0,N))
+        eigen_comp3 = quote(rep(0,N)),
+        SigmaGP_mu = quote(rep(0,2)),
+        SigmaGP_phi = quote(rep(Sigma_HP3/2,2)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4/2,2))
+      )
+    ),
+    
+    npGP_iso = list( 
+      code = quote({
+        ## 1. Sigma_HP1          3-vector; Gaussian process mean
+        ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
+        ## 3. ones                   N-vector of 1's
+        ## 4. dist                   N x N matrix of inter-point Euclidean distances
+        
+        Sigma11[1:N] <- exp(eigen_comp1[1:N])
+        Sigma22[1:N] <- exp(eigen_comp1[1:N])
+        Sigma12[1:N] <- ones[1:N]*0
+        
+        # GP1
+        eigen_comp1[1:N] ~ dmnorm(mean = eigen1_mn[1:N], cov = eigen1_C[1:N,1:N])
+        eigen1_mn[1:N] <- SigmaGP_mu[1]*ones[1:N] 
+        eigen1_C[1:N,1:N] <- SigmaGP_sigma[1]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[1], Sigma_HP2[1])
+        
+        # Hyperparameters
+        for(w in 1){
+          SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
+          SigmaGP_phi[w] ~ dunif(0, Sigma_HP3[w]) # Range parameter, GP
+          SigmaGP_sigma[w] ~ dunif(0, Sigma_HP4[w]) # SD parameter, GP
+        }
+        
+      }),
+      constants_needed = c("ones", "dist", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4"),    
+      inits = list(
+        eigen_comp1 = quote(rep(0,N)),
+        SigmaGP_mu = quote(rep(0,1)),
+        SigmaGP_phi = quote(rep(Sigma_HP3/2,1)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4/2,1))
       )
     ),
     npApproxGP = list( 
       code = quote({
-        ## 1. Sigma_HP1          3-vector; Gaussian process standard deviation 
-        ## 2. Sigma_HP2          3-vector; Gaussian process mean
-        ## 3. Sigma_HP3          3-vector; Gaussian process range
-        ## 4. Sigma_HP4          3-vector; Gaussian process smoothness
+        ## 1. Sigma_HP1          3-vector; Gaussian process mean
+        ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
         ## 5. ones                   N-vector of 1's
         ## 6. dist                   N x N matrix of inter-point Euclidean distances
         ## 7. Sigma_cross_dist       N x p_Sigma matrix of inter-point Euclidean distances, obs. coords vs. knot locations
@@ -822,43 +1039,93 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3) 
         Sigma22[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 2)
         
-        # approxGP1
-        eigen_comp1[1:N] <- Sigma_HP2[1]*ones[1:N] + Sigma_HP1[1] * Pmat1_Sigma[1:N,1:p_Sigma] %*% w1_Sigma[1:p_Sigma]
+        # approxGP1, approxGP2
+        eigen_comp1[1:N] <- SigmaGP_mu[1]*ones[1:N] + SigmaGP_sigma[1] * Pmat12_Sigma[1:N,1:p_Sigma] %*% w1_Sigma[1:p_Sigma]
+        eigen_comp2[1:N] <- SigmaGP_mu[1]*ones[1:N] + SigmaGP_sigma[1] * Pmat12_Sigma[1:N,1:p_Sigma] %*% w2_Sigma[1:p_Sigma]
         
-        Pmat1_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], Sigma_HP3[1], Sigma_HP4[1])
+        Pmat12_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], SigmaGP_phi[1], Sigma_HP2[1])
+        Vmat12_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], SigmaGP_phi[1], Sigma_HP2[1])
+        w12_Sigma_mean[1:p_Sigma] <- 0*ones[1:p_Sigma]
         
-        Vmat1_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], Sigma_HP3[1], Sigma_HP4[1])
-        
-        w1_Sigma_mean[1:p_Sigma] <- 0*ones[1:p_Sigma]
-        w1_Sigma[1:p_Sigma] ~ dmnorm( mean = w1_Sigma_mean[1:p_Sigma], prec = Vmat1_Sigma[1:p_Sigma,1:p_Sigma] )
-        
-        # approxGP2
-        eigen_comp2[1:N] <- Sigma_HP2[2]*ones[1:N] + Sigma_HP1[2] * Pmat2_Sigma[1:N,1:p_Sigma] %*% w2_Sigma[1:p_Sigma]
-        
-        Pmat2_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], Sigma_HP3[2], Sigma_HP4[2])
-        
-        Vmat2_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], Sigma_HP3[2], Sigma_HP4[2])
-        
-        w2_Sigma_mean[1:p_Sigma] <- 0*ones[1:p_Sigma]
-        w2_Sigma[1:p_Sigma] ~ dmnorm( mean = w2_Sigma_mean[1:p_Sigma], prec = Vmat2_Sigma[1:p_Sigma,1:p_Sigma] )
+        w1_Sigma[1:p_Sigma] ~ dmnorm( mean = w12_Sigma_mean[1:p_Sigma], prec = Vmat12_Sigma[1:p_Sigma,1:p_Sigma] )
+        w2_Sigma[1:p_Sigma] ~ dmnorm( mean = w12_Sigma_mean[1:p_Sigma], prec = Vmat12_Sigma[1:p_Sigma,1:p_Sigma] )
         
         # approxGP3
-        eigen_comp3[1:N] <- Sigma_HP2[3]*ones[1:N] + Sigma_HP1[3] * Pmat3_Sigma[1:N,1:p_Sigma] %*% w3_Sigma[1:p_Sigma]
-        
-        Pmat3_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], Sigma_HP3[3], Sigma_HP4[3])
-        
-        Vmat3_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], Sigma_HP3[3], Sigma_HP4[3])
-        
+        eigen_comp3[1:N] <- SigmaGP_mu[2]*ones[1:N] + SigmaGP_sigma[2] * Pmat3_Sigma[1:N,1:p_Sigma] %*% w3_Sigma[1:p_Sigma]
+        Pmat3_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], SigmaGP_phi[2], Sigma_HP2[2])
+        Vmat3_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], SigmaGP_phi[2], Sigma_HP2[2])
         w3_Sigma_mean[1:p_Sigma] <- 0*ones[1:p_Sigma]
         w3_Sigma[1:p_Sigma] ~ dmnorm( mean = w3_Sigma_mean[1:p_Sigma], prec = Vmat3_Sigma[1:p_Sigma,1:p_Sigma] )
         
+        # Hyperparameters
+        for(w in 1:2){
+          SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
+          SigmaGP_phi[w] ~ dunif(0, Sigma_HP3[w]) # Range parameter, GP
+          SigmaGP_sigma[w] ~ dunif(0, Sigma_HP4[w]) # SD parameter, GP
+        }
+        
+        # Constraints: upper limits on eigen_comp1 and eigen_comp2
+        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
+        constraint2 ~ dconstraint( max(eigen_comp2[1:N]) < log(Sigma_HP5) )
+        
       }),
-      constants_needed = c("ones", "dist", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
-                           "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
+      constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
+                           "Sigma_HP5", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
       inits = list(
         w1_Sigma = quote(rep(0,p_Sigma)),
         w2_Sigma = quote(rep(0,p_Sigma)),
-        w3_Sigma = quote(rep(0,p_Sigma))
+        w3_Sigma = quote(rep(0,p_Sigma)),
+        SigmaGP_mu = quote(rep(0,2)),
+        SigmaGP_phi = quote(rep(Sigma_HP3/2,2)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4/2,2)),
+        constraint1 = 1,
+        constraint2 = 1
+      )
+      
+    ),
+    
+    npApproxGP_iso = list( 
+      code = quote({
+        ## 1. Sigma_HP1          3-vector; Gaussian process mean
+        ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
+        ## 5. ones                   N-vector of 1's
+        ## 6. dist                   N x N matrix of inter-point Euclidean distances
+        ## 7. Sigma_cross_dist       N x p_Sigma matrix of inter-point Euclidean distances, obs. coords vs. knot locations
+        ## 8. Sigma_knot_dist        p_Sigma x p_Sigma matrix of inter-point Euclidean distances, knot locations
+        ## 9. p_Sigma                Number of knot locations
+        
+        Sigma11[1:N] <- exp(eigen_comp1[1:N])
+        Sigma22[1:N] <- exp(eigen_comp1[1:N])
+        Sigma12[1:N] <- ones[1:N]*0
+        
+        # approxGP1
+        eigen_comp1[1:N] <- SigmaGP_mu[1]*ones[1:N] + SigmaGP_sigma[1] * Pmat12_Sigma[1:N,1:p_Sigma] %*% w1_Sigma[1:p_Sigma]
+
+        Pmat12_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], SigmaGP_phi[1], Sigma_HP2[1])
+        Vmat12_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], SigmaGP_phi[1], Sigma_HP2[1])
+        w12_Sigma_mean[1:p_Sigma] <- 0*ones[1:p_Sigma]
+        
+        w1_Sigma[1:p_Sigma] ~ dmnorm( mean = w12_Sigma_mean[1:p_Sigma], prec = Vmat12_Sigma[1:p_Sigma,1:p_Sigma] )
+
+        # Hyperparameters
+        for(w in 1){
+          SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
+          SigmaGP_phi[w] ~ dunif(0, Sigma_HP3[w]) # Range parameter, GP
+          SigmaGP_sigma[w] ~ dunif(0, Sigma_HP4[w]) # SD parameter, GP
+        }
+        
+        # Constraints: upper limits on eigen_comp1 and eigen_comp2
+        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
+
+      }),
+      constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
+                           "Sigma_HP5", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
+      inits = list(
+        w1_Sigma = quote(rep(0,p_Sigma)),
+        SigmaGP_mu = quote(rep(0,1)),
+        SigmaGP_phi = quote(rep(Sigma_HP3/2,1)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4/2,1)),
+        constraint1 = 1
       )
       
     )
@@ -870,7 +1137,7 @@ nsgpModel <- function( tau_model   = "constant",
   
   mu_model_list <- list(
     constant = list(
-      ## 1. log_sigma_HP1          Standard deviation for the log-linear standard deviation
+      ## 1. sigma_HP1          Standard deviation for the log-linear standard deviation
       ## 2. alpha                  Scalar; represents log-linear standard deviation (constant over the domain)
       ## 3. ones                   N-vector of 1's
       code = quote({
@@ -996,14 +1263,14 @@ nsgpModel <- function( tau_model   = "constant",
   constants_defaults_list <- list(
     N = N,
     ones = rep(1, N),
-    log_tau_HP1 = sd_default,            ## standard deviation
-    log_tau_HP2 = mu_default,            ## mean
-    log_tau_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
-    log_tau_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
-    log_sigma_HP1 = sd_default,            ## standard deviation
-    log_sigma_HP2 = mu_default,            ## mean
-    log_sigma_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
-    log_sigma_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
+    tau_HP1 = sd_default,            ## standard deviation
+    tau_HP2 = mu_default,            ## mean
+    tau_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
+    tau_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
+    sigma_HP1 = sd_default,            ## standard deviation
+    sigma_HP2 = mu_default,            ## mean
+    sigma_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
+    sigma_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
     Sigma_HP1 = 10,    ## standard deviation
     Sigma_HP2 = 10,    ## uniform upper bound for covReg 'psi' parameters
     mu_HP1 = sd_default,            ## standard deviation

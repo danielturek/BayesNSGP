@@ -1,0 +1,182 @@
+---
+title: Application 2: water year precipitation over CONUS, 2018
+author: Mark Risser
+date: 22 February 2019
+output: html_document
+---
+
+\   
+
+```{r, message = FALSE, warning = FALSE}
+library(nimble)
+library(coda)
+library(StatMatch)
+nimbleOptions(verbose = TRUE)
+source("../BayesNSGP/BayesNSGP/R/core2.R")
+source("../BayesNSGP/BayesNSGP/R/NNGP.R")
+source("../BayesNSGP/BayesNSGP/R/SGV.R")
+
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+library(viridis)
+
+source("~/CASCADE_Projects/gridded_precip/plots_paper/source_plot.R")
+
+```
+
+\   
+
+
+### Introduction
+
+Now, we attempt to analyze a larger data set consisting of measurements of the daily precipitation rate from $n = 2311$ stations from the GHCN over the contiguous United States (CONUS) for the 2018 water year (October 1, 2017 to September 30, 2018). These stations were chosen as the subset of all GHCN stations (21269 total) that had no missing daily values over this time period. In this analysis we will compare the different likelihood methods (fullGP, NNGP, and SGV), since the size of this data set is still relatively reasonable for fitting a full Gaussian process model.
+
+First, load the data to be used in both analyses and create the constants needed for the NIMBLE functionality:
+
+```{r, message = FALSE}
+# Load data =====================================
+CONUSprecip <- read.csv("data/CONUS_WY2018.csv")
+coords <- as.matrix(CONUSprecip[,c("lcc_x", "lcc_y")])
+z <- CONUSprecip$logPR
+elevShift <- mean(CONUSprecip$Xelevation)
+elevScale <- sd(CONUSprecip$Xelevation)
+CONUSprecip$Zelevation <- (CONUSprecip$Xelevation - elevShift)/elevScale
+CONUSprecip$indWest <- as.numeric(CONUSprecip$longitude < -100) 
+Xmat <- unname(lm(logPR ~ Zelevation*indWest, x = TRUE, data = CONUSprecip)$x)
+N <- nrow(CONUSprecip)
+
+# Load prediction grid: elevation and slope =====
+CONUS_predDF <- read.csv("data/CONUS_predGrid.csv")
+
+# MCMC setup ====================================
+niter <- 200
+strt.kp <- 101
+```
+
+Take a quick look at the precipitation rates:
+
+```{r, echo = FALSE, fig.height=6, fig.width=10, warning = FALSE}
+plot_conus( df = CONUSprecip, color = CONUSprecip$PR, col.lim = c(0.4, 9), 
+            col.type = "cont", scale.trans = "log",
+            col.pal = viridis_pal(option = "viridis")(9)[9:1], plot.grid = FALSE,
+            brk_rd = 1, shp = 16, pt.size = 1.5, barheight = 20, n_brks = 9,
+            xlab = NULL, ylab = NULL, ttle.txt = "Precipitation rate, 2018 water year (mm/day)" )
+```
+
+For this analysis, we set out to allow each component (mean, nugget variance, spatial variance, and anisotropy process) of the model to vary linearly with elevation, with an interaction term that indicates whether the station is in the western United States (i.e., west of the 100$^\circ$W meridian). The purpose of the interaction is to allow a different relationship between elevation and the mean/covariance parameters for the mountain west, relative to the eastern United States. Specifically, we will use the componentwise regression approach for the anisotropy process. With four regression coefficients (intercept, elevation, a western US indicator, and the elevation/western US indicator interaction), this means we have $4 \times 6=24$ parameters to estimate (recall the anisotropy process involves three separate regression models).
+
+#### (1) Full GP likelihood
+
+```{r}
+# Distance matrices and constants
+dist_mats <- nsDist(coords)
+constants <- list( 
+  dist1_sq = dist_mats$dist1_sq, dist2_sq = dist_mats$dist2_sq, 
+  dist12 = dist_mats$dist12, nu = 0.5, N = N,
+  tau_HP1 = 10, p_tau = ncol(Xmat), X_tau = Xmat,
+  sigma_HP1 = 10, p_sigma = ncol(Xmat), X_sigma = Xmat,
+  Sigma_HP1 = 5, p_Sigma = ncol(Xmat), X_Sigma = Xmat,
+  mu_HP1 = 10, p_mu = ncol(Xmat), X_mu = Xmat )
+
+# Setup
+Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants, z = z,
+                            tau_model = "logLinReg", sigma_model = "logLinReg", 
+                            mu_model = "linReg", Sigma_model = "compReg" )
+compl_model_fullGP <- compileNimble( Rmodel_fullGP )
+conf_model_fullGP <- configureMCMC( Rmodel_fullGP )
+conf_model_fullGP$removeSamplers()
+conf_model_fullGP$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
+conf_model_fullGP$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
+conf_model_fullGP$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+conf_model_fullGP$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), 
+                             type = "RW_block")
+conf_model_fullGP$addSampler(target = c("Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
+                             type = "RW_block")
+conf_model_fullGP$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
+                             type = "RW_block")
+conf_model_fullGP$getSamplers()
+nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)
+nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)
+
+# Run MCMC
+prt <- proc.time()
+nim_Cmcmc_fullGP$run(niter)
+fullGP.tm <- proc.time() - prt
+postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
+
+```
+
+#### (2) NNGP likelihood
+
+```{r}
+# Distance matrices and constants
+k <- 15
+nID_NNGP <- determineNeighbors(coords, k)
+dist_NNGP <- nsDist3d(coords, nID_NNGP)
+constants_NNGP <- list( 
+  dist1_3d = dist_NNGP$dist1_3d, dist2_3d = dist_NNGP$dist2_3d, 
+  dist12_3d = dist_NNGP$dist12_3d, nu = 0.5, N = N, k = k, nID = nID_NNGP,
+  tau_HP1 = 10, p_tau = ncol(Xmat), X_tau = Xmat,
+  sigma_HP1 = 10, p_sigma = ncol(Xmat), X_sigma = Xmat,
+  Sigma_HP1 = 5, p_Sigma = ncol(Xmat), X_Sigma = Xmat,
+  mu_HP1 = 10, p_mu = ncol(Xmat), X_mu = Xmat )
+
+# Setup
+Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z,
+                          tau_model = "logLinReg", sigma_model = "logLinReg", 
+                          mu_model = "linReg", Sigma_model = "compReg" )
+compl_model_NNGP <- compileNimble( Rmodel_NNGP )
+conf_model_NNGP <- configureMCMC( Rmodel_NNGP )
+conf_model_NNGP$removeSamplers()
+conf_model_NNGP$addSampler(target = c("alpha[1]","alpha[3]",
+                                      "Sigma_coef1[1]","Sigma_coef1[3]",
+                                      "Sigma_coef2[1]","Sigma_coef2[3]",
+                                      "Sigma_coef3[1]","Sigma_coef3[3]"), type = "RW_block")
+conf_model_NNGP$addSampler(target = c("alpha[2]","alpha[4]",
+                                      "Sigma_coef1[2]","Sigma_coef1[4]",
+                                      "Sigma_coef2[2]","Sigma_coef2[4]",
+                                      "Sigma_coef3[2]","Sigma_coef3[4]"),
+                           type = "RW_block")
+# conf_model_NNGP$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
+conf_model_NNGP$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
+# conf_model_NNGP$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+# conf_model_NNGP$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), 
+#                              type = "RW_block")
+# conf_model_NNGP$addSampler(target = c("Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
+#                              type = "RW_block")
+# conf_model_NNGP$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
+#                              type = "RW_block")
+# conf_model_NNGP$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]",
+#                                       "delta[1]","delta[2]","delta[3]","delta[4]",
+#                                       "Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]",
+#                                       "Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]",
+#                                       "Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
+#                              type = "RW_block")
+conf_model_NNGP$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+conf_model_NNGP$getSamplers()
+nim_mcmc_NNGP <- buildMCMC(conf_model_NNGP)
+nim_Cmcmc_NNGP <- compileNimble(nim_mcmc_NNGP, project = Rmodel_NNGP)
+
+prt <- proc.time()
+nim_Cmcmc_NNGP$run(10000)
+NNGP.tm <- proc.time() - prt
+postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)
+
+
+
+
+
+postSamp_NNGP_orig <- postSamp_NNGP
+par(ask=T)
+for(t in 1:ncol(postSamp_NNGP)){
+  plot(postSamp_NNGP[,t], type = "l", main = colnames(postSamp_NNGP)[t])
+}
+
+
+
+
+```
+
+
+
