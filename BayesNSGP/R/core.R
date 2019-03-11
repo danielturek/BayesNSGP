@@ -454,7 +454,6 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
     dists2_sq[1,1] <- -1
     dist12 <- matrix(0, N, N)
   }
-
   # Rescale if needed
   if( !is.null(scale_factor) ){
     dist1_sq <- dist1_sq/scale_factor  
@@ -772,7 +771,6 @@ nsgpModel <- function( tau_model   = "constant",
       constants_needed = c("X_sigma", "p_sigma", "sigma_HP1"),
       inits = list(alpha = quote(rep(0, p_sigma)))
     ),
-
     GP = list(
       ## 1. sigma_HP1        Gaussian process standard deviation 
       ## 2. sigma_HP2        Gaussian process mean
@@ -815,7 +813,6 @@ nsgpModel <- function( tau_model   = "constant",
         Vmat_sigma[1:p_sigma,1:p_sigma] <- matern_corr(sigma_knot_dist[1:p_sigma,1:p_sigma], sigmaGP_phi, sigma_HP2)
         w_sigma_mean[1:p_sigma] <- 0*ones[1:p_sigma]
         w_sigma[1:p_sigma] ~ dmnorm( mean = w_sigma_mean[1:p_sigma], prec = Vmat_sigma[1:p_sigma,1:p_sigma] )
-
         # Hyperparameters
         sigmaGP_mu ~ dnorm(0, sd = sigma_HP1)
         sigmaGP_phi ~ dunif(0, sigma_HP3) # Range parameter, GP
@@ -846,7 +843,6 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma11[1:N] <- ones[1:N]*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
         Sigma22[1:N] <- ones[1:N]*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
         Sigma12[1:N] <- ones[1:N]*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
-
         Sigma_coef1 ~ dunif(0, Sigma_HP1) # phi1
         Sigma_coef2 ~ dunif(0, Sigma_HP1) # phi2
         Sigma_coef3 ~ dunif(0, 1.570796)  # eta --> 1.570796 = pi/2
@@ -947,7 +943,6 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma_coef1 = quote(rep(0, p_Sigma))
       )
     ),
-
     npGP = list( 
       code = quote({
         ## 1. Sigma_HP1          3-vector; Gaussian process mean
@@ -1100,13 +1095,11 @@ nsgpModel <- function( tau_model   = "constant",
         
         # approxGP1
         eigen_comp1[1:N] <- SigmaGP_mu[1]*ones[1:N] + SigmaGP_sigma[1] * Pmat12_Sigma[1:N,1:p_Sigma] %*% w1_Sigma[1:p_Sigma]
-
         Pmat12_Sigma[1:N,1:p_Sigma] <- matern_corr(Sigma_cross_dist[1:N,1:p_Sigma], SigmaGP_phi[1], Sigma_HP2[1])
         Vmat12_Sigma[1:p_Sigma,1:p_Sigma] <- matern_corr(Sigma_knot_dist[1:p_Sigma,1:p_Sigma], SigmaGP_phi[1], Sigma_HP2[1])
         w12_Sigma_mean[1:p_Sigma] <- 0*ones[1:p_Sigma]
         
         w1_Sigma[1:p_Sigma] ~ dmnorm( mean = w12_Sigma_mean[1:p_Sigma], prec = Vmat12_Sigma[1:p_Sigma,1:p_Sigma] )
-
         # Hyperparameters
         for(w in 1){
           SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
@@ -1116,7 +1109,6 @@ nsgpModel <- function( tau_model   = "constant",
         
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
         constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
-
       }),
       constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
                            "Sigma_HP5", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
@@ -1315,7 +1307,6 @@ nsgpModel <- function( tau_model   = "constant",
   if(returnModelComponents) return(list(code=code, constants=constants, data=data, inits=inits))
   
   ## NIMBLE model object
-  Rmodel <- nimbleModel(code, constants, data, inits)
   if(!nimble:::isValid(Rmodel$getLogProb())) stop('model not properly initialized')
   
   return(Rmodel)
@@ -1341,15 +1332,14 @@ nsgpModel <- function( tau_model   = "constant",
 #' @export
 #' @importFrom nimble nimbleFunction
 
-nsgpPredict <- function( nsgpModel_obj, mcmc_samples, predCoords, pred_neighbors = NULL ){
   
   # nsgpModel = nimble model or otherwise
   # mcmc_samples = array of post burn-in MCMC samples
   # predCoords = matrix of prediction locations
+  # Seems like it might work best to let the user just feed in
+  # the nsgpModel (which includes things like tau_model, likelihood, etc.),
+  # and then we hide everything in this wrapper for doing prediction?
   
-  # modelName contains [likelihood]_[tau_model]_[sigma_model]_[Sigma_model]_[mu_model]
-  modelName <- "fullGP_constant_constant_constant_constant" # TODO: extract this from nsgpModel_obj
-  modelName_list <- strsplit(modelName, "_")
   
   J <- nrow(mcmc_samples)
   
@@ -1424,7 +1414,6 @@ nsgpPredict <- function( nsgpModel_obj, mcmc_samples, predCoords, pred_neighbors
       ###### TODO
     }
   }
-  if( likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
     
     # Finley et al. (2017) only outline prediction for one location at
     # a time. It's not clear to me if there's a way to extend this to 
