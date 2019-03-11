@@ -96,9 +96,19 @@ fullGP.tm <- proc.time() - prt
 postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
 
 # Prediction
-predCoords <- as.matrix(expand.grid(seq(0,1,length = 10),seq(0,1,length = 10)))
+predCoords <- as.matrix(expand.grid(seq(0,1,length = 25),seq(0,1,length = 25)))
+postSamp_pred <- nsgpPredict( Rmodel_fullGP, postSamp_fullGP, locs, predCoords )
 
-
+library(ggplot2)
+library(RColorBrewer)
+ggplot(data.frame(x = locs[,1], y = locs[,2], mean = z), aes(x = x, y = y, color = mean)) +
+  geom_point() + scale_color_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1)
+ggplot(data.frame(x = predCoords[,1], y = predCoords[,2], mean = colMeans(postSamp_pred),
+                  sd = apply(postSamp_pred,2,sd)), aes(x = x, y = y, fill = mean)) +
+  geom_tile() + scale_fill_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1)
+ggplot(data.frame(x = predCoords[,1], y = predCoords[,2], mean = colMeans(postSamp_pred),
+                  sd = apply(postSamp_pred,2,sd)), aes(x = x, y = y, fill = sd)) +
+  geom_tile() + scale_fill_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1)
 
 
 
