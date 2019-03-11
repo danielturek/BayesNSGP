@@ -1,7 +1,7 @@
 ---
 title: Test implementation of fullGP, NNGP, SGV in nimble
 author: Mark Risser
-date: 13 February 2019
+date: 11 March 2019
 output: html_document
 ---
 
@@ -82,14 +82,10 @@ First, we'll use the Full GP likelihood.
 
 ```{r }
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
-Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP, z = z)
+Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP, z = z )
 
 compl_model_fullGP <- compileNimble( Rmodel_fullGP )
 conf_model_fullGP <- configureMCMC( Rmodel_fullGP )
-# conf_model_fullGP$removeSamplers(c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha", "delta"))
-# conf_model_fullGP$addSampler(target = c("Sigma_coef1", "Sigma_coef2", "Sigma_coef3", "alpha", "delta"), 
-#                              type = "RW_block")
-conf_model_fullGP$addMonitors(c("Sigma11[1]", "Sigma22[1]", "Sigma12[1]"))
 nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)
 nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)
 calculate(Rmodel_fullGP, paste("z[1:", N, "]", sep = ""))
@@ -98,6 +94,15 @@ prt <- proc.time()
 nim_Cmcmc_fullGP$run(niter)
 fullGP.tm <- proc.time() - prt
 postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
+
+# Prediction
+predCoords <- as.matrix(expand.grid(seq(0,1,length = 10),seq(0,1,length = 10)))
+
+
+
+
+
+
 
 # system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
 samplesList <- list(fullGP = postSamp_fullGP[,c("beta","alpha","delta","Sigma11[1]", "Sigma12[1]", "Sigma22[2]")])

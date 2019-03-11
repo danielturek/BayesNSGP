@@ -1341,23 +1341,55 @@ nsgpModel <- function( tau_model   = "constant",
 #' @export
 #' @importFrom nimble nimbleFunction
 
-nsgpPredict <- function( nsgpModel, mcmc_samples, pred_neighbors = NULL ){
+nsgpPredict <- function( nsgpModel_obj, mcmc_samples, predCoords, pred_neighbors = NULL ){
   
-  # Seems like it might work best to let the user just feed in
-  # the nsgpModel (which includes things like tau_model, likelihood, etc.),
-  # and then we hide everything in this wrapper for doing prediction?
+  # nsgpModel = nimble model or otherwise
+  # mcmc_samples = array of post burn-in MCMC samples
+  # predCoords = matrix of prediction locations
   
-  # This code assumes we've calculated Sigma11, Sigma12, log_tau_vec, etc.
-  # already.
+  # modelName contains [likelihood]_[tau_model]_[sigma_model]_[Sigma_model]_[mu_model]
+  modelName <- "fullGP_constant_constant_constant_constant" # TODO: extract this from nsgpModel_obj
+  modelName_list <- strsplit(modelName, "_")
   
   J <- nrow(mcmc_samples)
-  N <- nrow(dist1_sq) # number of observed locations
-  M <- nrow(Pdist1_sq) # number of prediction locations
   
-  if( likelihood == "fullGP" ){ # Predictions for the full GP likelihood
+  if( modelName_list[[1]][1] == "fullGP" ){ # Predictions for the full GP likelihood
+    
+    # Extract model values
+    dist1_sq <- nsgpModel_obj$defaultModelValues$dist1_sq
+    dist2_sq <- nsgpModel_obj$defaultModelValues$dist2_sq
+    dist12 <- nsgpModel_obj$defaultModelValues$dist12
+    N <- nrow(dist1_sq) # number of observed locations
+    
+    # Calculate prediction values
+    Pdist <- nsDist(predCoords)
+    Pdist1_sq <- Pdist$dist1_sq
+    Pdist2_sq <- Pdist$dist2_sq
+    Pdist12 <- Pdist$dist12
+    M <- nrow(Pdist1_sq) # number of prediction locations
     
     for(j in 1:J){ # Loop over MCMC samples
+
+      samp_j <- mcmc_samples[j,]
+      # Calculate log_tau_vec_j =================
+      if( modelName_list[[1]][2] == "constant" ){
+        
+      }
+      if( modelName_list[[1]][2] == "constant" ){
+        
+      }
+      if( modelName_list[[1]][2] == "constant" ){
+        
+      }
+      if( modelName_list[[1]][2] == "constant" ){
+        
+      }
+      if( modelName_list[[1]][2] == "constant" ){
+        
+      }
       
+      
+            
       #### TODO: extract (or calculate?) the vector of parameters for
       ####       the jth MCMC sample
       
