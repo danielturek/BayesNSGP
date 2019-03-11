@@ -1313,9 +1313,18 @@ nsgpModel <- function( tau_model   = "constant",
   inits <- lapply(inits_uneval, function(x) eval(x, envir = constants))
   
   if(returnModelComponents) return(list(code=code, constants=constants, data=data, inits=inits))
+
+  ## generate the "name" for the nimble model object, containing which submodels were used
+  thisName <- paste0(
+      'tau='       , tau_model  , '_',
+      'sigma='     , sigma_model, '_',
+      'Sigma='     , Sigma_model, '_',
+      'mu='        , mu_model   , '_',
+      'likelihood=', likelihood
+  )
   
   ## NIMBLE model object
-  Rmodel <- nimbleModel(code, constants, data, inits)
+  Rmodel <- nimbleModel(code, constants, data, inits, name = thisName)
   if(!nimble:::isValid(Rmodel$getLogProb())) stop('model not properly initialized')
   
   return(Rmodel)
@@ -1347,6 +1356,18 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, pred_neighbors = NULL ){
   # the nsgpModel (which includes things like tau_model, likelihood, etc.),
   # and then we hide everything in this wrapper for doing prediction?
   
+  ## extract the "submodel" information from the nimble model object "name"
+  thisName <- nsgpModel$getModelDef()$name
+  modelsList <- lapply(strsplit(thisName, '_')[[1]], function(x) strsplit(x, '=')[[1]][2])
+  names(modelsList) <- sapply(strsplit(thisName, '_')[[1]], function(x) strsplit(x, '=')[[1]][1])
+  ## avaialble for use:
+  ## modelsList$tau
+  ## modelsList$sigma
+  ## modelsList$Sigma
+  ## modelsList$mu
+  ## modelsList$likelihood
+
+
   # This code assumes we've calculated Sigma11, Sigma12, log_tau_vec, etc.
   # already.
   
@@ -1354,7 +1375,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, pred_neighbors = NULL ){
   N <- nrow(dist1_sq) # number of observed locations
   M <- nrow(Pdist1_sq) # number of prediction locations
   
-  if( likelihood == "fullGP" ){ # Predictions for the full GP likelihood
+  if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     
     for(j in 1:J){ # Loop over MCMC samples
       
@@ -1392,7 +1413,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, pred_neighbors = NULL ){
       ###### TODO
     }
   }
-  if( likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
+  if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
     
     # Finley et al. (2017) only outline prediction for one location at
     # a time. It's not clear to me if there's a way to extend this to 
