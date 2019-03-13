@@ -239,7 +239,11 @@ calculateU_ns <- nimbleFunction(
       
       # Cross-covariance between location and the conditioning set
       Crosscor <- nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu)
-      sigmaMat_cond <- diag(exp(log_sigma_vec[ind]))
+      if(length(ind) == 1) {
+        sigmaMat_cond <- array(exp(log_sigma_vec[ind]), c(1,1))
+      } else {
+        sigmaMat_cond <- diag(exp(log_sigma_vec[ind]))
+      }
       Crosscov <- array(exp(log_sigma_vec[i]), c(1,1)) %*% array(Crosscor, c(1,nNei)) %*% sigmaMat_cond # Formerly pt1
       
       # Covariance of conditioning set

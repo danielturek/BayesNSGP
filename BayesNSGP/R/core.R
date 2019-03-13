@@ -387,7 +387,13 @@ nsCrosscorr <- nimbleFunction(
         Unscl.corr <- exp(-(Dist.mat^2)) 
       } else{ # Else: Matern with smoothness nu
         Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * RbesselK(Dist.mat, nu) # besselK( x = Dist.mat, nu = nu )
-        Unscl.corr[Unscl.corr == Inf] <- 1
+        ## this line will not fly:  Unscl.corr[Unscl.corr == Inf] <- 1
+        ## inelegant, but accomplishes the same:
+        for(i in 1:dim(Unscl.corr)[1]) {
+          for(j in 1:dim(Unscl.corr)[2]) {
+            if(Unscl.corr[i,j] == Inf)   Unscl.corr[i,j] <- 1
+          }
+        }
         # diag(Unscl.corr) <- 1
       } 
     }
