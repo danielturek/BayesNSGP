@@ -107,7 +107,9 @@ conditionLatentObs <- function( nID, locs_ord, N ){
 #' @export
 #' @importFrom nimble nimbleCode
 
-sgvSetup <- function( locs, locs_pred = NULL, k = 15 ){
+sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
+  
+  if(is.null(seed)) seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
   
   d <- ncol(locs) # Spatial dimension
   n <- nrow(locs) # Number of (observed) locations
@@ -115,8 +117,9 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15 ){
   #--------------------------------------------------------
   # Task 1: Order the locations
   #--------------------------------------------------------
+  set.seed(seed)
   if(is.null(locs_pred)){ # If no prediction
-    locs_mmd <- orderCoordinatesMMD(locs)
+    locs_mmd <- orderCoordinatesMMD(locs )
     locs_pred_mmd <- NULL
     ord <- locs_mmd$orderedIndicesNoNA
     ord_pred <- NULL
@@ -125,8 +128,8 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15 ){
     
   } else{
     n_pred <- nrow(locs_pred) # Number of prediction locations
-    locs_ord <- orderCoordinatesMMD(locs)
-    locs_pred_ord <- orderCoordinatesMMD(locs_pred)
+    # locs_ord <- orderCoordinatesMMD(locs)
+    # locs_pred_ord <- orderCoordinatesMMD(locs_pred)
     
     locs_mmd <- orderCoordinatesMMD(locs)
     locs_pred_mmd <- orderCoordinatesMMD(locs_pred)
@@ -146,7 +149,8 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15 ){
   #--------------------------------------------------------
   condition_on_y_ord <- conditionLatentObs( nID_ord, locs_ord, n )
   
-  return(list( ord = ord, ord_pred = ord_pred, ord_all = ord_all, 
+  return(list( seed = seed, 
+               ord = ord, ord_pred = ord_pred, ord_all = ord_all, 
                locs_ord = locs_ord, nID_ord = nID_ord, 
                condition_on_y_ord = condition_on_y_ord ))
 }
@@ -197,38 +201,39 @@ calculateU_ns <- nimbleFunction(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
     log_sigma_vec = double(1), log_tau_vec = double(1), nu = double(), 
-    nID = double(2), cond_on_y = double(2), N = double(), k = double() ) {
+    nID = double(2), cond_on_y = double(2), N = double(), k = double(), 
+    M = double(0, default = 0)) {
     
     # Setup
-    NN <- 2*N
-    num_NZ <- 3*N + k*N - (k*(k+1)/2) # Number of non-zero entries in U
-    num_neigbs <- c(0, seq(from = 1, to = k-1, by = 1), array(k, N-k))
+    NN <- 2*N + M
+    num_NZ <- 3*N + k*N - (k*(k+1)/2) + (k+1)*M # Number of non-zero entries in U
+    num_neigbs <- c(0, seq(from = 1, to = k-1, by = 1), array(k, M+N-k))
     Uvals <- array(0, num_NZ)
     rowInd <- array(0, num_NZ)
     colInd <- array(0, num_NZ)
     
     # Calculate the position of the diagonal elements    
-    dgIdx_vec <- array(-1, N)
+    dgIdx_vec <- array(-1, N+M)
     for(l in 1:k){
       dgIdx_vec[l] <- 1 + sum(num_neigbs[1:l])
     }
-    dgIdx_vec[(k+1):N] <- seq(from=(k*(k+1)/2)+1, to=num_NZ - 2*N, by = k+1)
+    dgIdx_vec[(k+1):(N+M)] <- seq(from=(k*(k+1)/2)+1, to=num_NZ - 2*N, by = k+1)
     
     # First: the y_j
     Uvals[1] <- exp(log_sigma_vec[1])^2
     rowInd[1] <- 1
     colInd[1] <- 1
-    for(i in 2:N){ # y_j
-      
+    for(i in 2:(N+M)){ # y_j
+  
       if(i<=k)     nNei <- i-1      else      nNei <- k
       ind <- nID[i,1:nNei]
       ## these arrays must be extracted, before pssing to nsCorr() and nsCrosscorr() function:
       Xd1 <- array(dist1_3d[i, 1:nNei, (nNei + 1)], c(nNei, 1))     # Distances between location i and its neighbors
       Xd2 <- array(dist2_3d[i, 1:nNei, (nNei + 1)], c(nNei, 1))
       Xd12 <- array(dist12_3d[i, 1:nNei, (nNei + 1)], c(nNei, 1))
-      S1 <- numeric( value = Sigma11[i], length = 1)                           # Anisotropy parameters for location i
-      S2 <- numeric( value = Sigma22[i], length = 1)  
-      S12 <- numeric( value = Sigma12[i], length = 1)  
+      S1 <- nimNumeric( value = Sigma11[i], length = 1)                           # Anisotropy parameters for location i
+      S2 <- nimNumeric( value = Sigma22[i], length = 1)  
+      S12 <- nimNumeric( value = Sigma12[i], length = 1)  
       
       d1 <- dist1_3d[i, 1:nNei, 1:nNei]          # Distances between the neighbors of location i
       d2 <- dist2_3d[i, 1:nNei, 1:nNei]
@@ -262,31 +267,48 @@ calculateU_ns <- nimbleFunction(
       # Store
       dgIdx <- dgIdx_vec[i]
       Uvals[dgIdx] <- 1/sqrt(r_i)
-      rowInd[dgIdx] <- 2*(i-1)+1
-      colInd[dgIdx] <- 2*(i-1)+1
+      if(i > N){
+        rowInd[dgIdx] <- N + i 
+        colInd[dgIdx] <- N + i 
+      } else{
+        rowInd[dgIdx] <- 2*(i-1)+1
+        colInd[dgIdx] <- 2*(i-1)+1
+      }
       
       for(j in 1:nNei){
         if(cond_on_y[i,j] == 1){ # condition on y_i
           Uvals[dgIdx + j] <- -b_i[j]/sqrt(r_i)
-          rowInd[dgIdx + j] <- 2*(ind[j]-1)+1
-          colInd[dgIdx + j] <- 2*(i-1)+1
-          
+          if(i > N){ # Pred locations
+            if(ind[j] > N){
+              rowInd[dgIdx + j] <- N + ind[j]
+            } else{
+              rowInd[dgIdx + j] <- 2*(ind[j]-1)+1
+            }
+            colInd[dgIdx + j] <- N + i 
+          } else{ # Obs locations
+            rowInd[dgIdx + j] <- 2*(ind[j]-1)+1
+            colInd[dgIdx + j] <- 2*(i-1)+1
+          }
         } else{ # condition on z_i
           Uvals[dgIdx + j] <- -b_i[j]/sqrt(r_i)
-          rowInd[dgIdx + j] <- 2*ind[j]
-          colInd[dgIdx + j] <- 2*(i-1)+1
-          
+          if(i > N){ # Pred locations
+            stop("Error.")
+            colInd[dgIdx + j] <- N + i
+          } else{ # Obs locations
+            rowInd[dgIdx + j] <- 2*ind[j]
+            colInd[dgIdx + j] <- 2*(i-1)+1
+          }
         }
       }
     } 
     
     # Next: the z_i
-    Uvals[(num_NZ - NN + 1):(num_NZ - N)] <- 1/exp(log_tau_vec)
-    rowInd[(num_NZ - NN + 1):(num_NZ - N)] <- seq(from = 2, to = NN, by = 2)
-    colInd[(num_NZ - NN + 1):(num_NZ - N)] <- seq(from = 2, to = NN, by = 2)
-    Uvals[(num_NZ - N + 1):num_NZ] <- -1/exp(log_tau_vec)
-    rowInd[(num_NZ - N + 1):num_NZ] <- seq(from = 1, to = NN, by = 2)
-    colInd[(num_NZ - N + 1):num_NZ] <- seq(from = 2, to = NN, by = 2)
+    Uvals[(num_NZ - (2*N) + 1):(num_NZ - N)] <- 1/exp(log_tau_vec[1:N])
+    rowInd[(num_NZ - (2*N) + 1):(num_NZ - N)] <- seq(from = 2, to = (2*N), by = 2)
+    colInd[(num_NZ - (2*N) + 1):(num_NZ - N)] <- seq(from = 2, to = (2*N), by = 2)
+    Uvals[(num_NZ - N + 1):num_NZ] <- -1/exp(log_tau_vec[1:N])
+    rowInd[(num_NZ - N + 1):num_NZ] <- seq(from = 1, to = (2*N), by = 2)
+    colInd[(num_NZ - N + 1):num_NZ] <- seq(from = 2, to = (2*N), by = 2)
     
     # Combine
     U_ijx <- array(0, c(num_NZ, 3))
@@ -298,6 +320,7 @@ calculateU_ns <- nimbleFunction(
     return(U_ijx)
   }
 )
+
 
 #==============================================================================
 # Density function for the SGV approximation
