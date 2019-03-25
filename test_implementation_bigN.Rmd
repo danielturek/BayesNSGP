@@ -1,7 +1,7 @@
 ---
-title: Test implementation of fullGP, NNGP, SGV in nimble
+title: Test implementation of fullGP, NNGP, SGV in nimble with large N
 author: Mark Risser
-date: 21 March 2019
+date: 22 March 2019
 output: html_document
 ---
 
@@ -25,12 +25,12 @@ source("../BayesNSGP/BayesNSGP/R/SGV.R")
 
 ### Data
 
-We'll use some simulated data for now:
+We'll use some simulated data for now, with $N=1000$ and $M=1225$:
 
 ```{r}
 # Stationary/isotropic
-N <- 100
-M <- 15^2
+N <- 1000
+M <- 35^2
 k <- 15
 set.seed(12)
 locs <- matrix(runif(2*N), ncol = 2)
@@ -80,8 +80,8 @@ constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3
                        nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord, 
                        Sigma_HP1 = 2 )
 
-niter <- 5000
-strt.kp <- 3001
+niter <- 1000
+strt.kp <- 501
 ```
 
 \    
@@ -159,8 +159,9 @@ SGV.tm <- proc.time() - prt
 postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]
 
 # Prediction
+SGV_setup <<- SGV_setup
 prt <- proc.time()
-postSamp_pred_SGV <- nsgpPredict( Rmodel_SGV, postSamp_SGV, locs, predCoords, SGV_setup )
+postSamp_pred_SGV <- nsgpPredict( Rmodel_SGV, postSamp_SGV, locs, predCoords )
 SGV.pred.tm <- proc.time() - prt
 
 samplesList$SGV <- postSamp_SGV
@@ -171,7 +172,7 @@ timeList <- list(
   NNGP = NNGP.tm, NNGP.pred = NNGP.pred.tm,
   SGV = SGV.tm, SGV.pred = SGV.pred.tm
 )
-# save(samplesList, predSamplesList, timeList, file = "~/CASCADE_Projects/bayes_nsgp/test_implementation.RData")
+# save(samplesList, predSamplesList, timeList, file = "~/CASCADE_Projects/bayes_nsgp/test_implementation_bigN.RData")
 
 ```
 
@@ -182,7 +183,7 @@ timeList <- list(
 Check agreement between the fullGP, NNGP, and SGV likelihoods.
 
 ```{r, fig.height=6, fig.width=10, echo=FALSE }
-load("~/CASCADE_Projects/bayes_nsgp/test_implementation.RData")
+load("~/CASCADE_Projects/bayes_nsgp/test_implementation_bigN.RData")
 
 # chainsPlot(samplesList)
 par(mfrow = c(2,3))
@@ -278,21 +279,21 @@ grid.arrange(
 
 ```
 
-Compare compute times for the MCMC:
+Compare compute times (minutes) for the MCMC:
 
 ```{r, echo = FALSE}
 data.frame(
   Method = c("fullGP","NNGP","SGV"),
-  MCMC_time = c(timeList$fullGP[3], timeList$NNGP[3], timeList$SGV[3])
+  MCMC_time = c(timeList$fullGP[3]/60, timeList$NNGP[3]/60, timeList$SGV[3]/60)
 )
 ```
 
-Compare compute times for the prediction:
+Compare compute times (minutes) for the prediction:
 
 ```{r, echo = FALSE}
 data.frame(
   Method = c("fullGP","NNGP","SGV"),
-  Predict_time = c(timeList$fullGP.pred[3], timeList$NNGP.pred[3], timeList$SGV.pred[3])
+  Predict_time = c(timeList$fullGP.pred[3]/60, timeList$NNGP.pred[3]/60, timeList$SGV.pred[3]/60)
 )
 ```
 
