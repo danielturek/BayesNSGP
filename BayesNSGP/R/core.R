@@ -1473,7 +1473,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     Xdist2_sq <- Xdist$dist2_sq
     Xdist12 <- Xdist$dist12
     postPredDrawsCols <- M
-} else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
+  } else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
     # "Local kriging" only possible for NNGP
     # Extract needed variables from nsgpModel
     dist1_3d <- nsgpModel$dist1_3d
@@ -1481,7 +1481,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     dist12_3d <- nsgpModel$dist12_3d
     N <- dim(dist1_3d)[1] # number of observed locations
     k <- dim(dist1_3d)[2] - 1 # number of neighbors
-    nu <- 0.5 #### TODO: extract nu from nsgpModel?
+    nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
     # Prediction/cross distances
     P_nID <- FNN::get.knnx(coords, predCoords, k = k)$nn.index # Prediction NN
     Pdist <- nsCrossdist3d(coords, predCoords, P_nID)
@@ -1490,7 +1490,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     Pdist12_3d <- Pdist$dist12_3d
     M <- dim(Pdist1_3d)[1] # number of prediction locations
     postPredDrawsCols <- M
-} else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
+  } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
     if(predict_y == FALSE){
       stop("Prediction for Z(.) not available with SGV.")
     }
@@ -1542,147 +1542,147 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       PX_mu_ord <- PX_mu[pred_ord,]
     }
     postPredDrawsCols <- M+N
-} else stop('')
-
-    J <- nrow(mcmc_samples)
-
-    # Posterior draws - storage
-    postPredDraws <- matrix(NA, nrow = J, ncol = postPredDrawsCols)
+  } else stop('')
+  
+  J <- nrow(mcmc_samples)
+  
+  # Posterior draws - storage
+  postPredDraws <- matrix(NA, nrow = J, ncol = postPredDrawsCols)
+  
+  cat("|-------------|-------------|-------------|-------------|")
+  cat("\n|")
+  for(j in 1:J){ # Loop over MCMC samples
     
-    cat("|-------------|-------------|-------------|-------------|")
-    cat("\n|")
-    for(j in 1:J){ # Loop over MCMC samples
+    samp_j <- mcmc_samples[j,] 
+    
+    # Calculate log_tau_vec and Plog_tau_vec ======================
+    if( modelsList$tau == "constant" ){
+      # Required constants: none
+      log_tau_vec_j <- log(sqrt(samp_j["delta"]))*rep(1,N)
+      Plog_tau_vec_j <- log(sqrt(samp_j["delta"]))*rep(1,M)
+    }
+    if( modelsList$tau == "logLinReg" ){
+      # Required constants: X_tau, PX_tau
+      log_tau_vec_j <- as.numeric(X_tau %*% samp_j[paste("delta[",1:ncol(X_tau),"]",sep = "")])
+      Plog_tau_vec_j <- as.numeric(PX_tau %*% samp_j[paste("delta[",1:ncol(PX_tau),"]",sep = "")])
+    }
+    if( modelsList$tau == "approxGP" ){
+      # Required constants: p_tau, tau_cross_dist_obs, tau_cross_dist_pred, tau_HP2
+      w_tau_j <- as.numeric(samp_j[paste("w_tau[",1:p_tau,"]",sep = "")])
       
-      samp_j <- mcmc_samples[j,] 
+      # Obs locations
+      Pmat_tau_obs_j <- matern_corr(tau_cross_dist_obs, samp_j["tauGP_phi"], tau_HP2)
+      log_tau_vec_j <- as.numeric(samp_j["tauGP_mu"]*rep(1,N) + samp_j["tauGP_sigma"] * Pmat_tau_obs_j %*% w_tau_j)
       
-      # Calculate log_tau_vec and Plog_tau_vec ======================
-      if( modelsList$tau == "constant" ){
-        # Required constants: none
-        log_tau_vec_j <- log(sqrt(samp_j["delta"]))*rep(1,N)
-        Plog_tau_vec_j <- log(sqrt(samp_j["delta"]))*rep(1,M)
-      }
-      if( modelsList$tau == "logLinReg" ){
-        # Required constants: X_tau, PX_tau
-        log_tau_vec_j <- as.numeric(X_tau %*% samp_j[paste("delta[",1:ncol(X_tau),"]",sep = "")])
-        Plog_tau_vec_j <- as.numeric(PX_tau %*% samp_j[paste("delta[",1:ncol(PX_tau),"]",sep = "")])
-      }
-      if( modelsList$tau == "approxGP" ){
-        # Required constants: p_tau, tau_cross_dist_obs, tau_cross_dist_pred, tau_HP2
-        w_tau_j <- as.numeric(samp_j[paste("w_tau[",1:p_tau,"]",sep = "")])
-        
-        # Obs locations
-        Pmat_tau_obs_j <- matern_corr(tau_cross_dist_obs, samp_j["tauGP_phi"], tau_HP2)
-        log_tau_vec_j <- as.numeric(samp_j["tauGP_mu"]*rep(1,N) + samp_j["tauGP_sigma"] * Pmat_tau_obs_j %*% w_tau_j)
-        
-        # Pred locations
-        Pmat_tau_pred_j <- matern_corr(tau_cross_dist_pred, samp_j["tauGP_phi"], tau_HP2)
-        Plog_tau_vec_j <- as.numeric(samp_j["tauGP_mu"]*rep(1,M) + samp_j["tauGP_sigma"] * Pmat_tau_pred_j %*% w_tau_j)
-      }
-
-      # Calculate log_sigma_vec and Plog_sigma_vec ==================
-      if( modelsList$sigma == "constant" ){
-        # Required constants: none
-        log_sigma_vec_j <- log(sqrt(samp_j["alpha"]))*rep(1,N)
-        Plog_sigma_vec_j <- log(sqrt(samp_j["alpha"]))*rep(1,M)
-      }
-      if( modelsList$sigma == "logLinReg" ){
-        # Required constants: X_sigma, PX_sigma
-        log_sigma_vec_j <- as.numeric(X_sigma %*% samp_j[paste("alpha[",1:ncol(X_sigma),"]",sep = "")])
-        Plog_sigma_vec_j <- as.numeric(PX_sigma %*% samp_j[paste("alpha[",1:ncol(PX_sigma),"]",sep = "")])
-      }
-      if( modelsList$sigma == "approxGP" ){
-        # Required constants: p_sigma, sigma_cross_dist_obs, sigma_cross_dist_pred, sigma_HP2
-        w_sigma_j <- as.numeric(samp_j[paste("w_sigma[",1:p_sigma,"]",sep = "")])
-        
-        # Obs locations
-        Pmat_sigma_obs_j <- matern_corr(sigma_cross_dist_obs, samp_j["sigmaGP_phi"], sigma_HP2)
-        log_sigma_vec_j <- as.numeric(samp_j["sigmaGP_mu"]*rep(1,N) + samp_j["sigmaGP_sigma"] * Pmat_sigma_obs_j %*% w_sigma_j)
-        
-        # Pred locations
-        Pmat_sigma_pred_j <- matern_corr(sigma_cross_dist_pred, samp_j["sigmaGP_phi"], sigma_HP2)
-        Plog_sigma_vec_j <- as.numeric(samp_j["sigmaGP_mu"]*rep(1,M) + samp_j["sigmaGP_sigma"] * Pmat_sigma_pred_j %*% w_sigma_j)
-      }
+      # Pred locations
+      Pmat_tau_pred_j <- matern_corr(tau_cross_dist_pred, samp_j["tauGP_phi"], tau_HP2)
+      Plog_tau_vec_j <- as.numeric(samp_j["tauGP_mu"]*rep(1,M) + samp_j["tauGP_sigma"] * Pmat_tau_pred_j %*% w_tau_j)
+    }
+    
+    # Calculate log_sigma_vec and Plog_sigma_vec ==================
+    if( modelsList$sigma == "constant" ){
+      # Required constants: none
+      log_sigma_vec_j <- log(sqrt(samp_j["alpha"]))*rep(1,N)
+      Plog_sigma_vec_j <- log(sqrt(samp_j["alpha"]))*rep(1,M)
+    }
+    if( modelsList$sigma == "logLinReg" ){
+      # Required constants: X_sigma, PX_sigma
+      log_sigma_vec_j <- as.numeric(X_sigma %*% samp_j[paste("alpha[",1:ncol(X_sigma),"]",sep = "")])
+      Plog_sigma_vec_j <- as.numeric(PX_sigma %*% samp_j[paste("alpha[",1:ncol(PX_sigma),"]",sep = "")])
+    }
+    if( modelsList$sigma == "approxGP" ){
+      # Required constants: p_sigma, sigma_cross_dist_obs, sigma_cross_dist_pred, sigma_HP2
+      w_sigma_j <- as.numeric(samp_j[paste("w_sigma[",1:p_sigma,"]",sep = "")])
       
-      # Calculate SigmaXX and PSigmaXX ==============================
-      if( modelsList$Sigma == "constant" ){
-        # Required constants: none
-        Sigma_coef1 <- samp_j["Sigma_coef1"]
-        Sigma_coef2 <- samp_j["Sigma_coef2"]
-        Sigma_coef3 <- samp_j["Sigma_coef3"]
-        Sigma11_j <- rep(1,N)*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
-        Sigma22_j <- rep(1,N)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
-        Sigma12_j <- rep(1,N)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
-        PSigma11_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
-        PSigma22_j <- rep(1,M)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
-        PSigma12_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
-      }
-      if( modelsList$Sigma == "covReg" ){
-        # Required constants: X_Sigma, PX_Sigma
-        Sigma11_j <- as.numeric(samp_j["psi11"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])^2)
-        Sigma12_j <- as.numeric(samp_j["rho"]*sqrt(samp_j["psi11"]*samp_j["psi22"])*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])*(X_Sigma %*% samp_j[paste("gamma2[",1:ncol(X_Sigma),"]",sep = "")]))
-        Sigma22_j <- as.numeric(samp_j["psi22"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma2[",1:ncol(X_Sigma),"]",sep = "")])^2)
-        PSigma11_j <- as.numeric(samp_j["psi11"]*rep(1,M) + (PX_Sigma %*% samp_j[paste("gamma1[",1:ncol(PX_Sigma),"]",sep = "")])^2)
-        PSigma12_j <- as.numeric(samp_j["rho"]*sqrt(samp_j["psi11"]*samp_j["psi22"])*rep(1,M) + (PX_Sigma %*% samp_j[paste("gamma1[",1:ncol(PX_Sigma),"]",sep = "")])*(PX_Sigma %*% samp_j[paste("gamma2[",1:ncol(PX_Sigma),"]",sep = "")]))
-        PSigma22_j <- as.numeric(samp_j["psi22"]*rep(1,M) + (PX_Sigma %*% samp_j[paste("gamma2[",1:ncol(PX_Sigma),"]",sep = "")])^2)
-      }
-      if( modelsList$Sigma == "compReg" ){
-        # Required constants: X_Sigma, PX_Sigma
-        eigen_comp1_j <- X_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
-        eigen_comp2_j <- X_Sigma %*% samp_j[paste("Sigma_coef2[",1:ncol(X_Sigma),"]",sep = "")]
-        eigen_comp3_j <- X_Sigma %*% samp_j[paste("Sigma_coef3[",1:ncol(X_Sigma),"]",sep = "")]
-        Sigma11_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 1))
-        Sigma12_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 3))
-        Sigma22_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 2))
-        
-        Peigen_comp1_j <- PX_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
-        Peigen_comp2_j <- PX_Sigma %*% samp_j[paste("Sigma_coef2[",1:ncol(X_Sigma),"]",sep = "")]
-        Peigen_comp3_j <- PX_Sigma %*% samp_j[paste("Sigma_coef3[",1:ncol(X_Sigma),"]",sep = "")]
-        PSigma11_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 1))
-        PSigma12_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 3)) 
-        PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
-      }
-      if( modelsList$Sigma == "npApproxGP" ){
-        # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
-        w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
-        w2_Sigma_j <- samp_j[paste("w2_Sigma[",1:p_Sigma,"]",sep = "")]
-        w3_Sigma_j <- samp_j[paste("w3_Sigma[",1:p_Sigma,"]",sep = "")]
-        
-        # Obs locations
-        Pmat12_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
-        Pmat3_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[2]"], Sigma_HP2[2])
-        eigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w1_Sigma_j
-        eigen_comp2_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w2_Sigma_j
-        eigen_comp3_j <- samp_j["SigmaGP_mu[2]"]*rep(1,N) + samp_j["SigmaGP_sigma[2]"] * Pmat3_Sigma_obs_j %*% w3_Sigma_j
-        Sigma11_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 1))
-        Sigma12_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 3))
-        Sigma22_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 2))
-
-        # Pred locations
-        Pmat12_Sigma_pred_j <- matern_corr(Sigma_cross_dist_pred, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
-        Pmat3_Sigma_pred_j <- matern_corr(Sigma_cross_dist_pred, samp_j["SigmaGP_phi[2]"], Sigma_HP2[2])
-        Peigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,M) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_pred_j %*% w1_Sigma_j
-        Peigen_comp2_j <- samp_j["SigmaGP_mu[1]"]*rep(1,M) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_pred_j %*% w2_Sigma_j
-        Peigen_comp3_j <- samp_j["SigmaGP_mu[2]"]*rep(1,M) + samp_j["SigmaGP_sigma[2]"] * Pmat3_Sigma_pred_j %*% w3_Sigma_j
-        PSigma11_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 1))
-        PSigma12_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 3))
-        PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
-      }
+      # Obs locations
+      Pmat_sigma_obs_j <- matern_corr(sigma_cross_dist_obs, samp_j["sigmaGP_phi"], sigma_HP2)
+      log_sigma_vec_j <- as.numeric(samp_j["sigmaGP_mu"]*rep(1,N) + samp_j["sigmaGP_sigma"] * Pmat_sigma_obs_j %*% w_sigma_j)
       
-      # Calculate mu and Pmu ========================================
-      if( modelsList$mu == "constant" ){
-        mu <- samp_j[paste("beta")]*rep(1,N)
-        Pmu <- samp_j[paste("beta")]*rep(1,M)
-      }
-      if( modelsList$mu == "linReg" ){
-        mu <- as.numeric(X_mu %*% samp_j[paste("beta[",1:ncol(X_mu),"]",sep = "")])
-        Pmu <- as.numeric(PX_mu %*% samp_j[paste("beta[",1:ncol(X_mu),"]",sep = "")])
-      }
-      if( modelsList$mu == "zero" ){
-        mu <- 0*rep(1,N)
-        Pmu <- 0*rep(1,M)
-      }
-
-   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
+      # Pred locations
+      Pmat_sigma_pred_j <- matern_corr(sigma_cross_dist_pred, samp_j["sigmaGP_phi"], sigma_HP2)
+      Plog_sigma_vec_j <- as.numeric(samp_j["sigmaGP_mu"]*rep(1,M) + samp_j["sigmaGP_sigma"] * Pmat_sigma_pred_j %*% w_sigma_j)
+    }
+    
+    # Calculate SigmaXX and PSigmaXX ==============================
+    if( modelsList$Sigma == "constant" ){
+      # Required constants: none
+      Sigma_coef1 <- samp_j["Sigma_coef1"]
+      Sigma_coef2 <- samp_j["Sigma_coef2"]
+      Sigma_coef3 <- samp_j["Sigma_coef3"]
+      Sigma11_j <- rep(1,N)*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
+      Sigma22_j <- rep(1,N)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
+      Sigma12_j <- rep(1,N)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
+      PSigma11_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
+      PSigma22_j <- rep(1,M)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
+      PSigma12_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
+    }
+    if( modelsList$Sigma == "covReg" ){
+      # Required constants: X_Sigma, PX_Sigma
+      Sigma11_j <- as.numeric(samp_j["psi11"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])^2)
+      Sigma12_j <- as.numeric(samp_j["rho"]*sqrt(samp_j["psi11"]*samp_j["psi22"])*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])*(X_Sigma %*% samp_j[paste("gamma2[",1:ncol(X_Sigma),"]",sep = "")]))
+      Sigma22_j <- as.numeric(samp_j["psi22"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma2[",1:ncol(X_Sigma),"]",sep = "")])^2)
+      PSigma11_j <- as.numeric(samp_j["psi11"]*rep(1,M) + (PX_Sigma %*% samp_j[paste("gamma1[",1:ncol(PX_Sigma),"]",sep = "")])^2)
+      PSigma12_j <- as.numeric(samp_j["rho"]*sqrt(samp_j["psi11"]*samp_j["psi22"])*rep(1,M) + (PX_Sigma %*% samp_j[paste("gamma1[",1:ncol(PX_Sigma),"]",sep = "")])*(PX_Sigma %*% samp_j[paste("gamma2[",1:ncol(PX_Sigma),"]",sep = "")]))
+      PSigma22_j <- as.numeric(samp_j["psi22"]*rep(1,M) + (PX_Sigma %*% samp_j[paste("gamma2[",1:ncol(PX_Sigma),"]",sep = "")])^2)
+    }
+    if( modelsList$Sigma == "compReg" ){
+      # Required constants: X_Sigma, PX_Sigma
+      eigen_comp1_j <- X_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
+      eigen_comp2_j <- X_Sigma %*% samp_j[paste("Sigma_coef2[",1:ncol(X_Sigma),"]",sep = "")]
+      eigen_comp3_j <- X_Sigma %*% samp_j[paste("Sigma_coef3[",1:ncol(X_Sigma),"]",sep = "")]
+      Sigma11_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 1))
+      Sigma12_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 3))
+      Sigma22_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 2))
+      
+      Peigen_comp1_j <- PX_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
+      Peigen_comp2_j <- PX_Sigma %*% samp_j[paste("Sigma_coef2[",1:ncol(X_Sigma),"]",sep = "")]
+      Peigen_comp3_j <- PX_Sigma %*% samp_j[paste("Sigma_coef3[",1:ncol(X_Sigma),"]",sep = "")]
+      PSigma11_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 1))
+      PSigma12_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 3)) 
+      PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
+    }
+    if( modelsList$Sigma == "npApproxGP" ){
+      # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+      w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
+      w2_Sigma_j <- samp_j[paste("w2_Sigma[",1:p_Sigma,"]",sep = "")]
+      w3_Sigma_j <- samp_j[paste("w3_Sigma[",1:p_Sigma,"]",sep = "")]
+      
+      # Obs locations
+      Pmat12_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
+      Pmat3_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[2]"], Sigma_HP2[2])
+      eigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w1_Sigma_j
+      eigen_comp2_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w2_Sigma_j
+      eigen_comp3_j <- samp_j["SigmaGP_mu[2]"]*rep(1,N) + samp_j["SigmaGP_sigma[2]"] * Pmat3_Sigma_obs_j %*% w3_Sigma_j
+      Sigma11_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 1))
+      Sigma12_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 3))
+      Sigma22_j <- as.numeric(inverseEigen(eigen_comp1_j, eigen_comp2_j, eigen_comp3_j, 2))
+      
+      # Pred locations
+      Pmat12_Sigma_pred_j <- matern_corr(Sigma_cross_dist_pred, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
+      Pmat3_Sigma_pred_j <- matern_corr(Sigma_cross_dist_pred, samp_j["SigmaGP_phi[2]"], Sigma_HP2[2])
+      Peigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,M) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_pred_j %*% w1_Sigma_j
+      Peigen_comp2_j <- samp_j["SigmaGP_mu[1]"]*rep(1,M) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_pred_j %*% w2_Sigma_j
+      Peigen_comp3_j <- samp_j["SigmaGP_mu[2]"]*rep(1,M) + samp_j["SigmaGP_sigma[2]"] * Pmat3_Sigma_pred_j %*% w3_Sigma_j
+      PSigma11_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 1))
+      PSigma12_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 3))
+      PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
+    }
+    
+    # Calculate mu and Pmu ========================================
+    if( modelsList$mu == "constant" ){
+      mu <- samp_j[paste("beta")]*rep(1,N)
+      Pmu <- samp_j[paste("beta")]*rep(1,M)
+    }
+    if( modelsList$mu == "linReg" ){
+      mu <- as.numeric(X_mu %*% samp_j[paste("beta[",1:ncol(X_mu),"]",sep = "")])
+      Pmu <- as.numeric(PX_mu %*% samp_j[paste("beta[",1:ncol(X_mu),"]",sep = "")])
+    }
+    if( modelsList$mu == "zero" ){
+      mu <- 0*rep(1,N)
+      Pmu <- 0*rep(1,M)
+    }
+    
+    if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
       # Posterior predictive draw ===================================
       # Obs covariance
       Cor <- nsCorr(dist1_sq, dist2_sq, dist12, Sigma11_j, Sigma22_j, Sigma12_j, nu)
@@ -1711,7 +1711,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       condCov_chol <- chol(condCov)
       # Store
       postPredDraws[j,] <- condMean + t(condCov_chol) %*% rnorm(M)
-} else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
+    } else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
       # Local kriging ===============================================
       for(m in 1:M){
         # Obs covariance -- for nearest neighbors
@@ -1750,8 +1750,8 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
         pred_sample <- condMean + t(condCov_chol) %*% rnorm(1)  
         # Store
         postPredDraws[j,m] <- pred_sample
-    }
-} else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
+      }
+    } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
       # SGV prediction ==============================================
       U_j <- calculateU_ns(
         dist1_3d = Alldist1_3d, dist2_3d = Alldist2_3d, dist12_3d = Alldist12_3d,
@@ -1785,23 +1785,23 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       PPD_pred_ord <- postPredDraws[,-(1:N)]
       PPD_obs_orig <- PPD_obs_ord[,order(predSGV_setup$ord)]
       PPD_pred_orig <- PPD_pred_ord[,order(predSGV_setup$ord_pred)]
-} else stop('')
-
-      # Progress
-      if( j %% ceiling(J/56) == 0 ){cat("-")}
-    }
-    cat("|\n")
-
-   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
+    } else stop('')
+    
+    # Progress
+    if( j %% ceiling(J/56) == 0 ){cat("-")}
+  }
+  cat("|\n")
+  
+  if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     output <- list(obs = NULL, pred = postPredDraws)
-} else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
+  } else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
     output <- list(obs = NULL, pred = postPredDraws)
-} else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
+  } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
     output <- list(obs = PPD_obs_orig, pred = PPD_pred_orig)
-} else stop('')
-
+  } else stop('')
+  
   return(output)
-   
+  
 }
 
 #================================================

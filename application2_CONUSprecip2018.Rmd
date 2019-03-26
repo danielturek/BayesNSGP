@@ -12,7 +12,7 @@ library(nimble)
 library(coda)
 library(StatMatch)
 nimbleOptions(verbose = TRUE)
-source("../BayesNSGP/BayesNSGP/R/core2.R")
+source("../BayesNSGP/BayesNSGP/R/core.R")
 source("../BayesNSGP/BayesNSGP/R/NNGP.R")
 source("../BayesNSGP/BayesNSGP/R/SGV.R")
 
@@ -50,8 +50,8 @@ N <- nrow(CONUSprecip)
 CONUS_predDF <- read.csv("data/CONUS_predGrid.csv")
 
 # MCMC setup ====================================
-niter <- 200
-strt.kp <- 101
+niter <- 2000
+strt.kp <- 1001
 ```
 
 Take a quick look at the precipitation rates:

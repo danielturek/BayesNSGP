@@ -80,7 +80,7 @@ constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3
                        nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord, 
                        Sigma_HP1 = 2 )
 
-niter <- 5000
+niter <- 4000
 strt.kp <- 3001
 ```
 
