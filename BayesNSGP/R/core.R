@@ -1799,7 +1799,6 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
 } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
     output <- list(obs = PPD_obs_orig, pred = PPD_pred_orig)
 } else stop('')
-  }
 
   return(output)
    
