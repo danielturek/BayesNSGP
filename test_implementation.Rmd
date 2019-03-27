@@ -159,8 +159,9 @@ SGV.tm <- proc.time() - prt
 postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]
 
 # Prediction
+SGV_setup <<- SGV_setup
 prt <- proc.time()
-postSamp_pred_SGV <- nsgpPredict( Rmodel_SGV, postSamp_SGV, locs, predCoords, SGV_setup )
+postSamp_pred_SGV <- nsgpPredict( Rmodel_SGV, postSamp_SGV, locs, predCoords )
 SGV.pred.tm <- proc.time() - prt
 
 samplesList$SGV <- postSamp_SGV
