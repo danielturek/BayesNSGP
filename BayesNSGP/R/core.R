@@ -1460,7 +1460,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     dist2_sq <- nsgpModel$dist2_sq
     dist12 <- nsgpModel$dist12
     N <- nrow(dist1_sq) # number of observed locations
-    nu <- 0.5 #### TODO: extract nu from nsgpModel?
+    nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
     # Prediction distances
     Pdist <- nsDist(predCoords)
     Pdist1_sq <- Pdist$dist1_sq
@@ -1501,7 +1501,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     dist12_3d <- nsgpModel$dist12_3d
     N <- dim(dist1_3d)[1] # number of observed locations
     k <- dim(dist1_3d)[2] - 1 # number of neighbors
-    nu <- 0.5 #### TODO: extract nu from nsgpModel? 
+    nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
     # Prediction setup
     predSGV_setup <- sgvSetup(coords, predCoords, k, seed = SGV_setup$seed)
     prednID_SGV <- predSGV_setup$nID_ord
