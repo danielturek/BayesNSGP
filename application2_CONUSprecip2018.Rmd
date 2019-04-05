@@ -21,7 +21,7 @@ library(RColorBrewer)
 library(gridExtra)
 library(viridis)
 
-source("~/CASCADE_Projects/gridded_precip/plots_paper/source_plot.R")
+source("~/CASCADE_Projects/PUBLISHED/gridded_precip/plots_paper/source_plot.R")
 
 ```
 
@@ -50,8 +50,8 @@ N <- nrow(CONUSprecip)
 CONUS_predDF <- read.csv("data/CONUS_predGrid.csv")
 
 # MCMC setup ====================================
-niter <- 2000
-strt.kp <- 1001
+niter <- 200
+strt.kp <- 101
 ```
 
 Take a quick look at the precipitation rates:
@@ -107,73 +107,48 @@ postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
 
 ```
 
-#### (2) NNGP likelihood
+#### (2) SGV likelihood
 
 ```{r}
-# Distance matrices and constants
 k <- 15
-nID_NNGP <- determineNeighbors(coords, k)
-dist_NNGP <- nsDist3d(coords, nID_NNGP)
-constants_NNGP <- list( 
-  dist1_3d = dist_NNGP$dist1_3d, dist2_3d = dist_NNGP$dist2_3d, 
-  dist12_3d = dist_NNGP$dist12_3d, nu = 0.5, N = N, k = k, nID = nID_NNGP,
-  tau_HP1 = 10, p_tau = ncol(Xmat), X_tau = Xmat,
-  sigma_HP1 = 10, p_sigma = ncol(Xmat), X_sigma = Xmat,
-  Sigma_HP1 = 5, p_Sigma = ncol(Xmat), X_Sigma = Xmat,
-  mu_HP1 = 10, p_mu = ncol(Xmat), X_mu = Xmat )
+
+# SGV
+SGV_setup <- sgvSetup(locs = coords, k = k, seed = 31)
+nID_SGV <- SGV_setup$nID_ord
+dist_SGV <- nsDist3d(coords[SGV_setup$ord,], nID_SGV)
+constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3d, 
+                       dist12_3d = dist_SGV$dist12_3d, num_NZ = 3*N + k*N - (k*(k+1)/2),
+                       nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord,
+                       tau_HP1 = 10, p_tau = ncol(Xmat), X_tau = Xmat,
+                       sigma_HP1 = 10, p_sigma = ncol(Xmat), X_sigma = Xmat,
+                       Sigma_HP1 = 5, p_Sigma = ncol(Xmat), X_Sigma = Xmat,
+                       mu_HP1 = 10, p_mu = ncol(Xmat), X_mu = Xmat, d = 2 )
 
 # Setup
-Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z,
-                          tau_model = "logLinReg", sigma_model = "logLinReg", 
-                          mu_model = "linReg", Sigma_model = "compReg" )
-compl_model_NNGP <- compileNimble( Rmodel_NNGP )
-conf_model_NNGP <- configureMCMC( Rmodel_NNGP )
-conf_model_NNGP$removeSamplers()
-conf_model_NNGP$addSampler(target = c("alpha[1]","alpha[3]",
-                                      "Sigma_coef1[1]","Sigma_coef1[3]",
-                                      "Sigma_coef2[1]","Sigma_coef2[3]",
-                                      "Sigma_coef3[1]","Sigma_coef3[3]"), type = "RW_block")
-conf_model_NNGP$addSampler(target = c("alpha[2]","alpha[4]",
-                                      "Sigma_coef1[2]","Sigma_coef1[4]",
-                                      "Sigma_coef2[2]","Sigma_coef2[4]",
-                                      "Sigma_coef3[2]","Sigma_coef3[4]"),
-                           type = "RW_block")
-# conf_model_NNGP$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
-conf_model_NNGP$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
-# conf_model_NNGP$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
-# conf_model_NNGP$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), 
-#                              type = "RW_block")
-# conf_model_NNGP$addSampler(target = c("Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
-#                              type = "RW_block")
-# conf_model_NNGP$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
-#                              type = "RW_block")
-# conf_model_NNGP$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]",
-#                                       "delta[1]","delta[2]","delta[3]","delta[4]",
-#                                       "Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]",
-#                                       "Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]",
-#                                       "Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
-#                              type = "RW_block")
-conf_model_NNGP$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
-conf_model_NNGP$getSamplers()
-nim_mcmc_NNGP <- buildMCMC(conf_model_NNGP)
-nim_Cmcmc_NNGP <- compileNimble(nim_mcmc_NNGP, project = Rmodel_NNGP)
+Rmodel_SGV <- nsgpModel( likelihood = "SGV", constants = constants_SGV, z = z,
+                            tau_model = "logLinReg", sigma_model = "logLinReg", 
+                            mu_model = "linReg", Sigma_model = "compReg" )
+compl_model_SGV <- compileNimble( Rmodel_SGV )
+conf_model_SGV <- configureMCMC( Rmodel_SGV )
+conf_model_SGV$removeSamplers()
+conf_model_SGV$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
+conf_model_SGV$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
+conf_model_SGV$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+conf_model_SGV$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), 
+                             type = "RW_block")
+conf_model_SGV$addSampler(target = c("Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
+                             type = "RW_block")
+conf_model_SGV$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
+                             type = "RW_block")
+conf_model_SGV$getSamplers()
+nim_mcmc_SGV <- buildMCMC(conf_model_SGV)
+nim_Cmcmc_SGV <- compileNimble(nim_mcmc_SGV, project = Rmodel_SGV)
 
+# Run MCMC
 prt <- proc.time()
-nim_Cmcmc_NNGP$run(10000)
-NNGP.tm <- proc.time() - prt
-postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)
-
-
-
-
-
-postSamp_NNGP_orig <- postSamp_NNGP
-par(ask=T)
-for(t in 1:ncol(postSamp_NNGP)){
-  plot(postSamp_NNGP[,t], type = "l", main = colnames(postSamp_NNGP)[t])
-}
-
-
+nim_Cmcmc_SGV$run(niter)
+SGV.tm <- proc.time() - prt
+postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]
 
 
 ```

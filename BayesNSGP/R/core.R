@@ -195,32 +195,51 @@ RbesselK <- nimbleFunction(
 
 nsCorr <- nimbleFunction(     
   run = function( dist1_sq = double(2), dist2_sq = double(2), dist12 = double(2), 
-                  Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1), nu = double(0) ) {
+                  Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1), 
+                  nu = double(0), d = double(0) ) {
     
     returnType(double(2))
     N <- length(Sigma11)
-    # Calculate the scale matrix 
-    if(N == 1){
-      det1 <- Sigma11*Sigma22 - Sigma12^2
-      diagSqrtSqrtDet1 <- matrix(sqrt(sqrt(det1)), N, N)
+    if( dist2_sq[1,1] == -1 ){ # Isotropic case
+      # Calculate the scale matrix 
+      if(N == 1){
+        det1 <- Sigma11^d
+        diagSqrtSqrtDet1 <- matrix(sqrt(sqrt(det1)), N, N)
+      } else{
+        det1 <- Sigma11^d
+        diagSqrtSqrtDet1 <- diag(sqrt(sqrt(det1)))
+      }
+      mat11_a <- matrix(Sigma11, nrow = N, ncol = N)
+      mat11 <- 0.5*(mat11_a + t(mat11_a))
+      det12 <- mat11^d
+      oneOverDet12 <- 1/det12
+      Scale.mat <- diagSqrtSqrtDet1 %*% sqrt(oneOverDet12) %*% diagSqrtSqrtDet1
+      # Calculate the distance matrix
+      Dist.mat <- sqrt( dist1_sq/mat11 )
     } else{
-      det1 <- Sigma11*Sigma22 - Sigma12^2 
-      diagSqrtSqrtDet1 <- diag(sqrt(sqrt(det1)))
+      # Calculate the scale matrix 
+      if(N == 1){
+        det1 <- Sigma11*Sigma22 - Sigma12^2
+        diagSqrtSqrtDet1 <- matrix(sqrt(sqrt(det1)), N, N)
+      } else{
+        det1 <- Sigma11*Sigma22 - Sigma12^2 
+        diagSqrtSqrtDet1 <- diag(sqrt(sqrt(det1)))
+      }
+      mat11_a <- matrix(Sigma11, nrow = N, ncol = N)
+      mat22_a <- matrix(Sigma22, nrow = N, ncol = N)
+      mat12_a <- matrix(Sigma12, nrow = N, ncol = N)
+      mat11 <- 0.5*(mat11_a + t(mat11_a))
+      mat22 <- 0.5*(mat22_a + t(mat22_a))
+      mat12 <- 0.5*(mat12_a + t(mat12_a))
+      det12 <- mat11*mat22 - mat12^2
+      oneOverDet12 <- 1/det12
+      Scale.mat <- diagSqrtSqrtDet1 %*% sqrt(oneOverDet12) %*% diagSqrtSqrtDet1
+      # Calculate the distance matrix
+      inv11 <-  mat22 * oneOverDet12
+      inv22 <-  mat11 * oneOverDet12
+      inv12 <- -mat12 * oneOverDet12
+      Dist.mat <- sqrt( inv11*dist1_sq + 2*inv12*dist12 + inv22*dist2_sq )
     }
-    mat11_a <- matrix(Sigma11, nrow = N, ncol = N)
-    mat22_a <- matrix(Sigma22, nrow = N, ncol = N)
-    mat12_a <- matrix(Sigma12, nrow = N, ncol = N)
-    mat11 <- 0.5*(mat11_a + t(mat11_a))
-    mat22 <- 0.5*(mat22_a + t(mat22_a))
-    mat12 <- 0.5*(mat12_a + t(mat12_a))
-    det12 <- mat11*mat22 - mat12^2
-    oneOverDet12 <- 1/det12
-    Scale.mat <- diagSqrtSqrtDet1 %*% sqrt(oneOverDet12) %*% diagSqrtSqrtDet1
-    # Calculate the distance matrix
-    inv11 <-  mat22 * oneOverDet12
-    inv22 <-  mat11 * oneOverDet12
-    inv12 <- -mat12 * oneOverDet12
-    Dist.mat <- sqrt( inv11*dist1_sq + 2*inv12*dist12 + inv22*dist2_sq )
     
     # Combine 
     if( nu == 0.5 ){ # Exponential correlation
@@ -339,46 +358,74 @@ matern_corr <- nimbleFunction(
 nsCrosscorr <- nimbleFunction(     
   run = function( Xdist1_sq = double(2), Xdist2_sq = double(2), Xdist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
-                  PSigma11 = double(1), PSigma22 = double(1), PSigma12 = double(1), nu = double(0) ) {
+                  PSigma11 = double(1), PSigma22 = double(1), PSigma12 = double(1), 
+                  nu = double(0), d = double(0) ) {
     
     returnType(double(2))
     N <- length(Sigma11)
     M <- length(PSigma11)
-    
-    # Calculate the scale matrix 
-    if(N == 1){
-      det1 <- Sigma11*Sigma22 - Sigma12^2
-      diagSqrtSqrtDet1 <- matrix(sqrt(sqrt(det1)), N, N)
+
+    if( Xdist2_sq[1,1] == -1 ){ # Isotropic case
+      # Calculate the scale matrix 
+      if(N == 1){
+        det1 <- Sigma11^d
+        diagSqrtSqrtDet1 <- matrix(sqrt(sqrt(det1)), N, N)
+      } else{
+        det1 <- Sigma11^d 
+        diagSqrtSqrtDet1 <- diag(sqrt(sqrt(det1)))
+      }
+      if(M == 1){
+        Pdet1 <- PSigma11^d 
+        diagSqrtSqrtPDet1 <- matrix(sqrt(sqrt(Pdet1)), M, M)
+      } else{
+        Pdet1 <- PSigma11^d
+        diagSqrtSqrtPDet1 <- diag(sqrt(sqrt(Pdet1)))
+      }
+      mat11_1 <- t(matrix(Sigma11, nrow = N, ncol = M))
+      mat11_2 <- matrix(PSigma11, nrow = M, ncol = N)
+      mat11 <- 0.5*(mat11_1 + mat11_2)
+      det12 <- mat11^d
+      oneOverDet12 <- 1/det12
+      Scale.mat <- diagSqrtSqrtPDet1 %*% sqrt(oneOverDet12) %*% diagSqrtSqrtDet1
+      
+      # Calculate the distance matrix
+      Dist.mat <- sqrt( Xdist1_sq/mat11 )
     } else{
-      det1 <- Sigma11*Sigma22 - Sigma12^2 
-      diagSqrtSqrtDet1 <- diag(sqrt(sqrt(det1)))
+      # Calculate the scale matrix 
+      if(N == 1){
+        det1 <- Sigma11*Sigma22 - Sigma12^2
+        diagSqrtSqrtDet1 <- matrix(sqrt(sqrt(det1)), N, N)
+      } else{
+        det1 <- Sigma11*Sigma22 - Sigma12^2 
+        diagSqrtSqrtDet1 <- diag(sqrt(sqrt(det1)))
+      }
+      if(M == 1){
+        Pdet1 <- PSigma11*PSigma22 - PSigma12^2 
+        diagSqrtSqrtPDet1 <- matrix(sqrt(sqrt(Pdet1)), M, M)
+      } else{
+        Pdet1 <- PSigma11*PSigma22 - PSigma12^2 
+        diagSqrtSqrtPDet1 <- diag(sqrt(sqrt(Pdet1)))
+      }
+      mat11_1 <- t(matrix(Sigma11, nrow = N, ncol = M))
+      mat11_2 <- matrix(PSigma11, nrow = M, ncol = N)
+      mat22_1 <- t(matrix(Sigma22, nrow = N, ncol = M))
+      mat22_2 <- matrix(PSigma22, nrow = M, ncol = N)
+      mat12_1 <- t(matrix(Sigma12, nrow = N, ncol = M))
+      mat12_2 <- matrix(PSigma12, nrow = M, ncol = N)
+      mat11 <- 0.5*(mat11_1 + mat11_2)
+      mat22 <- 0.5*(mat22_1 + mat22_2)
+      mat12 <- 0.5*(mat12_1 + mat12_2)
+      det12 <- mat11*mat22 - mat12^2
+      oneOverDet12 <- 1/det12
+      Scale.mat <- diagSqrtSqrtPDet1 %*% sqrt(oneOverDet12) %*% diagSqrtSqrtDet1
+      
+      # Calculate the distance matrix
+      inv11 <-  mat22 * oneOverDet12
+      inv22 <-  mat11 * oneOverDet12
+      inv12 <- -mat12 * oneOverDet12
+      Dist.mat <- sqrt( inv11*Xdist1_sq + 2*inv12*Xdist12 + inv22*Xdist2_sq )
     }
-    if(M == 1){
-      Pdet1 <- PSigma11*PSigma22 - PSigma12^2 
-      diagSqrtSqrtPDet1 <- matrix(sqrt(sqrt(Pdet1)), M, M)
-    } else{
-      Pdet1 <- PSigma11*PSigma22 - PSigma12^2 
-      diagSqrtSqrtPDet1 <- diag(sqrt(sqrt(Pdet1)))
-    }
-    mat11_1 <- t(matrix(Sigma11, nrow = N, ncol = M))
-    mat11_2 <- matrix(PSigma11, nrow = M, ncol = N)
-    mat22_1 <- t(matrix(Sigma22, nrow = N, ncol = M))
-    mat22_2 <- matrix(PSigma22, nrow = M, ncol = N)
-    mat12_1 <- t(matrix(Sigma12, nrow = N, ncol = M))
-    mat12_2 <- matrix(PSigma12, nrow = M, ncol = N)
-    mat11 <- 0.5*(mat11_1 + mat11_2)
-    mat22 <- 0.5*(mat22_1 + mat22_2)
-    mat12 <- 0.5*(mat12_1 + mat12_2)
-    det12 <- mat11*mat22 - mat12^2
-    oneOverDet12 <- 1/det12
-    Scale.mat <- diagSqrtSqrtPDet1 %*% sqrt(oneOverDet12) %*% diagSqrtSqrtDet1
-    
-    # Calculate the distance matrix
-    inv11 <-  mat22 * oneOverDet12
-    inv22 <-  mat11 * oneOverDet12
-    inv12 <- -mat12 * oneOverDet12
-    Dist.mat <- sqrt( inv11*Xdist1_sq + 2*inv12*Xdist12 + inv22*Xdist2_sq )
-    
+
     # Combine 
     if( nu == 0.5 ){ # Exponential correlation
       Unscl.corr <- exp(-Dist.mat) 
@@ -440,6 +487,9 @@ nsCrosscorr <- nimbleFunction(
 nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
   
   N <- nrow(coords)
+  d <- ncol(coords)
+  if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
+  
   if(!isotropic){
     # Calculate distances
     dists1 <- as.matrix(dist(coords[,1], upper = T, diag = T))
@@ -457,9 +507,8 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
     dist2_sq <- dists2^2
     dist12 <- sgn_mat1*dists1*sgn_mat2*dists2
   } else{
-    dists1_sq <- as.matrix(dist(coords, upper = T, diag = T))^2
-    dists2_sq <- matrix(0, N, N)
-    dists2_sq[1,1] <- -1
+    dist1_sq <- as.matrix(dist(coords, upper = T, diag = T))^2
+    dist2_sq <- matrix(-1, N, N)
     dist12 <- matrix(0, N, N)
   }
   # Rescale if needed
@@ -507,6 +556,10 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
 
 nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
   N <- nrow(coords)
+  
+  d <- ncol(coords)
+  if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
+  
   k <- ncol(nID)
   dist1_3d <- array(0, c(N, k+1, k+1))
   dist2_3d <- array(0, c(N, k+1, k+1))
@@ -531,6 +584,7 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
       dist12_3d[i, 1:thisN, 1:thisN] <- sgn_mat1*dists1*sgn_mat2*dists2
     }  
   } else{
+    dist2_3d[1,,] <- -1
     for(i in 2:N) {
       if(i<=k)     nNei <- i-1      else      nNei <- k
       ind <- c( nID[i,1:nNei], i )
@@ -538,7 +592,7 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
       theseCoords <- coords[ind, ]
       dists1 <- as.matrix(dist(theseCoords))
       dist1_3d[i, 1:thisN, 1:thisN] <- dists1^2
-      dist2_3d[i, 1, 1] <- -1
+      dist2_3d[i,,] <- -1
     }
   }
   
@@ -587,33 +641,42 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
 #' @export
 #' @importFrom StatMatch mahalanobis.dist
 
-nsCrossdist <- function(coords, Pcoords, scale_factor = NULL ){
+nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE ){
   
   N <- nrow(coords)
   M <- nrow(Pcoords)
+  d <- ncol(coords)
+  if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
   
-  # Distance matrix
-  dists1 <- StatMatch::mahalanobis.dist(data.x = Pcoords[,1], data.y = coords[,1], vc = diag(1))
-  dists2 <- StatMatch::mahalanobis.dist(data.x = Pcoords[,2], data.y = coords[,2], vc = diag(1))
-  
-  temp1a <- matrix(coords[,1], nrow = M, ncol = N, byrow = TRUE) 
-  temp1b <- matrix(Pcoords[,1], nrow = M, ncol = N) 
-  temp2a <- matrix(coords[,2], nrow = M, ncol = N, byrow = TRUE) 
-  temp2b <- matrix(Pcoords[,2], nrow = M, ncol = N) 
-  
-  sgn_mat1 <- ( temp1a - temp1b >= 0 )
-  sgn_mat1[sgn_mat1 == FALSE] <- -1 
-  sgn_mat2 <- ( temp2a - temp2b >= 0 )
-  sgn_mat2[sgn_mat2 == FALSE] <- -1 
-  
-  dist1_sq <- dists1^2
-  dist2_sq <- dists2^2
-  dist12 <- sgn_mat1*dists1*sgn_mat2*dists2
+  if(!isotropic){
+    # Calculate distances
+    dists1 <- StatMatch::mahalanobis.dist(data.x = Pcoords[,1], data.y = coords[,1], vc = diag(1))
+    dists2 <- StatMatch::mahalanobis.dist(data.x = Pcoords[,2], data.y = coords[,2], vc = diag(1))
+    
+    temp1a <- matrix(coords[,1], nrow = M, ncol = N, byrow = TRUE) 
+    temp1b <- matrix(Pcoords[,1], nrow = M, ncol = N) 
+    temp2a <- matrix(coords[,2], nrow = M, ncol = N, byrow = TRUE) 
+    temp2b <- matrix(Pcoords[,2], nrow = M, ncol = N) 
+    
+    sgn_mat1 <- ( temp1a - temp1b >= 0 )
+    sgn_mat1[sgn_mat1 == FALSE] <- -1 
+    sgn_mat2 <- ( temp2a - temp2b >= 0 )
+    sgn_mat2[sgn_mat2 == FALSE] <- -1 
+    
+    dist1_sq <- dists1^2
+    dist2_sq <- dists2^2
+    dist12 <- sgn_mat1*dists1*sgn_mat2*dists2
+  } else{
+    dist1_sq <- StatMatch::mahalanobis.dist(data.x = Pcoords, data.y = coords, vc = diag(d))^2
+    dist2_sq <- matrix(-1, M, N)
+    dist12 <- matrix(0, M, N)
+  }
+  # Rescale if needed
   if( !is.null(scale_factor) ){
     dist1_sq <- dist1_sq/scale_factor  
     dist2_sq <- dist2_sq/scale_factor  
     dist12 <- dist12/scale_factor     
-  } 
+  }   
   
   return(list( 
     dist1_sq = dist1_sq, dist2_sq = dist2_sq, 
@@ -654,6 +717,10 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL ){
 nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotropic = FALSE) {
   N <- nrow(coords)
   M <- nrow(predCoords)
+
+  d <- ncol(coords)
+  if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
+  
   k <- ncol(P_nID)
   thisN <- k+1
   dist1_3d <- array(0, c(M, k+1, k+1))
@@ -680,7 +747,7 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
       theseCoords <- rbind(coords[P_nID[i,], ], predCoords[i,])
       dists1 <- as.matrix(dist(theseCoords))
       dist1_3d[i, 1:thisN, 1:thisN] <- dists1^2
-      dist2_3d[i, 1, 1] <- -1
+      dist2_3d[i,,] <- -1
     }
   }
   
@@ -945,7 +1012,7 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma_coef3 = 0.7853982 # pi/4
       )
     ),
-    constant_iso = list( # Isotropic version of 
+    constantIso = list( # Isotropic version of 
       ## 1. ones                 N-vector of 1's
       ## 2. Sigma_HP1            Standard deviation for the anisotropy components
       ## 3. Sigma_coef{1,2,3}    Vectors of length p_Sigma; represents the anisotropy components
@@ -978,14 +1045,18 @@ nsgpModel <- function( tau_model   = "constant",
           gamma1[j] ~ dnorm(0, sd = Sigma_HP1[1])
           gamma2[j] ~ dnorm(0, sd = Sigma_HP1[1])
         }
+        # Constraints: upper limits on eigen_comp1 and eigen_comp2
+        constraint1 ~ dconstraint( max(Sigma11[1:N]) < Sigma_HP5 )
+        constraint2 ~ dconstraint( max(Sigma22[1:N]) < Sigma_HP5 )
       }),
-      constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2"),
+      constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2", "Sigma_HP5"),
       inits = list(
         psi11 = quote(Sigma_HP2[1]/2),
         psi22 = quote(Sigma_HP2[1]/2),
         rho = 0,
         gamma1 = quote(rep(0, p_Sigma)),
-        gamma2 = quote(rep(0, p_Sigma))
+        gamma2 = quote(rep(0, p_Sigma)),
+        constraint1 = 1, constraint2 = 1
       )
     ), 
     compReg = list(
@@ -1005,16 +1076,20 @@ nsgpModel <- function( tau_model   = "constant",
           Sigma_coef2[j] ~ dnorm(0, sd = Sigma_HP1)
           Sigma_coef3[j] ~ dnorm(0, sd = Sigma_HP1)
         }
+        # Constraints: upper limits on eigen_comp1 and eigen_comp2
+        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
+        constraint2 ~ dconstraint( max(eigen_comp2[1:N]) < log(Sigma_HP5) )
       }),
-      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1"),
+      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP5"),
       inits = list(
         Sigma_coef1 = quote(rep(0, p_Sigma)),
         Sigma_coef2 = quote(rep(0, p_Sigma)),
-        Sigma_coef3 = quote(rep(0, p_Sigma))
+        Sigma_coef3 = quote(rep(0, p_Sigma)),
+        constraint1 = 1, constraint2 = 1
       )
     ),
     
-    compReg_iso = list( # Isotropic version of compReg
+    compRegIso = list( # Isotropic version of compReg
       code = quote({
         ## 1. X_Sigma                N x p_Sigma design matrix; leading column of 1's with (p_Sigma - 1) other covariates
         ## 2. Sigma_HP1              Standard deviation for the component regression coefficients
@@ -1027,10 +1102,13 @@ nsgpModel <- function( tau_model   = "constant",
         for(j in 1:p_Sigma){
           Sigma_coef1[j] ~ dnorm(0, sd = Sigma_HP1)
         }
+        # Constraints: upper limits on eigen_comp1
+        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
       }),
-      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1"),
+      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP5"),
       inits = list(
-        Sigma_coef1 = quote(rep(0, p_Sigma))
+        Sigma_coef1 = quote(rep(0, p_Sigma)),
+        constraint1 = 1
       )
     ),
     
@@ -1079,7 +1157,7 @@ nsgpModel <- function( tau_model   = "constant",
     #   )
     # ),
     # 
-    # npGP_iso = list( 
+    # npGPIso = list( 
     #   code = quote({
     #     ## 1. Sigma_HP1          3-vector; Gaussian process mean
     #     ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
@@ -1171,7 +1249,7 @@ nsgpModel <- function( tau_model   = "constant",
       
     ),
     
-    npApproxGP_iso = list( 
+    npApproxGPIso = list( 
       code = quote({
         ## 1. Sigma_HP1          3-vector; Gaussian process mean
         ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
@@ -1263,13 +1341,13 @@ nsgpModel <- function( tau_model   = "constant",
     fullGP = list(
       code = quote({
         Cor[1:N,1:N] <- nsCorr(dist1_sq[1:N,1:N], dist2_sq[1:N,1:N], dist12[1:N,1:N],
-                               Sigma11[1:N], Sigma22[1:N], Sigma12[1:N], nu)
+                               Sigma11[1:N], Sigma22[1:N], Sigma12[1:N], nu, d)
         sigmaMat[1:N,1:N] <- diag(exp(log_sigma_vec[1:N]))
         Cov[1:N, 1:N] <- sigmaMat[1:N,1:N] %*% Cor[1:N,1:N] %*% sigmaMat[1:N,1:N]
         C[1:N,1:N] <- Cov[1:N, 1:N] + diag(exp(log_tau_vec[1:N])^2)
         z[1:N] ~ dmnorm(mean = mu[1:N], cov = C[1:N,1:N])
       }),
-      constants_needed = c("N", "dist1_sq", "dist2_sq", "dist12", "nu"),                ## keep N here
+      constants_needed = c("N", "dist1_sq", "dist2_sq", "dist12", "nu", "d"),                ## keep N here
       inits = list()
     ),
     NNGP = list(
@@ -1279,10 +1357,10 @@ nsgpModel <- function( tau_model   = "constant",
                                           dist12_3d[1:N,1:(k+1),1:(k+1)],
                                           Sigma11[1:N], Sigma22[1:N], Sigma12[1:N],
                                           log_sigma_vec[1:N], log_tau_vec[1:N],
-                                          nID[1:N,1:k], N, k, nu)
+                                          nID[1:N,1:k], N, k, nu, d)
         z[1:N] ~ dmnorm_nngp(mu[1:N], AD[1:N,1:(k+1)], nID[1:N,1:k], N, k)
       }),
-      constants_needed = c("N", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu"),    ## keep N here
+      constants_needed = c("N", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "d"),    ## keep N here
       inits = list()
     ),
     SGV = list(
@@ -1292,10 +1370,10 @@ nsgpModel <- function( tau_model   = "constant",
                                           dist12_3d[1:N,1:(k+1),1:(k+1)],
                                           Sigma11[1:N], Sigma22[1:N], Sigma12[1:N],
                                           log_sigma_vec[1:N], log_tau_vec[1:N], 
-                                          nu, nID[1:N,1:k], cond_on_y[1:N,1:k], N, k )
+                                          nu, nID[1:N,1:k], cond_on_y[1:N,1:k], N, k, d )
         z[1:N] ~ dmnorm_sgv(mu[1:N], U[1:num_NZ,1:3], N, k)
       }),
-      constants_needed = c("N", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "cond_on_y", "num_NZ"),    ## keep N here
+      constants_needed = c("N", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "cond_on_y", "num_NZ", "d"),    ## keep N here
       inits = list()
     )
   )
@@ -1349,6 +1427,7 @@ nsgpModel <- function( tau_model   = "constant",
   
   constants_defaults_list <- list(
     N = N,
+    d = 2,
     ones = rep(1, N),
     tau_HP1 = sd_default,            ## standard deviation
     tau_HP2 = mu_default,            ## mean
@@ -1454,6 +1533,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
   ## modelsList$mu
   ## modelsList$likelihood
   
+  d <- ncol(coords)
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     # Extract needed variables from nsgpModel
     dist1_sq <- nsgpModel$dist1_sq
@@ -1462,13 +1542,18 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     N <- nrow(dist1_sq) # number of observed locations
     nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
     # Prediction distances
-    Pdist <- nsDist(predCoords)
+    if(dist2_sq[1,1] == -1){ # Isotropic
+      Pdist <- nsDist(predCoords, isotropic = TRUE)
+      Xdist <- nsCrossdist(coords, predCoords, isotropic = TRUE)
+    } else{
+      Pdist <- nsDist(predCoords)
+      Xdist <- nsCrossdist(coords, predCoords)
+    }
     Pdist1_sq <- Pdist$dist1_sq
     Pdist2_sq <- Pdist$dist2_sq
     Pdist12 <- Pdist$dist12
     M <- nrow(Pdist1_sq) # number of prediction locations
     # Cross distances
-    Xdist <- nsCrossdist(coords, predCoords)
     Xdist1_sq <- Xdist$dist1_sq
     Xdist2_sq <- Xdist$dist2_sq
     Xdist12 <- Xdist$dist12
@@ -1484,7 +1569,11 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
     # Prediction/cross distances
     P_nID <- FNN::get.knnx(coords, predCoords, k = k)$nn.index # Prediction NN
-    Pdist <- nsCrossdist3d(coords, predCoords, P_nID)
+    if(dist2_3d[1,1,1] == -1){
+      Pdist <- nsCrossdist3d(coords, predCoords, P_nID, isotropic = TRUE)
+    } else{
+      Pdist <- nsCrossdist3d(coords, predCoords, P_nID)
+    }
     Pdist1_3d <- Pdist$dist1_3d
     Pdist2_3d <- Pdist$dist2_3d
     Pdist12_3d <- Pdist$dist12_3d
@@ -1505,7 +1594,11 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     # Prediction setup
     predSGV_setup <- sgvSetup(coords, predCoords, k, seed = SGV_setup$seed)
     prednID_SGV <- predSGV_setup$nID_ord
-    preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV )
+    if(dist2_3d[1,1,1] == -1){
+      preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV, isotropic = TRUE )
+    } else{
+      preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV )
+    }
     Alldist1_3d <- preddist_SGV$dist1_3d
     Alldist2_3d <- preddist_SGV$dist2_3d
     Alldist12_3d <- preddist_SGV$dist12_3d
@@ -1616,6 +1709,18 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       PSigma22_j <- rep(1,M)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
       PSigma12_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
     }
+    if( modelsList$Sigma == "constantIso" ){
+      # Required constants: none
+      Sigma_coef1 <- samp_j["Sigma_coef1"]
+      Sigma_coef2 <- samp_j["Sigma_coef1"]
+      Sigma_coef3 <- 0
+      Sigma11_j <- rep(1,N)*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
+      Sigma22_j <- rep(1,N)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
+      Sigma12_j <- rep(1,N)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
+      PSigma11_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef2*sin(Sigma_coef3)*sin(Sigma_coef3))
+      PSigma22_j <- rep(1,M)*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
+      PSigma12_j <- rep(1,M)*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
+    }
     if( modelsList$Sigma == "covReg" ){
       # Required constants: X_Sigma, PX_Sigma
       Sigma11_j <- as.numeric(samp_j["psi11"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])^2)
@@ -1640,6 +1745,18 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       PSigma11_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 1))
       PSigma12_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 3)) 
       PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
+    }
+    if( modelsList$Sigma == "compRegIso" ){
+      # Required constants: X_Sigma, PX_Sigma
+      eigen_comp1_j <- X_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
+      Sigma11_j <- as.numeric(exp(eigen_comp1_j))
+      Sigma12_j <- as.numeric(exp(eigen_comp1_j))
+      Sigma22_j <- rep(0,N)
+
+      Peigen_comp1_j <- PX_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
+      PSigma11_j <- as.numeric(exp(Peigen_comp1_j))
+      PSigma12_j <- as.numeric(exp(Peigen_comp1_j))
+      PSigma22_j <- rep(0,N)
     }
     if( modelsList$Sigma == "npApproxGP" ){
       # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
@@ -1667,6 +1784,24 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       PSigma12_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 3))
       PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
     }
+    if( modelsList$Sigma == "npApproxGPIso" ){
+      # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+      w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
+
+      # Obs locations
+      Pmat12_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
+      eigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w1_Sigma_j
+      Sigma11_j <- as.numeric(exp(eigen_comp1_j))
+      Sigma12_j <- as.numeric(exp(eigen_comp1_j))
+      Sigma22_j <- rep(0,N)
+      
+      # Pred locations
+      Pmat12_Sigma_pred_j <- matern_corr(Sigma_cross_dist_pred, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
+      Peigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,M) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_pred_j %*% w1_Sigma_j
+      PSigma11_j <- as.numeric(exp(Peigen_comp1_j))
+      PSigma12_j <- as.numeric(exp(Peigen_comp1_j))
+      PSigma22_j <- rep(0,N)
+    }
     
     # Calculate mu and Pmu ========================================
     if( modelsList$mu == "constant" ){
@@ -1685,13 +1820,13 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
       # Posterior predictive draw ===================================
       # Obs covariance
-      Cor <- nsCorr(dist1_sq, dist2_sq, dist12, Sigma11_j, Sigma22_j, Sigma12_j, nu)
+      Cor <- nsCorr(dist1_sq, dist2_sq, dist12, Sigma11_j, Sigma22_j, Sigma12_j, nu, d)
       sigmaMat <- diag(exp(log_sigma_vec_j))
       Cov <- sigmaMat %*% Cor %*% sigmaMat
       C <- Cov + diag(exp(log_tau_vec_j)^2)
       C_chol <- chol(Cov)
       # Prediction covariance
-      PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu)
+      PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu, d)
       PsigmaMat <- diag(exp(Plog_sigma_vec_j))
       PCov <- PsigmaMat %*% PCor %*% PsigmaMat
       if(predict_y){ # Do not include the nugget variance
@@ -1702,7 +1837,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       # Cross-covariance
       XCor <- nsCrosscorr(Xdist1_sq, Xdist2_sq, Xdist12, 
                           Sigma11_j, Sigma22_j, Sigma12_j,
-                          PSigma11_j, PSigma22_j, PSigma12_j, nu)
+                          PSigma11_j, PSigma22_j, PSigma12_j, nu, d)
       XCov <- PsigmaMat %*% XCor %*% sigmaMat
       # Conditional mean/covariance
       crscov_covinv <- t(backsolve(C_chol, backsolve(C_chol, t(XCov), transpose = TRUE)))
@@ -1719,7 +1854,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
                       Pdist2_3d[m,1:k,1:k],
                       Pdist12_3d[m,1:k,1:k],
                       Sigma11_j[P_nID[m,]], Sigma22_j[P_nID[m,]], 
-                      Sigma12_j[P_nID[m,]], nu)
+                      Sigma12_j[P_nID[m,]], nu, d)
         sigmaMat <- diag(exp(log_sigma_vec_j[P_nID[m,]]))
         Cov <- sigmaMat %*% Cor %*% sigmaMat
         C <- Cov + diag(exp(log_tau_vec_j[P_nID[m,]])^2)
@@ -1734,13 +1869,13 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
           PC <- exp(Plog_tau_vec_j[m])^2 + exp(Plog_sigma_vec_j[m])^2
         }
         # Cross-covariance
-        XCor <- nsCrosscorr(Pdist1_3d[m,k+1,1:k],
-                            Pdist2_3d[m,k+1,1:k],
-                            Pdist12_3d[m,k+1,1:k],
+        XCor <- nsCrosscorr(matrix(Pdist1_3d[m,k+1,1:k], nrow = 1, ncol = k),
+                            matrix(Pdist2_3d[m,k+1,1:k], nrow = 1, ncol = k),
+                            matrix(Pdist12_3d[m,k+1,1:k], nrow = 1, ncol = k),
                             Sigma11_j[P_nID[m,]], 
                             Sigma22_j[P_nID[m,]], 
                             Sigma12_j[P_nID[m,]],
-                            PSigma11_j[m], PSigma22_j[m], PSigma12_j[m], nu)
+                            PSigma11_j[m], PSigma22_j[m], PSigma12_j[m], nu, d)
         XCov <- PsigmaMat %*% XCor %*% sigmaMat
         # Conditional mean/covariance
         crscov_covinv <- t(backsolve(C_chol, backsolve(C_chol, t(XCov), transpose = TRUE)))
@@ -1761,7 +1896,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
         log_sigma_vec = c(log_sigma_vec_j, Plog_sigma_vec_j), 
         log_tau_vec = c(log_tau_vec_j, Plog_tau_vec_j), nu = nu, 
         nID = prednID_SGV, cond_on_y = predSGV_setup$condition_on_y_ord, 
-        N = N, k = k, M = M )
+        N = N, k = k, M = M, d = d )
       Usm <- Matrix::sparseMatrix(i = U_j[,1], j = U_j[,2], x = U_j[,3])
       Asm <- Usm[c(seq(from = 1, to = 2*N, by = 2), 2*N + 1:M),]
       Bsm <- Usm[seq(from = 2, to = 2*N, by = 2),]
@@ -1914,10 +2049,21 @@ orderCoordinatesMMD <- function(s, exact = FALSE) {
 
 determineNeighbors <- function(s, k) {
   N <- dim(s)[1]
+  d <- dim(s)[2]
   if(k+2 > N) stop()
   nID <- array(-1, c(N,k))     ## populate unused values with -1, to prevent a warning from NIMBLE
   for(i in 2:(k+1))   nID[i, 1:(i-1)] <- as.numeric(1:(i-1))
-  for(i in (k+2):N)   nID[i, 1:k] <- as.numeric(order((s[1:(i-1),1] - s[i,1])^2 + (s[1:(i-1),2] - s[i,2])^2)[1:k])
+  if(d == 2){
+    for(i in (k+2):N)   nID[i, 1:k] <- as.numeric(order((s[1:(i-1),1] - s[i,1])^2 + (s[1:(i-1),2] - s[i,2])^2)[1:k])
+  } else{
+    for(i in (k+2):N){
+      disti <- 0
+      for(j in 1:d){
+        disti <- disti + (s[1:(i-1),j] - s[i,j])^2
+      }
+      nID[i, 1:k] <- as.numeric(order(disti)[1:k])
+    }   
+  }
   return(nID)
 }
 

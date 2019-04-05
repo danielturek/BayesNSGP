@@ -55,7 +55,7 @@ calculateAD_ns <- nimbleFunction(
   run = function(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
-    log_sigma_vec = double(1), log_tau_vec = double(1), nID = double(2), N = double(), k = double(), nu = double()) {
+    log_sigma_vec = double(1), log_tau_vec = double(1), nID = double(2), N = double(), k = double(), nu = double(), d = double() ) {
     AD <- array(0, c(N,k+1))
     AD[1,k+1] <- exp(log_sigma_vec[1])^2 + exp(log_tau_vec[1])^2
     for(i in 2:N) {
@@ -66,13 +66,13 @@ calculateAD_ns <- nimbleFunction(
       d2 <- dist2_3d[i,1:(nNei+1),1:(nNei+1)]
       d12 <- dist12_3d[i,1:(nNei+1),1:(nNei+1)]
       S1 <- Sigma11[ind];      S2 <- Sigma22[ind];      S12 <- Sigma12[ind]
-      Cor <- nsCorr(d1, d2, d12, S1, S2, S12, nu)
+      Cor <- nsCorr(d1, d2, d12, S1, S2, S12, nu, d)
       sigmaMat <- diag(exp(log_sigma_vec[ind]))
       Cov <- sigmaMat %*% Cor %*% sigmaMat
       C <- Cov + diag(exp(log_tau_vec[ind])^2)
       AD[i,1:nNei] <- solve( C[1:nNei,1:nNei], C[nNei+1,1:nNei] )
       AD[i,k+1] <- C[nNei+1,nNei+1] - inprod( C[nNei+1,1:nNei], AD[i,1:nNei] )
-    }
+    } 
     returnType(double(2))
     return(AD)
   }

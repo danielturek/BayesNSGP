@@ -201,8 +201,8 @@ calculateU_ns <- nimbleFunction(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
     log_sigma_vec = double(1), log_tau_vec = double(1), nu = double(), 
-    nID = double(2), cond_on_y = double(2), N = double(), k = double(), 
-    M = double(0, default = 0)) {
+    nID = double(2), cond_on_y = double(2), N = double(), k = double(), d = double(0), 
+    M = double(0, default = 0) ) {
     
     # Setup
     NN <- 2*N + M
@@ -235,15 +235,15 @@ calculateU_ns <- nimbleFunction(
       S2 <- nimNumeric( value = Sigma22[i], length = 1)  
       S12 <- nimNumeric( value = Sigma12[i], length = 1)  
       
-      d1 <- dist1_3d[i, 1:nNei, 1:nNei]          # Distances between the neighbors of location i
-      d2 <- dist2_3d[i, 1:nNei, 1:nNei]
-      d12 <- dist12_3d[i, 1:nNei, 1:nNei]
+      d1 <- array(dist1_3d[i, 1:nNei, 1:nNei], c(nNei, nNei))          # Distances between the neighbors of location i
+      d2 <- array(dist2_3d[i, 1:nNei, 1:nNei], c(nNei, nNei))
+      d12 <- array(dist12_3d[i, 1:nNei, 1:nNei], c(nNei, nNei))
       xS1 <- Sigma11[ind]                        # Anisotropy parameters for the neighbors of location i
       xS2 <- Sigma22[ind]
       xS12 <- Sigma12[ind]
       
       # Cross-covariance between location and the conditioning set
-      Crosscor <- nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu)
+      Crosscor <- nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu, d)
       if(length(ind) == 1) {
         sigmaMat_cond <- array(exp(log_sigma_vec[ind]), c(1,1))
       } else {
@@ -252,7 +252,7 @@ calculateU_ns <- nimbleFunction(
       Crosscov <- array(exp(log_sigma_vec[i]), c(1,1)) %*% array(Crosscor, c(1,nNei)) %*% sigmaMat_cond # Formerly pt1
       
       # Covariance of conditioning set
-      Cor_cond <- nsCorr(d1, d2, d12, xS1, xS2, xS12, nu)
+      Cor_cond <- nsCorr(d1, d2, d12, xS1, xS2, xS12, nu, d)
       Cov_cond <- sigmaMat_cond %*% Cor_cond %*% sigmaMat_cond # Formerly pt2
       
       # Covariance of the process at the location
