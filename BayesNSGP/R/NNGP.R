@@ -1,3 +1,6 @@
+
+require(nimble, quietly = TRUE, warn.conflicts = FALSE)
+
 #================================================
 # Bayesian nonstationary Gaussian process 
 # modeling in NIMBLE
@@ -16,6 +19,55 @@
 ## - calcQF
 ## - dmnorm_nngp (formerly dmnorm_nn2)
 ## - rmnorm_nngp (formerly rmnorm_nn2)
+
+
+#==============================================================================
+# Calculate the Gaussian quadratic form for the NNGP approximation
+#==============================================================================
+
+
+
+
+# ROxygen comments ----
+#' Calculate the Gaussian quadratic form for the NNGP approximation
+#' 
+#' \code{calcQF} calculates the quadratic form in the multivariate Gaussian 
+#' based on the NNGP approximation, for a specific parameter combination. The
+#' quadratic form is \code{t(u)C^{-1}v}.
+#' 
+#' @param u Vector; left product.
+#' @param v Vector; right product
+#' @param AD N x (k+1) matrix; the first k columns are the 'A' matrix, and the
+#' last column is the 'D' vector. Represents the Cholesky of \code{C^{-1}}.
+#' @param nID N x k matrix of neighbor indices.
+#' 
+#' @return A list with two components: (1) an N x 2 array containing the 
+#' same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
+#' any NA values removed.
+#' 
+#' @examples
+#' # TODO
+#' 
+#' @export
+#' 
+calcQF <- nimble::nimbleFunction(
+  run = function(u = double(1), v = double(1), AD = double(2), nID = double(2)) {
+    N <- dim(AD)[1]
+    k <- dim(AD)[2] - 1
+    qf <- u[1] * v[1] / AD[1,k+1]
+    for(i in 2:N) {
+      if(i<=k)     nNei <- i-1      else      nNei <- k
+      qf <- qf + (u[i] - inprod( AD[i,1:nNei], u[nID[i,1:nNei]] )) *
+        (v[i] - inprod( AD[i,1:nNei], v[nID[i,1:nNei]] )) / AD[i,k+1]
+    }
+    returnType(double())
+    return(qf)
+  }, where = getLoadingNamespace()
+)
+
+
+
+
 
 #==============================================================================
 # Calculate A and D matrices for the NNGP approximation
@@ -41,6 +93,7 @@
 #' @param N Scalar; number of data measurements.
 #' @param k Scalar; number of nearest neighbors.
 #' @param nu Scalar; Matern smoothness parameter.
+#' @param d TODO
 #' 
 #' @return A N x (k+1) matrix; the first k columns are the 'A' matrix, and the
 #' last column is the 'D' vector.
@@ -49,9 +102,8 @@
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleCode
-
-calculateAD_ns <- nimbleFunction(
+#' 
+calculateAD_ns <- nimble::nimbleFunction(
   run = function(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
@@ -67,6 +119,7 @@ calculateAD_ns <- nimbleFunction(
       d12 <- dist12_3d[i,1:(nNei+1),1:(nNei+1)]
       S1 <- Sigma11[ind];      S2 <- Sigma22[ind];      S12 <- Sigma12[ind]
       Cor <- nsCorr(d1, d2, d12, S1, S2, S12, nu, d)
+      ##Cor <- BayesNSGP::nsCorr(d1, d2, d12, S1, S2, S12, nu, d)
       sigmaMat <- diag(exp(log_sigma_vec[ind]))
       Cov <- sigmaMat %*% Cor %*% sigmaMat
       C <- Cov + diag(exp(log_tau_vec[ind])^2)
@@ -75,50 +128,9 @@ calculateAD_ns <- nimbleFunction(
     } 
     returnType(double(2))
     return(AD)
-  }
+  }, where = getLoadingNamespace(), check = FALSE
 )
 
-#==============================================================================
-# Calculate the Gaussian quadratic form for the NNGP approximation
-#==============================================================================
-
-# ROxygen comments ----
-#' Calculate the Gaussian quadratic form for the NNGP approximation
-#'
-#' \code{calcQF} calculates the quadratic form in the multivariate Gaussian 
-#' based on the NNGP approximation, for a specific parameter combination. The
-#' quadratic form is \code{u'C^{-1}v}.
-#' 
-#' @param u Vector; left product.
-#' @param v Vector; right product
-#' @param AD N x (k+1) matrix; the first k columns are the 'A' matrix, and the
-#' last column is the 'D' vector. Represents the Cholesky of \code{C^{-1}}.
-#' @param nID N x k matrix of neighbor indices.
-#' 
-#' @return A list with two components: (1) an N x 2 array containing the 
-#' same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
-#' any NA values removed.
-#'
-#' @examples
-#' # TODO
-#'
-#' @export
-#' @importFrom nimble nimbleCode
-
-calcQF <- nimbleFunction(
-  run = function(u = double(1), v = double(1), AD = double(2), nID = double(2)) {
-    N <- dim(AD)[1]
-    k <- dim(AD)[2] - 1
-    qf <- u[1] * v[1] / AD[1,k+1]
-    for(i in 2:N) {
-      if(i<=k)     nNei <- i-1      else      nNei <- k
-      qf <- qf + (u[i] - inprod( AD[i,1:nNei], u[nID[i,1:nNei]] )) *
-        (v[i] - inprod( AD[i,1:nNei], v[nID[i,1:nNei]] )) / AD[i,k+1]
-    }
-    returnType(double())
-    return(qf)
-  }
-)
 
 #==============================================================================
 # Density function for the NNGP approximation
@@ -146,31 +158,31 @@ calcQF <- nimbleFunction(
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleCode
-
-dmnorm_nngp <- nimbleFunction(
+#' 
+dmnorm_nngp <- nimble::nimbleFunction(
   run = function(x = double(1), mean = double(1), AD = double(2), nID = double(2), N = double(), k = double(), log = double()) {
     xCentered <- x - mean
     qf <- calcQF(xCentered, xCentered, AD, nID)
+    ##qf <- BayesNSGP::calcQF(xCentered, xCentered, AD, nID)
     lp <- -0.5 * (1.83787706649*N + sum(log(AD[1:N,k+1])) + qf)      # log(2pi) = 1.8378770664
     returnType(double())
     return(lp)
-  }
+  }, where = getLoadingNamespace(), check = FALSE
 )
 
-rmnorm_nngp <- nimbleFunction(
+rmnorm_nngp <- nimble::nimbleFunction(
   run = function(n = integer(), mean = double(1), AD = double(2), nID = double(2), N = double(), k = double()) {
     returnType(double(1))
     return(numeric(N))
-  }
+  }, where = getLoadingNamespace()
 )
 
-registerDistributions(list(
+nimble::registerDistributions(list(
   dmnorm_nngp = list(
     BUGSdist = 'dmnorm_nngp(mean, AD, nID, N, k)',
     types = c('value = double(1)', 'mean = double(1)', 'AD = double(2)', 'nID = double(2)', 'N = double()', 'k = double()'),
     mixedSizes = TRUE)
-))
+), verbose = FALSE)
 
 
 

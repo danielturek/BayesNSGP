@@ -1,3 +1,6 @@
+
+require(nimble, quietly = TRUE, warn.conflicts = FALSE)
+
 #================================================
 # Bayesian nonstationary Gaussian process 
 # modeling in NIMBLE
@@ -5,6 +8,144 @@
 # Lawrence Berkeley National Laboratory
 # January, 2019
 #================================================
+
+
+
+
+#================================================
+# Functions for ordering coordinates and finding
+# nearest neighbors
+#================================================
+
+## Script #2: nsgpOrderingNN.R (functions for ordering and finding nearest neighbors)
+## 
+## - orderCoordinatesMMD: order coordinates by maxmin distance
+## - determineNeighbors: identify k nearest neighbors
+
+
+#==============================================================================
+# Maximum-minimum distance (MMD) coordinate ordering
+#==============================================================================
+
+# ROxygen comments ----
+#' Order coordinates according to a maximum-minimum distance criterion.
+#' 
+#' \code{orderCoordinatesMMD} orders an array of (x,y) spatial coordinates 
+#' according to the "maximum minimum distance" (MMD), as described in Guinness, 
+#' 2018. (Points are selected to maximize their minimum distance to already-
+#' selected points).
+#' 
+#' @param s N x 2 array of N 2-dimensional (x,y) spatial coordinates.
+#' @param exact Logical; \code{FALSE} uses a fast approximation to MMD ordering 
+#' (and is almost always recommended), while \code{TRUE} uses exact MMD 
+#' ordering but is infeasible for large number of locations.
+#' 
+#' @return A list with two components: (1) an N x 2 array containing the 
+#' same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
+#' any NA values removed.
+#' 
+#' @examples
+#' # TODO
+#'
+#' @export
+#' 
+orderCoordinatesMMD <- function(s, exact = FALSE) {
+  ## input s: an Nx2 array of spatial coordinates
+  N <- dim(s)[1]
+  if(N < 3) return(s)
+  if(!exact) {       ## approximate MMD ordering
+    initialOrdering <- sample(1:N)
+    orderedIndices <- c(initialOrdering, rep(NA, 3*N))
+    indexLookupVector <- order(initialOrdering)
+    maxNeighbors <- floor(sqrt(N))
+    NN <- FNN::get.knn(s, k = maxNeighbors)$nn.index
+    nextSpot <- N+1
+    cycleCheckIndex <- -1
+    for(i in 2:(3*N)) {
+      (targetIndex <- orderedIndices[i])
+      if(cycleCheckIndex == targetIndex) break
+      if(cycleCheckIndex == -1) cycleCheckIndex <- targetIndex
+      targetNeighbors <- NN[targetIndex, 1:min(maxNeighbors, round(N/(i+N-nextSpot)))]
+      targetNeighborLocs <- indexLookupVector[targetNeighbors]
+      if(min(targetNeighborLocs) < i) {   ## relocate this index to the back
+        orderedIndices[nextSpot] <- targetIndex
+        orderedIndices[i] <- NA
+        indexLookupVector[targetIndex] <- nextSpot
+        nextSpot <- nextSpot + 1
+      } else cycleCheckIndex <- -1
+    }
+    orderedIndicesNoNA <- orderedIndices[!is.na(orderedIndices)]
+    orderedS <- s[orderedIndicesNoNA,]
+  } else {           ## exact MMD ordering
+    availableIndices <- 1:N
+    orderedS <- array(NA, c(N,2))
+    sbar <- apply(s, 2, mean)   ## group centroid
+    iNext <- which.min(sapply(1:N, function(i) sum((s[i,] - sbar)^2)))
+    orderedS[1,] <- s[iNext,]
+    availableIndices <- setdiff(availableIndices, iNext)
+    for(i in 2:N) {
+      aIndNext <- which.max(    ## this indexes the availableIndices vector
+        sapply(1:(N-i+1), function(j) {
+          min(sapply(1:(i-1), function(k) sum((s[availableIndices[j],] - orderedS[k,])^2)))
+        }))
+      iNext <- availableIndices[aIndNext]   ## this indexes rows of the original s[] array
+      orderedS[i,] <- s[iNext,]
+      availableIndices <- setdiff(availableIndices, iNext)
+    }
+    orderedIndicesNoNA <- NULL
+  }
+  return(list(orderedS = orderedS, orderedIndicesNoNA = orderedIndicesNoNA))
+}
+
+#==============================================================================
+# Determine the k-nearest neighbors
+#==============================================================================
+
+# ROxygen comments ----
+#' Determine the k-nearest neighbors for each spatial coordinate.
+#' 
+#' \code{determineNeighbors} returns an N x k matrix of the nearest neighbors 
+#' for spatial locations s, with the ith row giving indices of the k nearest 
+#' neighbors to the ith location, which are selected from among the 1,...(i-1) 
+#' other spatial locations. The first row is -1's, since the first location has 
+#' no neighbors. The i=2 through i=(k+1) rows each necessarily contain 1:i.
+#' 
+#' @param s N x 2 array of N 2-dimensional (x,y) spatial coordinates.
+#' @param k Scalar; number of neighbors
+#' 
+#' @return An N x k matrix of nearest neighbor indices
+#' 
+#' @examples
+#' # TODO
+#'
+#' @export
+#' 
+determineNeighbors <- function(s, k) {
+  N <- dim(s)[1]
+  d <- dim(s)[2]
+  if(k+2 > N) stop()
+  nID <- array(-1, c(N,k))     ## populate unused values with -1, to prevent a warning from NIMBLE
+  for(i in 2:(k+1))   nID[i, 1:(i-1)] <- as.numeric(1:(i-1))
+  if(d == 2){
+    for(i in (k+2):N)   nID[i, 1:k] <- as.numeric(order((s[1:(i-1),1] - s[i,1])^2 + (s[1:(i-1),2] - s[i,2])^2)[1:k])
+  } else{
+    for(i in (k+2):N){
+      disti <- 0
+      for(j in 1:d){
+        disti <- disti + (s[1:(i-1),j] - s[i,j])^2
+      }
+      nID[i, 1:k] <- as.numeric(order(disti)[1:k])
+    }   
+  }
+  return(nID)
+}
+
+
+
+
+
+
+
 
 #================================================
 # Core package functionality
@@ -26,8 +167,6 @@
 # -- Code up prediction functions (full GP, NNGP, SGV)
 # -- nsCrossdist3d for prediction
 
-require(nimble)
-require(FNN)
 
 #==============================================================================
 # Inverse eigendecomposition 
@@ -59,9 +198,8 @@ require(FNN)
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleFunction
-
-# inverseEigen <- nimbleFunction(     
+#'
+# inverseEigen <- nimble::nimbleFunction(     
 #   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
 #                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
 #     returnType(double(1))
@@ -88,13 +226,14 @@ require(FNN)
 #     stop('Error in inverseEigen function')  ## prevent compiler warning
 #     return(numeric(10))                     ## prevent compiler warning
 #     
-#   })
-
+#   }, where = getLoadingNamespace()
+# )
+#
 # Alternatively, parameterize in terms of the two log eigenvalues and rotation parameter
 # eigen_comp1 = log(lambda1)
 # eigen_comp2 = log(lambda2)
 # eigen_comp3 = logit(2*gamma/pi)
-inverseEigen <- nimbleFunction(     
+inverseEigen <- nimble::nimbleFunction(     
   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
     returnType(double(1))
@@ -121,43 +260,44 @@ inverseEigen <- nimbleFunction(
     stop('Error in inverseEigen function')  ## prevent compiler warning
     return(numeric(10))                     ## prevent compiler warning
     
-  })
+  }, where = getLoadingNamespace()
+)
+
 
 #==============================================================================
 # Compiled besselK function 
 #==============================================================================
 
 # ROxygen comments ----
-#' Compiled besselK function 
-#'
-#' \code{RbesselK} and \code{CbesselK} calculates the modified Bessel function
-#' of the third kind.
-#' 
-#' @param dist Matrix; contains distances for the besselK function
-#' @param nu Scalar; smoothness.
-#' 
-#' @return A matrix with values of the corresponding Bessel function.
-#'
-#' @examples
-#' # TODO
-#'
-#' @importFrom nimble nimbleFunction
-RbesselK <- nimbleFunction(
-  run = function(dst = double(2), nu = double(0)) {
-    xVector <- besselK(dst, nu)
-    xMatrix <- matrix(xVector, dim(dst)[1], dim(dst)[2])
-    returnType(double(2))
-    return(xMatrix)
-  }
-)
+# Compiled besselK function 
+# 
+# \code{RbesselK} and \code{CbesselK} calculates the modified Bessel function
+# of the third kind.
+# 
+# @param dst Matrix; contains distances for the besselK function
+# @param nu Scalar; smoothness.
+# 
+# @return A matrix with values of the corresponding Bessel function.
+# 
+# RbesselK <- nimble::nimbleFunction(
+#   run = function(dst = double(2), nu = double(0)) {
+#     xVector <- besselK(dst, nu)
+#     xMatrix <- matrix(xVector, dim(dst)[1], dim(dst)[2])
+#     returnType(double(2))
+#     return(xMatrix)
+#   }, where = getLoadingNamespace()
+# )
+
 
 #==============================================================================
 # Calculate a nonstationary Matern correlation matrix 
 #==============================================================================
 
+
+
 # ROxygen comments ----
 #' Calculate a nonstationary Matern correlation matrix
-#'
+#' 
 #' \code{nsCorr} calculates a nonstationary correlation matrix for a 
 #' fixed set of locations, based on vectors of the unique anisotropy 
 #' parameters for each station. Since the correlation function uses a 
@@ -183,17 +323,17 @@ RbesselK <- nimbleFunction(
 #' @param nu Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
 #' to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 #' correlation function.
-#'
+#' @param d TODO
+#' 
 #' @return A correlation matrix for a fixed set of stations and fixed
 #' parameter values.
-#'
+#' 
 #' @examples
 #' # TODO
-#'
+#' 
 #' @export
-#' @importFrom nimble nimbleFunction
-
-nsCorr <- nimbleFunction(     
+#' 
+nsCorr <- nimble::nimbleFunction(     
   run = function( dist1_sq = double(2), dist2_sq = double(2), dist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1), 
                   nu = double(0), d = double(0) ) {
@@ -248,13 +388,19 @@ nsCorr <- nimbleFunction(
       if( nu == Inf ){ # Gaussian (squared exponential) correlation
         Unscl.corr <- exp(-(Dist.mat^2)) 
       } else{ # Else: Matern with smoothness nu
-        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * RbesselK(Dist.mat, nu) # besselK( x = Dist.mat, nu = nu )
+        ##Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * besselK( x = Dist.mat, nu = nu )
+        xVector <- besselK(Dist.mat, nu)
+        xMatrix <- matrix(xVector, dim(Dist.mat)[1], dim(Dist.mat)[2])
+        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * xMatrix
         diag(Unscl.corr) <- 1
       } 
     }
     nsCorr <- Scale.mat*Unscl.corr
     return(nsCorr)
-  })
+  }, where = getLoadingNamespace()
+)
+
+
 
 #==============================================================================
 # Calculate a stationary Matern correlation matrix 
@@ -262,7 +408,7 @@ nsCorr <- nimbleFunction(
 
 # ROxygen comments ----
 #' Calculate a stationary Matern correlation matrix
-#'
+#' 
 #' \code{matern_corr} calculates a stationary Matern correlation matrix for a 
 #' fixed set of locations, based on a range and smoothness parameter. This 
 #' function is primarily used for the "npGP" and "approxGP" models. The 
@@ -278,14 +424,13 @@ nsCorr <- nimbleFunction(
 #' 
 #' @return A correlation matrix for a fixed set of stations and fixed
 #' parameter values.
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleFunction
-
-matern_corr <- nimbleFunction(     
+#' 
+matern_corr <- nimble::nimbleFunction(     
   run = function( dist = double(2), rho = double(0), nu = double(0) ) {
     returnType(double(2))
     
@@ -299,12 +444,18 @@ matern_corr <- nimbleFunction(
     } 
     
     # Else: Matern with smoothness nu
-    temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * RbesselK(dist/rho, nu) # besselK( x = dist/rho, nu = nu )
+    ##temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * besselK( x = dist/rho, nu = nu )
+    xVector <- besselK(dist/rho, nu)
+    xMatrix <- matrix(xVector, dim(dist)[1], dim(dist)[2])
+    temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * xMatrix
     if(Nr == Nc){
       diag(temp) <- 1
     }
     return(temp)
-  })
+  }, where = getLoadingNamespace()
+)
+
+
 
 #==============================================================================
 # Calculate a nonstationary Matern cross-correlation matrix 
@@ -312,7 +463,7 @@ matern_corr <- nimbleFunction(
 
 # ROxygen comments ----
 #' Calculate a nonstationary Matern cross-correlation matrix
-#'
+#' 
 #' \code{nsCrosscorr} calculates a nonstationary cross-correlation matrix 
 #' between two fixed sets of locations (a prediction set with M locations, and
 #' the observed set with N locations), based on vectors of the unique anisotropy 
@@ -345,17 +496,17 @@ matern_corr <- nimbleFunction(
 #' @param nu Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
 #' to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 #' correlation function.
-#'
+#' @param d TODO
+#' 
 #' @return A cross-correlation matrix for two fixed sets of stations and fixed
 #' parameter values.
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleFunction
-
-nsCrosscorr <- nimbleFunction(     
+#' 
+nsCrosscorr <- nimble::nimbleFunction(     
   run = function( Xdist1_sq = double(2), Xdist2_sq = double(2), Xdist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
                   PSigma11 = double(1), PSigma22 = double(1), PSigma12 = double(1), 
@@ -364,7 +515,7 @@ nsCrosscorr <- nimbleFunction(
     returnType(double(2))
     N <- length(Sigma11)
     M <- length(PSigma11)
-
+ 
     if( Xdist2_sq[1,1] == -1 ){ # Isotropic case
       # Calculate the scale matrix 
       if(N == 1){
@@ -425,7 +576,7 @@ nsCrosscorr <- nimbleFunction(
       inv12 <- -mat12 * oneOverDet12
       Dist.mat <- sqrt( inv11*Xdist1_sq + 2*inv12*Xdist12 + inv22*Xdist2_sq )
     }
-
+ 
     # Combine 
     if( nu == 0.5 ){ # Exponential correlation
       Unscl.corr <- exp(-Dist.mat) 
@@ -433,7 +584,10 @@ nsCrosscorr <- nimbleFunction(
       if( nu == Inf ){ # Gaussian (squared exponential) correlation
         Unscl.corr <- exp(-(Dist.mat^2)) 
       } else{ # Else: Matern with smoothness nu
-        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * RbesselK(Dist.mat, nu) # besselK( x = Dist.mat, nu = nu )
+        ##Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * besselK( x = Dist.mat, nu = nu )
+        xVector <- besselK(Dist.mat, nu)
+        xMatrix <- matrix(xVector, dim(Dist.mat)[1], dim(Dist.mat)[2])
+        Unscl.corr <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (Dist.mat)^nu * xMatrix
         ## this line will not fly:  Unscl.corr[Unscl.corr == Inf] <- 1
         ## inelegant, but accomplishes the same:
         if(min(Dist.mat) == 0) {
@@ -448,7 +602,9 @@ nsCrosscorr <- nimbleFunction(
     }
     nsCrosscorr <- Scale.mat*Unscl.corr
     return(nsCrosscorr)
-  })
+  }, where = getLoadingNamespace()
+)
+
 
 
 #==============================================================================
@@ -457,7 +613,7 @@ nsCrosscorr <- nimbleFunction(
 
 # ROxygen comments ----
 #' Calculate coordinate-specific distance matrices
-#'
+#' 
 #' \code{nsDist} calculates x, y, and x-y distances for use in the 
 #' nonstationary correlation calculation. The sign of the cross-distance
 #' is important. The function contains an optional argument for re-scaling
@@ -469,7 +625,7 @@ nsCrosscorr <- nimbleFunction(
 #' separately for each coordinate dimension (FALSE) or simultaneously for all
 #' coordinate dimensions (TRUE). \code{isotropic = TRUE} can only be used for
 #' two-dimensional coordinate systems.
-#'
+#' 
 #' @return A list of distances matrices, with the following components:
 #' \item{dist1_sq}{N x N matrix; contains values of pairwise squared distances
 #' in the x-coordinate.}
@@ -478,12 +634,12 @@ nsCrosscorr <- nimbleFunction(
 #' \item{dist12}{N x N matrix; contains values of pairwise signed cross-
 #' distances between the x- and y-coordinates.}
 #' \item{scale_factor}{Value of the scale factor used to rescale distances.}
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-
+#' 
 nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
   
   N <- nrow(coords)
@@ -530,7 +686,7 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
 # ROxygen comments ----
 #' Calculate coordinate-specific distance matrices, only for nearest neighbors
 #' and store in an array
-#'
+#' 
 #' \code{nsDist3d} generates and returns new 3-dimensional arrays containing
 #' the former dist1_sq, dist2_s1, and dist12 matrices, but
 #' only as needed for the k nearest-neighbors of each location.
@@ -547,13 +703,12 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
 #' 
 #' @return Arrays with nearest neighbor distances in each coordinate 
 #' direction.
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleFunction
-
+#' 
 nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
   N <- nrow(coords)
   
@@ -615,7 +770,7 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
 
 # ROxygen comments ----
 #' Calculate coordinate-specific cross-distance matrices
-#'
+#' 
 #' \code{nsCrossdist} calculates coordinate-specific cross distances in x, y,
 #' and x-y for use in the nonstationary cross-correlation calculation. This 
 #' function is useful for calculating posterior predictions.
@@ -625,7 +780,8 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
 #' @param Pcoords M x 2 matrix; contains x-y coordinates of prediction
 #' locations.
 #' @param scale_factor Scalar; optional argument for re-scaling the distances.
-#'
+#' @param isotropic TODO
+#' 
 #' @return A list of distances matrices, with the following components:
 #' \item{dist1_sq}{M x N matrix; contains values of pairwise squared cross-
 #' distances in the x-coordinate.}
@@ -634,13 +790,12 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
 #' \item{dist12}{M x N matrix; contains values of pairwise signed cross-
 #' distances between the x- and y-coordinates.}
 #' \item{scale_factor}{Value of the scale factor used to rescale distances.}
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom StatMatch mahalanobis.dist
-
+#' 
 nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE ){
   
   N <- nrow(coords)
@@ -690,7 +845,7 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
 # ROxygen comments ----
 #' Calculate coordinate-specific distance matrices, only for nearest neighbors
 #' and store in an array
-#'
+#' 
 #' \code{nsCrossdist3d} generates and returns new 3-dimensional arrays containing
 #' the former dist1_sq, dist2_s1, and dist12 matrices, but
 #' only as needed for the k nearest-neighbors of each location.
@@ -698,7 +853,8 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
 #' are used in the new implementation of calculateAD_ns().
 #' 
 #' @param coords N x 2 matrix; contains the x-y coordinates of stations.
-#' @param nID N x k matrix; contains indices of nearest neighbors.
+#' @param predCoords TODO
+#' @param P_nID N x k matrix; contains indices of nearest neighbors.
 #' @param scale_factor Scalar; optional argument for re-scaling the distances.
 #' @param isotropic Logical; indicates whether distances should be calculated
 #' separately for each coordinate dimension (FALSE) or simultaneously for all
@@ -707,13 +863,12 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
 #' 
 #' @return Arrays with nearest neighbor distances in each coordinate 
 #' direction.
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleFunction
-
+#' 
 nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotropic = FALSE) {
   N <- nrow(coords)
   M <- nrow(predCoords)
@@ -762,13 +917,15 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
               scale_factor = scale_factor))
 }
 
+
+
 #==============================================================================
 # NIMBLE code for a generic nonstationary GP model
 #==============================================================================
 
 # ROxygen comments ----
 #' NIMBLE code for a generic nonstationary GP model
-#'
+#' 
 #' TODO: add documentation
 #' 
 #' @param tau_model Character; specifies the model to be used for the log(tau) 
@@ -785,22 +942,31 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' approach), \code{"npGP"} (nonparameteric regression via a stationary 
 #' Gaussian process), or \code{"npApproxGP"} (nonparameteric regression via an
 #' approximation to a stationary Gaussian process).
-#'
+#' @param mu_model TODO
+#' @param likelihood TODO
+#' @param coords TODO
+#' @param z TODO
+#' @param constants TODO
+#' @param returnModelComponents TODO
+#' @param ... TODO
+#' 
 #' @return A \code{nimbleCode} object.
-#'
+#' 
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleCode
-
+#' 
 nsgpModel <- function( tau_model   = "constant",
                        sigma_model = "constant",
                        Sigma_model = "constant",
                        mu_model    = "constant",
                        likelihood  = "fullGP",
+                       coords,
+                       z,
+                       constants = list(),
                        returnModelComponents = FALSE,
-                       constants = list(), z, ... ) {
+                       ... ) {
   
   ##============================================
   ## Models for tau
@@ -1048,7 +1214,7 @@ nsgpModel <- function( tau_model   = "constant",
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
         constraint1 ~ dconstraint( max(Sigma11[1:N]) < Sigma_HP5 )
         constraint2 ~ dconstraint( max(Sigma22[1:N]) < Sigma_HP5 )
-      }),
+    }),
       constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2", "Sigma_HP5"),
       inits = list(
         psi11 = quote(Sigma_HP2[1]/2),
@@ -1347,7 +1513,7 @@ nsgpModel <- function( tau_model   = "constant",
         C[1:N,1:N] <- Cov[1:N, 1:N] + diag(exp(log_tau_vec[1:N])^2)
         z[1:N] ~ dmnorm(mean = mu[1:N], cov = C[1:N,1:N])
       }),
-      constants_needed = c("N", "dist1_sq", "dist2_sq", "dist12", "nu", "d"),                ## keep N here
+      constants_needed = c("N", "coords", "d", "dist1_sq", "dist2_sq", "dist12", "nu"),                ## keep N, coords, d here
       inits = list()
     ),
     NNGP = list(
@@ -1360,7 +1526,7 @@ nsgpModel <- function( tau_model   = "constant",
                                           nID[1:N,1:k], N, k, nu, d)
         z[1:N] ~ dmnorm_nngp(mu[1:N], AD[1:N,1:(k+1)], nID[1:N,1:k], N, k)
       }),
-      constants_needed = c("N", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "d"),    ## keep N here
+      constants_needed = c("N", "coords", "d", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu"),    ## keep N, coords, d here
       inits = list()
     ),
     SGV = list(
@@ -1373,7 +1539,7 @@ nsgpModel <- function( tau_model   = "constant",
                                           nu, nID[1:N,1:k], cond_on_y[1:N,1:k], N, k, d )
         z[1:N] ~ dmnorm_sgv(mu[1:N], U[1:num_NZ,1:3], N, k)
       }),
-      constants_needed = c("N", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "cond_on_y", "num_NZ", "d"),    ## keep N here
+      constants_needed = c("N", "coords", "d", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "cond_on_y", "num_NZ"),    ## keep N, coords, d here
       inits = list()
     )
   )
@@ -1420,6 +1586,9 @@ nsgpModel <- function( tau_model   = "constant",
   if(missing(z)) stop("must provide data as 'z' argument")
   N <- length(z)
   
+  if(missing(coords)) stop("must provide 'coords' argument, array of spatial coordinates")
+  d <- ncol(coords)
+
   sd_default <- 100
   mu_default <- 0
   matern_rho_default <- 1
@@ -1427,7 +1596,9 @@ nsgpModel <- function( tau_model   = "constant",
   
   constants_defaults_list <- list(
     N = N,
-    d = 2,
+    coords = coords,
+    d = d,
+    zeros = rep(0, N),
     ones = rep(1, N),
     tau_HP1 = sd_default,            ## standard deviation
     tau_HP2 = mu_default,            ## mean
@@ -1442,23 +1613,48 @@ nsgpModel <- function( tau_model   = "constant",
     mu_HP1 = sd_default,            ## standard deviation
     nu = matern_nu_default         ## matern_corr 'nu'  parameter
   )
-  
-  ## retrieve ... arguments
-  dotdotdot <- list(...)
-  ## make sure all ... arguments were provided with names
-  if(length(dotdotdot) > 0 && (is.null(names(dotdotdot)) || any(names(dotdotdot) == "")))
-    stop("Only named arguemnts should be provided through ... argument")
+
   ## initialize constants_to_use with constants_defaults_list
   constants_to_use <- constants_defaults_list
+  
   ## update constants_to_use with those arguments provided via ...
+  dotdotdot <- list(...)
+  ## make sure all ... arguments were provided with names
+  if(length(dotdotdot) > 0 && (is.null(names(dotdotdot)) || any(names(dotdotdot) == ""))) stop("Only named arguemnts should be provided through ... argument")
   constants_to_use[names(dotdotdot)] <- dotdotdot
+
+  ## add 'constants' argument to constants_to_use list:
   ## if provided, make sure 'constants' argument is a named list
   if(!missing(constants)) {
-    if(length(constants) > 0 && (is.null(names(constants)) || any(names(constants) == "")))
-      stop("All elements in constants list argument must be named")
-    ## update constants_to_use with those arguments provided via 'constants' argument
+    if(length(constants) > 0 && (is.null(names(constants)) || any(names(constants) == ""))) stop("All elements in constants list argument must be named")
     constants_to_use[names(constants)] <- constants
   }
+
+  ## generate and add dist1_sq, dist2_sq, and dist12 arrays to constants_to_use list
+  if(likelihood == 'fullGP') {
+      dist_list <- nsDist(coords)
+  } else { ## likelihood is NNGP, or SGV:
+      if(is.null(constants_to_use$k)) stop(paste0('missing k constants argument for ', likelihood, ' likelihood'))
+      nID <- determineNeighbors(coords, constants_to_use$k)
+      constants_to_use$nID <- nID
+      dist_list <- nsDist(coords, nID)
+  }
+  constants_to_use[names(dist_list)] <- dist_list
+
+  ## add the following (derived numbers of columns) to constants_to_use:
+  ## p_tau:
+  if(!is.null(constants_to_use$X_tau)) constants_to_use$p_tau <- ncol(constants_to_use$X_tau)
+  if(!is.null(constants_to_use$tau_cross_dist)) constants_to_use$p_tau <- ncol(constants_to_use$tau_cross_dist)
+  ## p_sigma:
+  if(!is.null(constants_to_use$X_sigma)) constants_to_use$p_sigma <- ncol(constants_to_use$X_sigma)
+  if(!is.null(constants_to_use$sigma_cross_dist)) constants_to_use$p_sigma <- ncol(constants_to_use$sigma_cross_dist)
+  ## p_Sigma:
+  if(!is.null(constants_to_use$X_Sigma)) constants_to_use$p_Sigma <- ncol(constants_to_use$X_Sigma)
+  if(!is.null(constants_to_use$Sigma_cross_dist)) constants_to_use$p_Sigma <- ncol(constants_to_use$Sigma_cross_dist)
+  ## p_mu:
+  if(!is.null(constants_to_use$X_mu)) constants_to_use$p_mu <- ncol(constants_to_use$X_mu)
+
+         
   ## get a vector of all the constants we need for this model
   constants_needed <- unique(unlist(lapply(model_selections_list, function(x) x$constants_needed), use.names = FALSE))
   ## check if we're missing any constants we need, and throw an error if any are missing
@@ -1467,7 +1663,8 @@ nsgpModel <- function( tau_model   = "constant",
     stop(paste0("Missing values for the following model constants: ",
                 paste0(constants_missing, collapse = ", "),
                 ".\nThese values should be provided as named arguments, or named elements in the constants list argument"))
-  }
+}
+  
   ## generate the constants list
   constants <- constants_to_use[constants_needed]
   
@@ -1490,11 +1687,17 @@ nsgpModel <- function( tau_model   = "constant",
   )
   
   ## NIMBLE model object
-  Rmodel <- nimbleModel(code, constants, data, inits, name = thisName)
-  if(!nimble:::isValid(Rmodel$getLogProb())) stop('model not properly initialized')
+  Rmodel <- nimble::nimbleModel(code, constants, data, inits, name = thisName)
+  lp <- Rmodel$getLogProb()
+  if(is(lp, 'try-error') || is.nan(lp) || is.na(lp) || abs(lp) == Inf) stop('model not properly initialized')
+
+  ## store 'constants' list into Rmodel$isDataEnv
+  Rmodel$isDataEnv$.BayesNSGP_constants_list <- constants
   
   return(Rmodel)
 }
+
+
 
 #==============================================================================
 # Posterior prediction for the NSGP
@@ -1502,28 +1705,39 @@ nsgpModel <- function( tau_model   = "constant",
 
 # ROxygen comments ----
 #' Posterior prediction for the NSGP
-#'
+#' 
 #' \code{nsgpPredict} conducts posterior prediction for MCMC samples generated
 #' using nsgpModel.
 #' 
-#' @param 
+#' @param model TODO
+#' @param samples TODO
+#' @param coords.predict TODO
+#' @param predict.y TODO
+#' @param constants TODO
+#' @param seed TODO
+#' @param ... TODO
 #' 
-#' @return 
-#'
+#' @return  TODO
+#' 
 #' @examples
 #' # TODO
-#'
+#' 
 #' @export
-#' @importFrom nimble nimbleFunction
+#' 
+nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, constants, seed = 0, ... ) {
 
-nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y = TRUE, ... ){
+  if(!nimble::is.model(model)) stop('first argument must be NSGP NIMBLE model object')
+  Rmodel <- if(nimble::is.Rmodel(model)) model else model$Rmodel
+  if(!nimble::is.Rmodel(Rmodel)) stop('something went wrong')
   
-  # Seems like it might work best to let the user just feed in
-  # the nsgpModel (which includes things like tau_model, likelihood, etc.),
-  # and then we hide everything in this wrapper for doing prediction?
+  model_constants <- Rmodel$isDataEnv$.BayesNSGP_constants_list
+  coords <- model_constants$coords
   
+  mcmc_samples <- samples
+  predCoords <- coords.predict
+
   ## extract the "submodel" information from the nimble model object "name"
-  thisName <- nsgpModel$getModelDef()$name
+  thisName <- Rmodel$getModelDef()$name
   modelsList <- lapply(strsplit(thisName, '_')[[1]], function(x) strsplit(x, '=')[[1]][2])
   names(modelsList) <- sapply(strsplit(thisName, '_')[[1]], function(x) strsplit(x, '=')[[1]][1])
   ## avaialble for use:
@@ -1532,15 +1746,82 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
   ## modelsList$Sigma
   ## modelsList$mu
   ## modelsList$likelihood
+
+
+  constants_to_use <- list()
+  ## update constants_to_use with those arguments provided via ...
+  dotdotdot <- list(...)
+  ## make sure all ... arguments were provided with names
+  if(length(dotdotdot) > 0 && (is.null(names(dotdotdot)) || any(names(dotdotdot) == ""))) stop("Only named arguemnts should be provided through ... argument")
+  constants_to_use[names(dotdotdot)] <- dotdotdot
+  ## add 'constants' argument to constants_to_use list:
+  ## if provided, make sure 'constants' argument is a named list
+  if(!missing(constants)) {
+    if(length(constants) > 0 && (is.null(names(constants)) || any(names(constants) == ""))) stop("All elements in constants list argument must be named")
+    constants_to_use[names(constants)] <- constants
+  }
+  ## check for discrepancies in any duplicates, between
+  ## constants_to_use provided here, and model_constants from Rmodel
+  duplicatedNames <- intersect(names(constants_to_use), names(model_constants))
+  discrepancies <- character()
+  if(length(duplicatedNames) > 0) {
+      for(name in duplicatedNames) {
+          if(!identical(constants_to_use[[name]], model_constants[[name]]))
+              discrepancies <- c(discrepancies, name)
+      }
+  }
+  if(length(discrepancies) > 0) stop(paste0('Inconsistent values were provided for the following constants: ', paste0(discrepancies, collapse = ', ')))
+  ## move original model_constants from nsgpModel into constants_to_use:
+  constants_to_use[names(model_constants)] <- model_constants
+  ## determine the constants needed
+  predictConstantsNeeded <- list(
+      tau = list(
+          constant = character(),
+          logLinReg = c('X_tau', 'PX_tau'),
+          approxGP = c('p_tau', 'tau_cross_dist_obs', 'tau_cross_dist_pred', 'tau_HP2')),
+      sigma = list(
+          constant = character(),
+          logLinReg = c('X_sigma', 'PX_sigma'),
+          approxGP = c('p_sigma', 'sigma_cross_dist_obs', 'sigma_cross_dist_pred', 'sigma_HP2')),
+      Sigma = list(
+          constant = character(),
+          constantIso = character(),
+          covReg = c('X_Sigma', 'PX_Sigma'),
+          compReg = c('X_Sigma', 'PX_Sigma'),
+          compRegIso = c('X_Sigma', 'PX_Sigma'),
+          npApproxGP = c('p_Sigma', 'Sigma_cross_dist_obs', 'Sigma_cross_dist_pred', 'Sigma_HP2'),
+          npApproxGPIso = c('p_Sigma', 'Sigma_cross_dist_obs', 'Sigma_cross_dist_pred', 'Sigma_HP2')),
+      mu = list(
+          constant = character(),
+          linReg = c('X_mu', 'PX_mu'),
+          zero = character()),
+      likelihood = list(
+          fullGP = character(),
+          NNGP = character(),
+          SGV = character())
+  )
+  constants_needed <- unique(unlist(lapply(1:length(modelsList), function(i) predictConstantsNeeded[[names(modelsList)[i]]][[modelsList[[i]]]] )))
+  ## check if we're missing any constants we need, and throw an error if any are missing
+  constants_missing <- setdiff(constants_needed, names(constants_to_use))
+  if(length(constants_missing) > 0) {
+    stop(paste0("Missing values for the following model constants: ",
+                paste0(constants_missing, collapse = ", "),
+                ".\nThese values should be provided as named arguments, or named elements in the constants list argument"))
+}
+  ## generate the constants list
+  ## do NOT truncate constants list like this:
+  ##constants <- constants_to_use[constants_needed]
+  constants <- constants_to_use
   
-  d <- ncol(coords)
+  
+  d <- constants$d
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
-    # Extract needed variables from nsgpModel
-    dist1_sq <- nsgpModel$dist1_sq
-    dist2_sq <- nsgpModel$dist2_sq
-    dist12 <- nsgpModel$dist12
-    N <- nrow(dist1_sq) # number of observed locations
-    nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
+    # Extract needed variables from constants
+    dist1_sq <- constants$dist1_sq
+    dist2_sq <- constants$dist2_sq
+    dist12 <- constants$dist12
+    N <- constants$N # number of observed locations
+    nu <- constants$nu
     # Prediction distances
     if(dist2_sq[1,1] == -1){ # Isotropic
       Pdist <- nsDist(predCoords, isotropic = TRUE)
@@ -1560,13 +1841,13 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     postPredDrawsCols <- M
   } else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
     # "Local kriging" only possible for NNGP
-    # Extract needed variables from nsgpModel
-    dist1_3d <- nsgpModel$dist1_3d
-    dist2_3d <- nsgpModel$dist2_3d
-    dist12_3d <- nsgpModel$dist12_3d
-    N <- dim(dist1_3d)[1] # number of observed locations
-    k <- dim(dist1_3d)[2] - 1 # number of neighbors
-    nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
+    # Extract needed variables from constants
+    dist1_3d <- constants$dist1_3d
+    dist2_3d <- constants$dist2_3d
+    dist12_3d <- constants$dist12_3d
+    N <- constants$N # number of observed locations
+    k <- constants$k # number of neighbors
+    nu <- constants$nu
     # Prediction/cross distances
     P_nID <- FNN::get.knnx(coords, predCoords, k = k)$nn.index # Prediction NN
     if(dist2_3d[1,1,1] == -1){
@@ -1580,19 +1861,19 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     M <- dim(Pdist1_3d)[1] # number of prediction locations
     postPredDrawsCols <- M
   } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
-    if(predict_y == FALSE){
+    if(predict.y == FALSE){   ## TODO: is this right??  when predict.y=FALSE, tell the user that "predicton for Z is not available" ??   -DT
       stop("Prediction for Z(.) not available with SGV.")
     }
-    # Extract needed variables from nsgpModel
-    z <- nsgpModel$z
-    dist1_3d <- nsgpModel$dist1_3d
-    dist2_3d <- nsgpModel$dist2_3d
-    dist12_3d <- nsgpModel$dist12_3d
-    N <- dim(dist1_3d)[1] # number of observed locations
-    k <- dim(dist1_3d)[2] - 1 # number of neighbors
-    nu <- 0.5                                              #### TODO: extract nu from nsgpModel?
+    # Extract needed variables from constants
+    z <- Rmodel$z
+    dist1_3d <- constants$dist1_3d
+    dist2_3d <- constants$dist2_3d
+    dist12_3d <- constants$dist12_3d
+    N <- constants$N # number of observed locations
+    k <- constants$k # number of neighbors
+    nu <- constants$nu
     # Prediction setup
-    predSGV_setup <- sgvSetup(coords, predCoords, k, seed = SGV_setup$seed)
+    predSGV_setup <- sgvSetup(coords, predCoords, k, seed = seed)##SGV_setup$seed)
     prednID_SGV <- predSGV_setup$nID_ord
     if(dist2_3d[1,1,1] == -1){
       preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV, isotropic = TRUE )
@@ -1607,32 +1888,32 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     obs_ord <- predSGV_setup$ord
     pred_ord <- predSGV_setup$ord_pred
     if( modelsList$tau == "logLinReg" ){
-      X_tau_ord <- X_tau[obs_ord,]
-      PX_tau_ord <- PX_tau[pred_ord,]
+      X_tau_ord <- constants$X_tau[obs_ord,]
+      PX_tau_ord <- constants$PX_tau[pred_ord,]
     }
     if( modelsList$tau == "approxGP" ){
-      tau_cross_dist_obs_ord <- tau_cross_dist_obs[obs_ord,]
-      tau_cross_dist_pred_ord <- tau_cross_dist_pred[pred_ord,]
+      tau_cross_dist_obs_ord <- constants$tau_cross_dist_obs[obs_ord,]
+      tau_cross_dist_pred_ord <- constants$tau_cross_dist_pred[pred_ord,]
     }
     if( modelsList$sigma == "logLinReg" ){
-      X_sigma_ord <- X_sigma[obs_ord,]
-      PX_sigma_ord <- PX_sigma[pred_ord,]
+      X_sigma_ord <- constants$X_sigma[obs_ord,]
+      PX_sigma_ord <- constants$PX_sigma[pred_ord,]
     }
     if( modelsList$sigma == "approxGP" ){
-      sigma_cross_dist_obs_ord <- sigma_cross_dist_obs[obs_ord,]
-      sigma_cross_dist_pred_ord <- sigma_cross_dist_pred[pred_ord,]
+      sigma_cross_dist_obs_ord <- constants$sigma_cross_dist_obs[obs_ord,]
+      sigma_cross_dist_pred_ord <- constants$sigma_cross_dist_pred[pred_ord,]
     }
     if( modelsList$Sigma == "covReg" | modelsList$Sigma == "compReg" ){
-      X_Sigma_ord <- X_Sigma[obs_ord,]
-      PX_Sigma_ord <- PX_Sigma[pred_ord,]
+      X_Sigma_ord <- constants$X_Sigma[obs_ord,]
+      PX_Sigma_ord <- constants$PX_Sigma[pred_ord,]
     }
     if( modelsList$Sigma == "npApproxGP" ){
-      Sigma_cross_dist_obs_ord <- Sigma_cross_dist_obs[obs_ord,]
-      Sigma_cross_dist_pred_ord <- Sigma_cross_dist_pred[pred_ord,]
+      Sigma_cross_dist_obs_ord <- constants$Sigma_cross_dist_obs[obs_ord,]
+      Sigma_cross_dist_pred_ord <- constants$Sigma_cross_dist_pred[pred_ord,]
     }
     if( modelsList$mu == "linReg" ){
-      X_mu_ord <- X_mu[obs_ord,]
-      PX_mu_ord <- PX_mu[pred_ord,]
+      X_mu_ord <- constants$X_mu[obs_ord,]
+      PX_mu_ord <- constants$PX_mu[pred_ord,]
     }
     postPredDrawsCols <- M+N
   } else stop('')
@@ -1656,11 +1937,17 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$tau == "logLinReg" ){
       # Required constants: X_tau, PX_tau
+      X_tau <- constants$X_tau
+      PX_tau <- constants$PX_tau
       log_tau_vec_j <- as.numeric(X_tau %*% samp_j[paste("delta[",1:ncol(X_tau),"]",sep = "")])
       Plog_tau_vec_j <- as.numeric(PX_tau %*% samp_j[paste("delta[",1:ncol(PX_tau),"]",sep = "")])
     }
     if( modelsList$tau == "approxGP" ){
       # Required constants: p_tau, tau_cross_dist_obs, tau_cross_dist_pred, tau_HP2
+      p_tau <- constants$p_tau
+      tau_cross_dist_obs <- constants$tau_cross_dist_obs
+      tau_cross_dist_pred <- constants$tau_cross_dist_pred
+      tau_HP2 <- constants$tau_HP2
       w_tau_j <- as.numeric(samp_j[paste("w_tau[",1:p_tau,"]",sep = "")])
       
       # Obs locations
@@ -1680,11 +1967,17 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$sigma == "logLinReg" ){
       # Required constants: X_sigma, PX_sigma
+      X_sigma <- constants$X_sigma
+      PX_sigma <- constants$PX_sigma
       log_sigma_vec_j <- as.numeric(X_sigma %*% samp_j[paste("alpha[",1:ncol(X_sigma),"]",sep = "")])
       Plog_sigma_vec_j <- as.numeric(PX_sigma %*% samp_j[paste("alpha[",1:ncol(PX_sigma),"]",sep = "")])
     }
     if( modelsList$sigma == "approxGP" ){
       # Required constants: p_sigma, sigma_cross_dist_obs, sigma_cross_dist_pred, sigma_HP2
+      p_sigma <- constants$p_sigma
+      sigma_cross_dist_obs <- constants$sigma_cross_dist_obs
+      sigma_cross_dist_pred <- constants$sigma_cross_dist_pred
+      sigma_HP2 <- constants$sigma_HP2
       w_sigma_j <- as.numeric(samp_j[paste("w_sigma[",1:p_sigma,"]",sep = "")])
       
       # Obs locations
@@ -1723,6 +2016,8 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$Sigma == "covReg" ){
       # Required constants: X_Sigma, PX_Sigma
+      X_Sigma <- constants$X_Sigma
+      PX_Sigma <- constants$PX_Sigma
       Sigma11_j <- as.numeric(samp_j["psi11"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])^2)
       Sigma12_j <- as.numeric(samp_j["rho"]*sqrt(samp_j["psi11"]*samp_j["psi22"])*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma1[",1:ncol(X_Sigma),"]",sep = "")])*(X_Sigma %*% samp_j[paste("gamma2[",1:ncol(X_Sigma),"]",sep = "")]))
       Sigma22_j <- as.numeric(samp_j["psi22"]*rep(1,N) + (X_Sigma %*% samp_j[paste("gamma2[",1:ncol(X_Sigma),"]",sep = "")])^2)
@@ -1732,6 +2027,8 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$Sigma == "compReg" ){
       # Required constants: X_Sigma, PX_Sigma
+      X_Sigma <- constants$X_Sigma
+      PX_Sigma <- constants$PX_Sigma
       eigen_comp1_j <- X_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
       eigen_comp2_j <- X_Sigma %*% samp_j[paste("Sigma_coef2[",1:ncol(X_Sigma),"]",sep = "")]
       eigen_comp3_j <- X_Sigma %*% samp_j[paste("Sigma_coef3[",1:ncol(X_Sigma),"]",sep = "")]
@@ -1748,11 +2045,13 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$Sigma == "compRegIso" ){
       # Required constants: X_Sigma, PX_Sigma
+      X_Sigma <- constants$X_Sigma
+      PX_Sigma <- constants$PX_Sigma
       eigen_comp1_j <- X_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
       Sigma11_j <- as.numeric(exp(eigen_comp1_j))
       Sigma12_j <- as.numeric(exp(eigen_comp1_j))
       Sigma22_j <- rep(0,N)
-
+ 
       Peigen_comp1_j <- PX_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
       PSigma11_j <- as.numeric(exp(Peigen_comp1_j))
       PSigma12_j <- as.numeric(exp(Peigen_comp1_j))
@@ -1760,6 +2059,10 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$Sigma == "npApproxGP" ){
       # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+      p_Sigma <- constants$p_Sigma
+      Sigma_cross_dist_obs <- constants$Sigma_cross_dist_obs
+      Sigma_cross_dist_pred <- constants$Sigma_cross_dist_pred
+      Sigma_HP2 <- constants$Sigma_HP2
       w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
       w2_Sigma_j <- samp_j[paste("w2_Sigma[",1:p_Sigma,"]",sep = "")]
       w3_Sigma_j <- samp_j[paste("w3_Sigma[",1:p_Sigma,"]",sep = "")]
@@ -1786,8 +2089,12 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
     }
     if( modelsList$Sigma == "npApproxGPIso" ){
       # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+      p_Sigma <- constants$p_Sigma
+      Sigma_cross_dist_obs <- constants$Sigma_cross_dist_obs
+      Sigma_cross_dist_pred <- constants$Sigma_cross_dist_pred
+      Sigma_HP2 <- constants$Sigma_HP2
       w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
-
+ 
       # Obs locations
       Pmat12_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
       eigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w1_Sigma_j
@@ -1809,6 +2116,8 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       Pmu <- samp_j[paste("beta")]*rep(1,M)
     }
     if( modelsList$mu == "linReg" ){
+      X_mu <- constants$X_mu
+      PX_mu <- constants$PX_mu
       mu <- as.numeric(X_mu %*% samp_j[paste("beta[",1:ncol(X_mu),"]",sep = "")])
       Pmu <- as.numeric(PX_mu %*% samp_j[paste("beta[",1:ncol(X_mu),"]",sep = "")])
     }
@@ -1829,7 +2138,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
       PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu, d)
       PsigmaMat <- diag(exp(Plog_sigma_vec_j))
       PCov <- PsigmaMat %*% PCor %*% PsigmaMat
-      if(predict_y){ # Do not include the nugget variance
+      if(predict.y){ # Do not include the nugget variance
         PC <- PCov
       } else{ # Include nugget variance
         PC <- PCov + diag(exp(Plog_tau_vec_j)^2)
@@ -1863,7 +2172,7 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
         # PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu)
         PsigmaMat <- exp(Plog_sigma_vec_j[m])
         # PCov <- PsigmaMat %*% Cor %*% PsigmaMat
-        if(predict_y){ # Do not include the nugget variance
+        if(predict.y){ # Do not include the nugget variance
           PC <- exp(Plog_sigma_vec_j[m])^2
         } else{ # Include nugget variance
           PC <- exp(Plog_tau_vec_j[m])^2 + exp(Plog_sigma_vec_j[m])^2
@@ -1939,131 +2248,14 @@ nsgpPredict <- function( nsgpModel, mcmc_samples, coords, predCoords, predict_y 
   
 }
 
-#================================================
-# Functions for ordering coordinates and finding
-# nearest neighbors
-#================================================
-
-## Script #2: nsgpOrderingNN.R (functions for ordering and finding nearest neighbors)
-## 
-## - orderCoordinatesMMD: order coordinates by maxmin distance
-## - determineNeighbors: identify k nearest neighbors
 
 
-#==============================================================================
-# Maximum-minimum distance (MMD) coordinate ordering
-#==============================================================================
 
-# ROxygen comments ----
-#' Order coordinates according to a maximum-minimum distance criterion.
-#'
-#' \code{orderCoordinatesMMD} orders an array of (x,y) spatial coordinates 
-#' according to the "maximum minimum distance" (MMD), as described in Guinness, 
-#' 2018. (Points are selected to maximize their minimum distance to already-
-#' selected points).
-#' 
-#' @param s N x 2 array of N 2-dimensional (x,y) spatial coordinates.
-#' @param exact Logical; \code{FALSE} uses a fast approximation to MMD ordering 
-#' (and is almost always recommended), while \code{TRUE} uses exact MMD 
-#' ordering but is infeasible for large number of locations.
-#' 
-#' @return A list with two components: (1) an N x 2 array containing the 
-#' same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
-#' any NA values removed.
-#'
-#' @examples
-#' # TODO
-#'
-#' @export  
 
-orderCoordinatesMMD <- function(s, exact = FALSE) {
-  ## input s: an Nx2 array of spatial coordinates
-  N <- dim(s)[1]
-  if(N < 3) return(s)
-  if(!exact) {       ## approximate MMD ordering
-    initialOrdering <- sample(1:N)
-    orderedIndices <- c(initialOrdering, rep(NA, 3*N))
-    indexLookupVector <- order(initialOrdering)
-    maxNeighbors <- floor(sqrt(N))
-    NN <- FNN::get.knn(s, k = maxNeighbors)$nn.index
-    nextSpot <- N+1
-    cycleCheckIndex <- -1
-    for(i in 2:(3*N)) {
-      (targetIndex <- orderedIndices[i])
-      if(cycleCheckIndex == targetIndex) break
-      if(cycleCheckIndex == -1) cycleCheckIndex <- targetIndex
-      targetNeighbors <- NN[targetIndex, 1:min(maxNeighbors, round(N/(i+N-nextSpot)))]
-      targetNeighborLocs <- indexLookupVector[targetNeighbors]
-      if(min(targetNeighborLocs) < i) {   ## relocate this index to the back
-        orderedIndices[nextSpot] <- targetIndex
-        orderedIndices[i] <- NA
-        indexLookupVector[targetIndex] <- nextSpot
-        nextSpot <- nextSpot + 1
-      } else cycleCheckIndex <- -1
-    }
-    orderedIndicesNoNA <- orderedIndices[!is.na(orderedIndices)]
-    orderedS <- s[orderedIndicesNoNA,]
-  } else {           ## exact MMD ordering
-    availableIndices <- 1:N
-    orderedS <- array(NA, c(N,2))
-    sbar <- apply(s, 2, mean)   ## group centroid
-    iNext <- which.min(sapply(1:N, function(i) sum((s[i,] - sbar)^2)))
-    orderedS[1,] <- s[iNext,]
-    availableIndices <- setdiff(availableIndices, iNext)
-    for(i in 2:N) {
-      aIndNext <- which.max(    ## this indexes the availableIndices vector
-        sapply(1:(N-i+1), function(j) {
-          min(sapply(1:(i-1), function(k) sum((s[availableIndices[j],] - orderedS[k,])^2)))
-        }))
-      iNext <- availableIndices[aIndNext]   ## this indexes rows of the original s[] array
-      orderedS[i,] <- s[iNext,]
-      availableIndices <- setdiff(availableIndices, iNext)
-    }
-    orderedIndicesNoNA <- NULL
-  }
-  return(list(orderedS = orderedS, orderedIndicesNoNA = orderedIndicesNoNA))
-}
 
-#==============================================================================
-# Determine the k-nearest neighbors
-#==============================================================================
 
-# ROxygen comments ----
-#' Determine the k-nearest neighbors for each spatial coordinate.
-#'
-#' \code{determineNeighbors} returns an N x k matrix of the nearest neighbors 
-#' for spatial locations s, with the ith row giving indices of the k nearest 
-#' neighbors to the ith location, which are selected from among the 1,...(i-1) 
-#' other spatial locations. The first row is -1's, since the first location has 
-#' no neighbors. The i=2 through i=(k+1) rows each necessarily contain 1:i.
-#' 
-#' @param s N x 2 array of N 2-dimensional (x,y) spatial coordinates.
-#' @param k Scalar; number of neighbors
-#' 
-#' @return An N x k matrix of nearest neighbor indices
-#'
-#' @examples
-#' # TODO
-#'
-#' @export
 
-determineNeighbors <- function(s, k) {
-  N <- dim(s)[1]
-  d <- dim(s)[2]
-  if(k+2 > N) stop()
-  nID <- array(-1, c(N,k))     ## populate unused values with -1, to prevent a warning from NIMBLE
-  for(i in 2:(k+1))   nID[i, 1:(i-1)] <- as.numeric(1:(i-1))
-  if(d == 2){
-    for(i in (k+2):N)   nID[i, 1:k] <- as.numeric(order((s[1:(i-1),1] - s[i,1])^2 + (s[1:(i-1),2] - s[i,2])^2)[1:k])
-  } else{
-    for(i in (k+2):N){
-      disti <- 0
-      for(j in 1:d){
-        disti <- disti + (s[1:(i-1),j] - s[i,j])^2
-      }
-      nID[i, 1:k] <- as.numeric(order(disti)[1:k])
-    }   
-  }
-  return(nID)
-}
+
+
+
 

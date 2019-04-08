@@ -1,3 +1,6 @@
+
+require(nimble, quietly = TRUE, warn.conflicts = FALSE)
+
 #================================================
 # Bayesian nonstationary Gaussian process 
 # modeling in NIMBLE
@@ -40,8 +43,7 @@
 #' # TODO
 #'
 #' @export
-#' @importFrom StatMatch mahalanobis.dist
-
+#' 
 conditionLatentObs <- function( nID, locs_ord, N ){
   
   Nall <- nrow(nID)
@@ -88,6 +90,7 @@ conditionLatentObs <- function( nID, locs_ord, N ){
 #' @param locs Matrix of observed locations.
 #' @param locs_pred Optional matrix of prediction locations.
 #' @param k Number of neighbors.
+#' @param seed TODO
 #' 
 #' @return A list with the following components:
 #' \item{ord}{A vector of ordering position for the observed locations.}
@@ -105,8 +108,7 @@ conditionLatentObs <- function( nID, locs_ord, N ){
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleCode
-
+#' 
 sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
   
   if(is.null(seed)) seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
@@ -180,23 +182,22 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
 #' @param log_tau_vec N-vector; nugget standard deviation values.
 #' @param nu Scalar; Matern smoothness parameter.
 #' @param nID N x k matrix of (ordered) neighbor indices.
-#' @param ord Vector of coordinate ordering.
 #' @param cond_on_y A matrix indicating whether the conditioning set for each 
 #' (ordered) location is on the latent process (y, \code{1}) or the observed 
 #' values (z, \code{0}). Calculated in \code{sgvSetup}.
 #' @param N Scalar; number of data measurements.
 #' @param k Scalar; number of nearest neighbors.
+#' @param d TODO
+#' @param M TODO
 #' 
-#' @return 
+#' @return TODO
 #'
 #' @examples
 #' # TODO
 #'
 #' @export
-#' @importFrom nimble nimbleCode
-
-# Create the sparse U matrix for specific theta
-calculateU_ns <- nimbleFunction(
+#' 
+calculateU_ns <- nimble::nimbleFunction(  # Create the sparse U matrix for specific theta
   run = function(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
@@ -244,6 +245,7 @@ calculateU_ns <- nimbleFunction(
       
       # Cross-covariance between location and the conditioning set
       Crosscor <- nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu, d)
+      ##Crosscor <- BayesNSGP::nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu, d)
       if(length(ind) == 1) {
         sigmaMat_cond <- array(exp(log_sigma_vec[ind]), c(1,1))
       } else {
@@ -253,6 +255,7 @@ calculateU_ns <- nimbleFunction(
       
       # Covariance of conditioning set
       Cor_cond <- nsCorr(d1, d2, d12, xS1, xS2, xS12, nu, d)
+      ##Cor_cond <- BayesNSGP::nsCorr(d1, d2, d12, xS1, xS2, xS12, nu, d)
       Cov_cond <- sigmaMat_cond %*% Cor_cond %*% sigmaMat_cond # Formerly pt2
       
       # Covariance of the process at the location
@@ -318,36 +321,13 @@ calculateU_ns <- nimbleFunction(
     
     returnType(double(2))
     return(U_ijx)
-  }
+  }, where = getLoadingNamespace(), check = FALSE
 )
 
 
-#==============================================================================
-# Density function for the SGV approximation
-#==============================================================================
-
-# ROxygen comments ----
-#' Function for the evaluating the SGV approximate density.
-#'
-#' \code{dmnorm_sgv} (and \code{rmnorm_sgv}) calculate the approximate SGV
-#' likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
-#' the distributions must be registered within \code{nimble}.
-#' 
-#' @param 
-#' 
-#' @return 
-#'
-#' @examples
-#' # TODO
-#'
-#' @export
-#' @importFrom nimble nimbleCode
-#' 
-#' 
-
 # Matrix::tcrossprod
 R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
-  require(Matrix)
+  ##require(Matrix)
   Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   if(subset[1] < 0){ # No subset
     ans.dsCMatrix <- Matrix::tcrossprod(Asparse)
@@ -361,7 +341,15 @@ R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
   ijx <- cbind(i, j, x)
   return(ijx)
 }
-nimble_sparse_tcrossprod <- nimbleRcall(
+
+# ROxygen comments ----
+#' nimble_sparse_tcrossprod
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param subset TODO
+#' @export
+nimble_sparse_tcrossprod <- nimble::nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), subset = double(1)) {},
   returnType = double(2),
   Rfun = 'R_sparse_tcrossprod'
@@ -369,8 +357,9 @@ nimble_sparse_tcrossprod <- nimbleRcall(
 
 # Matrix::crossprod
 R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
-  require(Matrix)
-  # zSparse <- Matrix::sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
+  ##require(Matrix)
+  ## Mark: TODO.  What should be on the next line??  
+  zSparse <- array(1:9, c(3,3))  ## Matrix::sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
   if(transp == 1){ # use crossprod
     Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
     if(subset[1] < 0){ # No subset
@@ -388,15 +377,32 @@ R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
   }
   return(ans.dsCMatrix@x)
 }
-nimble_sparse_crossprod <- nimbleRcall(
+
+# ROxygen comments ----
+#' nimble_sparse_crossprod
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param z TODO
+#' @param n TODO
+#' @param subset TODO
+#' @param transp TODO
+#' @export
+nimble_sparse_crossprod <- nimble::nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), z = double(1), n = double(), subset = double(1), transp = double()) {},
   returnType = double(1),
   Rfun = 'R_sparse_crossprod'
 )
 
-# Matrix::chol
+# ROxygen comments ----
+#' R_sparse_chol
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param n TODO
+#' @export
 R_sparse_chol <- function(i, j, x, n) {
-  require(Matrix)
+  ##require(Matrix)
   Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   ans.dsCMatrix <- t(Matrix::chol(Asparse[n:1,n:1]))
   ans.dgTMatrix <- as(ans.dsCMatrix, 'dgTMatrix')
@@ -406,62 +412,112 @@ R_sparse_chol <- function(i, j, x, n) {
   ijx <- cbind(i, j, x)
   return(ijx)
 }
-nimble_sparse_chol <- nimbleRcall(
+
+# ROxygen comments ----
+#' nimble_sparse_chol
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param n TODO
+#' @export
+nimble_sparse_chol <- nimble::nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), n = double()) {},
   returnType = double(2),
   Rfun = 'R_sparse_chol'
+  ##Rfun = 'BayesNSGP::R_sparse_chol'
 )
 
 # Matrix::solve
 R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
-  require(Matrix)
+  ##require(Matrix)
   Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   z_rev <- rev(z)
   ans.dsCMatrix <- Matrix::solve(Asparse, z_rev, system = "L")
   return(ans.dsCMatrix@x)
 }
-nimble_sparse_solve <- nimbleRcall(
+
+# ROxygen comments ----
+#' nimble_sparse_solve
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param z TODO
+#' @export
+nimble_sparse_solve <- nimble::nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), z = double(1)) {},
   returnType = double(1),
   Rfun = 'R_sparse_solve'
 )
 
-dmnorm_sgv <- nimbleFunction(
+
+#==============================================================================
+# Density function for the SGV approximation
+#==============================================================================
+
+# ROxygen comments ----
+#' Function for the evaluating the SGV approximate density.
+#'
+#' \code{dmnorm_sgv} (and \code{rmnorm_sgv}) calculate the approximate SGV
+#' likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
+#' the distributions must be registered within \code{nimble}.
+#' 
+#' @param x TODO
+#' @param mean TODO
+#' @param U TODO
+#' @param N TODO
+#' @param k TODO
+#' @param log TODO
+#' 
+#' @return TODO
+#'
+#' @examples
+#' # TODO
+#'
+#' @export
+#' 
+dmnorm_sgv <- nimble::nimbleFunction(
   run = function(x = double(1), mean = double(1), U = double(2),
                  N = double(), k = double(), log = double(0, default = 1)) {
     # Components
     zo_ord <- x
-    z1 <- nimble_sparse_crossprod(i = U[,1], j = U[,2], x = U[,3], z = zo_ord - mean, n = N,
-                                  subset = seq(from = 2, to = 2*N, by = 2), transp = 1)
+    z1 <- nimble_sparse_crossprod(
+    ##z1 <- BayesNSGP::nimble_sparse_crossprod(
+        i = U[,1], j = U[,2], x = U[,3], z = zo_ord - mean, n = N,
+        subset = seq(from = 2, to = 2*N, by = 2), transp = 1)
     logdet_U <- -sum(log(U[U[,1] == U[,2],3]))
-    z2 <- nimble_sparse_crossprod(i = U[,1], j = U[,2], x = U[,3], z = z1, n = N,
-                                  subset = seq(from = 1, to = 2*N, by = 2), transp = 0)
-    Amat <- nimble_sparse_tcrossprod(i = U[,1], j = U[,2], x = U[,3], 
-                                     subset = seq(from = 1, to = 2*N, by = 2))
+    z2 <- nimble_sparse_crossprod(
+    ##z2 <- BayesNSGP::nimble_sparse_crossprod(
+        i = U[,1], j = U[,2], x = U[,3], z = z1, n = N,
+        subset = seq(from = 1, to = 2*N, by = 2), transp = 0)
+    Amat <- nimble_sparse_tcrossprod(
+    ##Amat <- BayesNSGP::nimble_sparse_tcrossprod(
+        i = U[,1], j = U[,2], x = U[,3], 
+        subset = seq(from = 1, to = 2*N, by = 2))
     Vmat_ord <- nimble_sparse_chol(i = Amat[,1], j = Amat[,2], x = Amat[,3], n = N)
+    ##Vmat_ord <- BayesNSGP::nimble_sparse_chol(i = Amat[,1], j = Amat[,2], x = Amat[,3], n = N)
     logdet_V <- sum(log(Vmat_ord[Vmat_ord[,1] == Vmat_ord[,2],3]))
     z3 <- nimble_sparse_solve(i = Vmat_ord[,1], j = Vmat_ord[,2], x = Vmat_ord[,3], z = z2)
-    
+    ##z3 <- BayesNSGP::nimble_sparse_solve(i = Vmat_ord[,1], j = Vmat_ord[,2], x = Vmat_ord[,3], z = z2)
     lp <- -(logdet_U + logdet_V + 0.5*sum(z1^2) - 0.5*sum(z3^2)) - 0.5*1.83787706649*N
     returnType(double())
     return(lp)
-  }
+  }, where = getLoadingNamespace(), check = FALSE
 )
 
-rmnorm_sgv <- nimbleFunction(
+rmnorm_sgv <- nimble::nimbleFunction(
   run = function(n = integer(), mean = double(1), U = double(2), N = double(), k = double()) {
     returnType(double(1))
     return(numeric(N))
-  }
+  }, where = getLoadingNamespace()
 )
 
-registerDistributions(list(
+nimble::registerDistributions(list(
   dmnorm_sgv = list(
     BUGSdist = 'dmnorm_sgv(mean, U, N, k)',
     types = c('value = double(1)', 'mean = double(1)', 'U = double(2)', 'N = double()', 'k = double()'),
     mixedSizes = TRUE)
-))
+), verbose = FALSE)
 
 
 
