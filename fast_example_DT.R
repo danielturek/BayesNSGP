@@ -40,7 +40,9 @@ Xmat_pred <- cbind(rep(1,M), predCoords[,2])
 ## User's Workflow
 ## (as I see it) -DT
 Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat)
-Rmcmc <- buildMCMC(Rmodel)   ## optionally: configureMCMC() and modify samplers
+conf <- configureMCMC(Rmodel)
+## optionally modify samplers here
+Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 samples <- runMCMC(Cmcmc, niter = 5000)
