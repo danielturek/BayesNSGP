@@ -1,5 +1,4 @@
 
-require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 
 #================================================
 # Bayesian nonstationary Gaussian process 

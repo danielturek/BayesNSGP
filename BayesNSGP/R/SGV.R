@@ -1,5 +1,4 @@
 
-require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 
 #================================================
 # Bayesian nonstationary Gaussian process 
@@ -327,7 +326,6 @@ calculateU_ns <- nimble::nimbleFunction(  # Create the sparse U matrix for speci
 
 # Matrix::tcrossprod
 R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
-  ##require(Matrix)
   Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   if(subset[1] < 0){ # No subset
     ans.dsCMatrix <- Matrix::tcrossprod(Asparse)
@@ -357,7 +355,6 @@ nimble_sparse_tcrossprod <- nimble::nimbleRcall(
 
 # Matrix::crossprod
 R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
-  ##require(Matrix)
   ## Mark: TODO.  What should be on the next line??  
   zSparse <- array(1:9, c(3,3))  ## Matrix::sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
   if(transp == 1){ # use crossprod
@@ -402,7 +399,6 @@ nimble_sparse_crossprod <- nimble::nimbleRcall(
 #' @param n TODO
 #' @export
 R_sparse_chol <- function(i, j, x, n) {
-  ##require(Matrix)
   Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   ans.dsCMatrix <- t(Matrix::chol(Asparse[n:1,n:1]))
   ans.dgTMatrix <- as(ans.dsCMatrix, 'dgTMatrix')
@@ -430,7 +426,6 @@ nimble_sparse_chol <- nimble::nimbleRcall(
 # Matrix::solve
 R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
-  ##require(Matrix)
   Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
   z_rev <- rev(z)
   ans.dsCMatrix <- Matrix::solve(Asparse, z_rev, system = "L")
