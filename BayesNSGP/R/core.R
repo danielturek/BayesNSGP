@@ -225,7 +225,7 @@ determineNeighbors <- function(s, k) {
 #     stop('Error in inverseEigen function')  ## prevent compiler warning
 #     return(numeric(10))                     ## prevent compiler warning
 #     
-#   }, where = getLoadingNamespace()
+#   }
 # )
 #
 # Alternatively, parameterize in terms of the two log eigenvalues and rotation parameter
@@ -259,7 +259,7 @@ inverseEigen <- nimbleFunction(
     stop('Error in inverseEigen function')  ## prevent compiler warning
     return(numeric(10))                     ## prevent compiler warning
     
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -284,7 +284,7 @@ inverseEigen <- nimbleFunction(
 #     xMatrix <- matrix(xVector, dim(dst)[1], dim(dst)[2])
 #     returnType(double(2))
 #     return(xMatrix)
-#   }, where = getLoadingNamespace()
+#   }
 # )
 
 
@@ -396,7 +396,7 @@ nsCorr <- nimbleFunction(
     }
     nsCorr <- Scale.mat*Unscl.corr
     return(nsCorr)
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -451,7 +451,7 @@ matern_corr <- nimbleFunction(
       diag(temp) <- 1
     }
     return(temp)
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -601,7 +601,7 @@ nsCrosscorr <- nimbleFunction(
     }
     nsCrosscorr <- Scale.mat*Unscl.corr
     return(nsCrosscorr)
-  }, where = getLoadingNamespace()
+  }
 )
 
 

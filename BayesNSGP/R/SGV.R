@@ -318,7 +318,7 @@ calculateU_ns <- nimbleFunction(  # Create the sparse U matrix for specific thet
     
     returnType(double(2))
     return(U_ijx)
-  }, where = getLoadingNamespace(), check = FALSE
+  }  ##, check = FALSE
 )
 
 
@@ -486,14 +486,14 @@ dmnorm_sgv <- nimbleFunction(
     lp <- -(logdet_U + logdet_V + 0.5*sum(z1^2) - 0.5*sum(z3^2)) - 0.5*1.83787706649*N
     returnType(double())
     return(lp)
-  }, where = getLoadingNamespace(), check = FALSE
+  }  ##, check = FALSE
 )
 
 rmnorm_sgv <- nimbleFunction(
   run = function(n = integer(), mean = double(1), U = double(2), N = double(), k = double()) {
     returnType(double(1))
     return(numeric(N))
-  }, where = getLoadingNamespace()
+  }
 )
 
 registerDistributions(list(

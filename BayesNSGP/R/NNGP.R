@@ -61,7 +61,7 @@ calcQF <- nimbleFunction(
     }
     returnType(double())
     return(qf)
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -126,7 +126,7 @@ calculateAD_ns <- nimbleFunction(
     } 
     returnType(double(2))
     return(AD)
-  }, where = getLoadingNamespace(), check = FALSE
+  }  ##, check = FALSE
 )
 
 
@@ -164,14 +164,14 @@ dmnorm_nngp <- nimbleFunction(
     lp <- -0.5 * (1.83787706649*N + sum(log(AD[1:N,k+1])) + qf)      # log(2pi) = 1.8378770664
     returnType(double())
     return(lp)
-  }, where = getLoadingNamespace(), check = FALSE
+  }  ##, check = FALSE
 )
 
 rmnorm_nngp <- nimbleFunction(
   run = function(n = integer(), mean = double(1), AD = double(2), nID = double(2), N = double(), k = double()) {
     returnType(double(1))
     return(numeric(N))
-  }, where = getLoadingNamespace()
+  }
 )
 
 registerDistributions(list(
