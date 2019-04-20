@@ -1,5 +1,6 @@
 import(stats)
 import(methods)
+import(nimble)
 
 export(R_sparse_chol)
 export(calcQF)

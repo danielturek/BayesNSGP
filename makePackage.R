@@ -15,6 +15,7 @@ document(paste0(baseDir, 'BayesNSGP'))
 namespaceFilename <- paste0(baseDir, 'BayesNSGP/NAMESPACE')
 namespace <- readLines(namespaceFilename)
 if(length(namespace) >= 2) namespace <- namespace[2:length(namespace)]
+namespace <- c('import(nimble)', namespace)
 namespace <- c('import(methods)', namespace)
 namespace <- c('import(stats)',   namespace)
 writeLines(namespace, namespaceFilename)
