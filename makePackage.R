@@ -6,6 +6,7 @@
 
 library(devtools)
 library(roxygen2)
+library(nimble, warn.conflicts = FALSE)
 baseDir <- '~/github/BayesNSGP/'
 if(!('makePackage.R' %in% list.files(baseDir))) stop('change baseDir directory')
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
@@ -15,9 +16,12 @@ document(paste0(baseDir, 'BayesNSGP'))
 namespaceFilename <- paste0(baseDir, 'BayesNSGP/NAMESPACE')
 namespace <- readLines(namespaceFilename)
 if(length(namespace) >= 2) namespace <- namespace[2:length(namespace)]
+namespace <- c('import(StatMatch)', namespace)
+namespace <- c('import(Matrix)', namespace)
+namespace <- c('import(FNN)', namespace)
 namespace <- c('import(nimble)', namespace)
 namespace <- c('import(methods)', namespace)
-namespace <- c('import(stats)',   namespace)
+namespace <- c('importFrom("stats", "dist", "rnorm")', namespace)
 writeLines(namespace, namespaceFilename)
 system(paste0('R CMD BUILD ', baseDir, 'BayesNSGP'))
 ##check(paste0(baseDir, 'BayesNSGP'))
