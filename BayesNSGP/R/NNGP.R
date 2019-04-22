@@ -126,7 +126,7 @@ calculateAD_ns <- nimbleFunction(
     } 
     returnType(double(2))
     return(AD)
-  }  ##, check = FALSE
+  }, check = FALSE
 )
 
 
@@ -164,7 +164,7 @@ dmnorm_nngp <- nimbleFunction(
     lp <- -0.5 * (1.83787706649*N + sum(log(AD[1:N,k+1])) + qf)      # log(2pi) = 1.8378770664
     returnType(double())
     return(lp)
-  }  ##, check = FALSE
+  }, check = FALSE
 )
 
 rmnorm_nngp <- nimbleFunction(
