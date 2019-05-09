@@ -6,7 +6,7 @@
 
 library(devtools)
 library(roxygen2)
-baseDir <- '~/github/BayesNSGP/'
+baseDir <- '~/Documents/Github/BayesNSGP/'
 if(!('makePackage.R' %in% list.files(baseDir))) stop('change baseDir directory')
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
 for(file in tarFiles) system(paste0('rm ', file))

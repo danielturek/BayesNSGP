@@ -1,7 +1,7 @@
 ---
 title: Application 2: water year precipitation over CONUS, 2018
 author: Mark Risser
-date: 22 February 2019
+date: 8 May 2019
 output: html_document
 ---
 
@@ -11,22 +11,19 @@ output: html_document
 library(nimble)
 library(coda)
 library(StatMatch)
-nimbleOptions(verbose = TRUE)
-source("../BayesNSGP/BayesNSGP/R/core.R")
-source("../BayesNSGP/BayesNSGP/R/NNGP.R")
-source("../BayesNSGP/BayesNSGP/R/SGV.R")
+nimbleOptions(verbose = FALSE)
+library(BayesNSGP)
 
 library(ggplot2)
 library(RColorBrewer)
 library(gridExtra)
 library(viridis)
 
-source("~/CASCADE_Projects/PUBLISHED/gridded_precip/plots_paper/source_plot.R")
+source("~/CASCADE_Projects/_PUBLISHED/gridded_precip/plots_paper/source_plot.R")
 
 ```
 
 \   
-
 
 ### Introduction
 
@@ -37,6 +34,12 @@ First, load the data to be used in both analyses and create the constants needed
 ```{r, message = FALSE}
 # Load data =====================================
 CONUSprecip <- read.csv("data/CONUS_WY2018.csv")
+
+# Testing: use only a subsample
+set.seed(1)
+subsamp <- sort(sample(nrow(CONUSprecip), 1000))
+CONUSprecip <- CONUSprecip[subsamp,]
+
 coords <- as.matrix(CONUSprecip[,c("lcc_x", "lcc_y")])
 z <- CONUSprecip$logPR
 elevShift <- mean(CONUSprecip$Xelevation)
@@ -70,40 +73,51 @@ For this analysis, we set out to allow each component (mean, nugget variance, sp
 
 ```{r}
 # Distance matrices and constants
-dist_mats <- nsDist(coords)
 constants <- list( 
-  dist1_sq = dist_mats$dist1_sq, dist2_sq = dist_mats$dist2_sq, 
-  dist12 = dist_mats$dist12, nu = 0.5, N = N,
+  nu = 0.5, N = N,
   tau_HP1 = 10, p_tau = ncol(Xmat), X_tau = Xmat,
   sigma_HP1 = 10, p_sigma = ncol(Xmat), X_sigma = Xmat,
-  Sigma_HP1 = 5, p_Sigma = ncol(Xmat), X_Sigma = Xmat,
+  Sigma_HP1 = 5, Sigma_HP5 = 100, p_Sigma = ncol(Xmat), X_Sigma = Xmat,
   mu_HP1 = 10, p_mu = ncol(Xmat), X_mu = Xmat )
 
 # Setup
-Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants, z = z,
-                            tau_model = "logLinReg", sigma_model = "logLinReg", 
-                            mu_model = "linReg", Sigma_model = "compReg" )
-compl_model_fullGP <- compileNimble( Rmodel_fullGP )
-conf_model_fullGP <- configureMCMC( Rmodel_fullGP )
-conf_model_fullGP$removeSamplers()
-conf_model_fullGP$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
-conf_model_fullGP$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
-conf_model_fullGP$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
-conf_model_fullGP$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), 
-                             type = "RW_block")
-conf_model_fullGP$addSampler(target = c("Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
-                             type = "RW_block")
-conf_model_fullGP$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"), 
-                             type = "RW_block")
-conf_model_fullGP$getSamplers()
-nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)
-nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, 
+                    coords = coords, z = z, tau_model = "logLinReg", 
+                    sigma_model = "logLinReg", mu_model = "linReg", 
+                    Sigma_model = "compReg")
+conf <- configureMCMC(Rmodel)
+conf$removeSamplers()
+conf$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
+conf$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+# conf$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]",
+#                            "beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+# conf$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
+# conf$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), 
+#                 type = "RW_block")
+# conf$addSampler(target = c("Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
+#                 type = "RW_block")
+conf$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]",
+                           "Sigma_coef2[1]","Sigma_coef2[2]","Sigma_coef2[3]","Sigma_coef2[4]"), 
+                type = "RW_block")
+conf$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]","Sigma_coef3[3]","Sigma_coef3[4]"),
+                type = "RW_block")
+conf$getSamplers()
 
-# Run MCMC
+# Build/run
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-nim_Cmcmc_fullGP$run(niter)
-fullGP.tm <- proc.time() - prt
-postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
+samples_fullGP <- runMCMC(Cmcmc, niter = 5000, nburnin = 0)
+time_fullGP <- proc.time() - prt
+
+
+par(ask = TRUE)
+for(h in 1:ncol(samples_fullGP)) plot(samples_fullGP[,h], type = "l", main = colnames(samples_fullGP)[h])
+par(ask = FALSE)
+
+
+# save(samples_fullGP, file = "samples_fullGP.RData")
 
 ```
 

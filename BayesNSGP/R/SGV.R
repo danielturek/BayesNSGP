@@ -115,6 +115,7 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
   
   d <- ncol(locs) # Spatial dimension
   n <- nrow(locs) # Number of (observed) locations
+  num_NZ <- 3*n + k*n - (k*(k+1)/2)
   
   #--------------------------------------------------------
   # Task 1: Order the locations
@@ -151,7 +152,7 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
   #--------------------------------------------------------
   condition_on_y_ord <- conditionLatentObs( nID_ord, locs_ord, n )
   
-  return(list( seed = seed, 
+  return(list( seed = seed, num_NZ = num_NZ,
                ord = ord, ord_pred = ord_pred, ord_all = ord_all, 
                locs_ord = locs_ord, nID_ord = nID_ord, 
                condition_on_y_ord = condition_on_y_ord ))

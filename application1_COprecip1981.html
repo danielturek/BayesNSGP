@@ -151,7 +151,7 @@ COpredDF &lt;- read.csv(&quot;data/COpredDF.csv&quot;)</code></pre>
 <div id="analysis-of-paciorek-and-schervish-2006" class="section level4">
 <h4>(1) Analysis of Paciorek and Schervish (2006)</h4>
 <p>In the original analysis, each of the mean, the nugget variance, and the spatial variance were modeled as an unknown constants, while the kernel matrix function was modeled using an approximation to a Gaussian process.</p>
-<p>Note: the smoothness for the approximate GP is fixed to <span class="math inline">\(\nu = 5\)</span> (below, this is <code>Sigma_HP2</code>); in the original paper, the latent GP range was given a uniform prior on the log scale, with upper bound <span class="math inline">\(\log 3.85\)</span> and lower bound <span class="math inline">\(\log 0.1\)</span>, while we use a <span class="math inline">\(U(0, 3.85)\)</span> prior on this parameter (below, this is <code>Sigma_HP3</code>); in the original paper they estimate the data-level smoothness with a <span class="math inline">\(U(0.5, 30)\)</span> prior while we fix this smoothness parameter at <span class="math inline">\(\vu = 4\)</span> (following the illustration in Section 3.1.2; below this is <code>nu = 4</code>).</p>
+<p>Note: the smoothness for the approximate GP is fixed to <span class="math inline">\(\nu = 5\)</span> (below, this is <code>Sigma_HP2</code>); in the original paper, the latent GP range was given a uniform prior on the log scale, with upper bound <span class="math inline">\(\log 3.85\)</span> and lower bound <span class="math inline">\(\log 0.1\)</span>, while we use a <span class="math inline">\(U(0, 3.85)\)</span> prior on this parameter (below, this is <code>Sigma_HP3</code>); in the original paper they estimate the data-level smoothness with a <span class="math inline">\(U(0.5, 30)\)</span> prior while we fix this smoothness parameter at <span class="math inline">\(\nu = 4\)</span> (following the illustration in Section 3.1.2; below this is <code>nu = 4</code>).</p>
 <pre class="r"><code>niter &lt;- 20000
 strt.kp &lt;- 10001
 
@@ -184,11 +184,6 @@ Rmodel_PacScher &lt;- nsgpModel( likelihood = &quot;fullGP&quot;, constants = co
                               z = z, Sigma_model = &quot;npApproxGP&quot; )
 compl_model_PacScher &lt;- compileNimble( Rmodel_PacScher )
 conf_model_PacScher &lt;- configureMCMC( Rmodel_PacScher )
-conf_model_PacScher$removeSamplers( c(&quot;alpha&quot;, &quot;beta&quot;, &quot;delta&quot;, &quot;SigmaGP_mu[1]&quot;, 
-                                      &quot;SigmaGP_phi[1]&quot;, &quot;SigmaGP_sigma[1]&quot;) )
-conf_model_PacScher$addSampler( target = c(&quot;alpha&quot;, &quot;beta&quot;, &quot;delta&quot;, &quot;SigmaGP_mu[1]&quot;, 
-                                           &quot;SigmaGP_phi[1]&quot;, &quot;SigmaGP_sigma[1]&quot;),
-                                type = &quot;RW_block&quot; )
 conf_model_PacScher$addMonitors(c(&quot;Sigma11&quot;, &quot;Sigma22&quot;, &quot;Sigma12&quot;))
 conf_model_PacScher$addMonitors(c(&quot;w1_Sigma&quot;, &quot;w2_Sigma&quot;, &quot;w3_Sigma&quot;))
 nim_mcmc_PacScher &lt;- buildMCMC(conf_model_PacScher)

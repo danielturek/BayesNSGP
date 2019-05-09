@@ -10,9 +10,10 @@ library(nimble)
 library(coda)
 library(StatMatch)
 nimbleOptions(verbose = FALSE)
-source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/core.R")
-source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/NNGP.R")
-source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/SGV.R")
+library(BayesNSGP)
+# source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/core.R")
+# source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/NNGP.R")
+# source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/SGV.R")
 
 library(ggplot2)
 library(RColorBrewer)
@@ -88,7 +89,7 @@ plotEllip <- function(locs, kernel_array){
   }
 }
 
-load("~/CASCADE_Projects/bayes_nsgp/BayesNSGP_analysis/analysis1.RData")
+# load("~/CASCADE_Projects/bayes_nsgp/BayesNSGP_analysis/analysis1.RData")
 
 ```
 
@@ -107,12 +108,27 @@ coords <- as.matrix(COprecip[,c("Longitude", "Latitude")])
 z <- COprecip$logPrecip
 Xmat <- unname(lm(logPrecip ~ Zelevation*Zslope10, x = TRUE, data = COprecip)$x)
 N <- nrow(COprecip)
+elevMn <- mean(COprecip$Elevation)
+elevScl <- sd(COprecip$Elevation)
+slpMn <- mean(COprecip$Slope10)
+slpScl <- sd(COprecip$Slope10)
 
 # Distance matrices and constants ===============
 dist_mats <- nsDist(coords)
 
 # Load prediction grid: elevation and slope =====
 COpredDF <- read.csv("data/COpredDF.csv")
+COpredDF$Zelevation <- (COpredDF$elevation - elevMn)/elevScl
+COpredDF$Zslope10 <- (COpredDF$slope - slpMn)/slpScl
+
+# Subset
+COpredDF_sub <- merge(
+  x = expand.grid( longitude = unique(COpredDF$longitude)[seq(3,174,by = 4)], 
+                   latitude = unique(COpredDF$latitude)[seq(5,108,by = 4)] ),
+  y = COpredDF
+)
+predCoords <- COpredDF_sub[,c("longitude","latitude")]
+Xmat_pred <- unname(lm(longitude ~ Zelevation*Zslope10, x = TRUE, data = COpredDF_sub)$x)
 
 ```
 
@@ -136,12 +152,9 @@ grid.arrange(
 
 In the original analysis, each of the mean, the nugget variance, and the spatial variance were modeled as an unknown constants, while the kernel matrix function was modeled using an approximation to a Gaussian process.
 
-Note: the smoothness for the approximate GP is fixed to $\nu = 5$ (below, this is `Sigma_HP2`); in the original paper, the latent GP range was given a uniform prior on the log scale, with upper bound $\log 3.85$ and lower bound $\log 0.1$, while we use a $U(0, 3.85)$ prior on this parameter (below, this is `Sigma_HP3`); in the original paper they estimate the data-level smoothness with a $U(0.5, 30)$ prior while we fix this smoothness parameter at $\vu = 4$ (following the illustration in Section 3.1.2; below this is `nu = 4`).
+Note: the smoothness for the approximate GP is fixed to $\nu = 5$ (below, this is `Sigma_HP2`); in the original paper, the latent GP range was given a uniform prior on the log scale, with upper bound $\log 3.85$ and lower bound $\log 0.1$, while we use a $U(0, 3.85)$ prior on this parameter (below, this is `Sigma_HP3`); in the original paper they estimate the data-level smoothness with a $U(0.5, 30)$ prior while we fix this smoothness parameter at $\nu = 4$ (following the illustration in Section 3.1.2; below this is `nu = 4`).
 
 ```{r, eval = FALSE }
-niter <- 20000
-strt.kp <- 10001
-
 # Set up the knot locations
 x_min <- min(coords[,1])
 x_max <- max(coords[,1])
@@ -154,32 +167,49 @@ knot_coords <- expand.grid(
   lat = seq(from = y_min + 0.5*(y_max - y_min)/sqrt(N_knots), to = y_max - 0.5*(y_max - y_min)/sqrt(N_knots), 
             length = sqrt(N_knots))
 )
-dist_coords <- as.matrix(dist(coords, upper = T, diag = T))
-Sigma_knot_dist <- as.matrix(dist(knot_coords, upper = T, diag = T))
-Sigma_cross_dist <- mahalanobis.dist(coords, knot_coords, diag(2))
+# dist_coords <- as.matrix(dist(coords, upper = T, diag = T))
+# Sigma_knot_dist <- as.matrix(dist(knot_coords, upper = T, diag = T))
+# Sigma_cross_dist <- mahalanobis.dist(coords, knot_coords, diag(2))
 
-constants_PacScher <- list( 
-  dist1_sq = dist_mats$dist1_sq, dist2_sq = dist_mats$dist2_sq, 
-  dist12 = dist_mats$dist12, nu = 4, N = N,
+# ...and constants
+constants_PacScher <- list( nu = 2, N = N, Sigma_knot_coords = knot_coords,
   Sigma_HP1 = c(10,10), Sigma_HP2 = rep(5,2), Sigma_HP3 = rep(3.85,2), 
-  Sigma_HP4 = c(10,20), Sigma_HP5 = 16,
-  dist = dist_coords, Sigma_cross_dist = Sigma_cross_dist, Sigma_knot_dist = Sigma_knot_dist,
-  p_Sigma = N_knots, mu_HP1 = 10 )
+  Sigma_HP4 = c(10,20), Sigma_HP5 = 16, mu_HP1 = 10 )
+```
 
+```{r, eval = FALSE}
 # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant"
-Rmodel_PacScher <- nsgpModel( likelihood = "fullGP", constants = constants_PacScher, 
-                              z = z, Sigma_model = "npApproxGP" )
-compl_model_PacScher <- compileNimble( Rmodel_PacScher )
-conf_model_PacScher <- configureMCMC( Rmodel_PacScher )
-conf_model_PacScher$addMonitors(c("Sigma11", "Sigma22", "Sigma12"))
-conf_model_PacScher$addMonitors(c("w1_Sigma", "w2_Sigma", "w3_Sigma"))
-nim_mcmc_PacScher <- buildMCMC(conf_model_PacScher)
-nim_Cmcmc_PacScher <- compileNimble(nim_mcmc_PacScher, project = Rmodel_PacScher)
-
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_PacScher, 
+                    coords = coords, z = z, Sigma_model = "npApproxGP")
+conf <- configureMCMC(Rmodel)
+conf$addMonitors(c("Sigma11", "Sigma22", "Sigma12", "w1_Sigma", "w2_Sigma", "w3_Sigma"))
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-nim_Cmcmc_PacScher$run(niter)
-PacScher.tm <- proc.time() - prt
-postSamp_PacScher <- as.matrix(nim_Cmcmc_PacScher$mvSamples)[strt.kp:niter,]
+samples_PacScher <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000)
+time_PacScher <- proc.time() - prt
+
+# Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+Sigma_cross_dist_pred <- mahalanobis.dist(predCoords, knot_coords, diag(2))
+prt <- proc.time()
+pred_PacScher <- nsgpPredict(model = Rmodel, samples = samples_PacScher[seq(10,10000,10),], 
+                             coords.predict = predCoords, 
+                             Sigma_cross_dist_obs = constants_PacScher$Sigma_cross_dist,
+                             Sigma_cross_dist_pred = mahalanobis.dist(predCoords, knot_coords, diag(2)) )
+time_PacScher_pred <- proc.time() - prt
+
+save(samples_PacScher, time_PacScher, pred_PacScher, time_PacScher_pred, file = "PacScher.RData")
+
+# grid.arrange(
+#   ggplot(predCoords, aes(x = longitude, y = latitude, fill = apply(pred_PacScher$pred, 2, mean))) + geom_tile() +
+#     scale_fill_gradientn(colors = viridis_pal(option = "viridis")(9), name = "Mean") + coord_fixed(ratio = 1.1),
+#   ggplot() +
+#     geom_tile(data = predCoords, mapping = aes(x = longitude, y = latitude, fill = apply(pred_PacScher$pred, 2, sd)))+
+#     scale_fill_gradientn(colors = viridis_pal(option = "viridis")(9), name = "SD", trans = "log", breaks = c(0.01,0.03,0.1,0.3)) + coord_fixed(ratio = 1.1) +
+#     geom_point(data = as.data.frame(coords), mapping = aes(x = Longitude, y = Latitude), color = "white", size = 0.5),
+#   ncol = 2
+# )
 
 ```
 
@@ -187,33 +217,45 @@ postSamp_PacScher <- as.matrix(nim_Cmcmc_PacScher$mvSamples)[strt.kp:niter,]
 
 Using the regression-based methodology of Risser and Calder (2015), covariate information can be included in three parts of the nonstationary model: the mean function, the spatial variance function, and the kernel matrix function. Risser and Calder (2015) consider elevation as well as a covariate that describes change in elevation ("slope"), measured as a west-to-east gradient. Here, we reproduce the FNS-M2 implementation, which includes the main effects of elevation and slope, as well as their interaction, in each of the mean, variance, and kernel matrix functions. Following Risser and Calder (2015), elevation and slope measurements are standardized in order to put the coefficient estimates on a similar scale.
 
-```{r, eval = FALSE }
-niter <- 20000
-strt.kp <- 10001
-
-constants_RisserCalder <- list( dist1_sq = dist_mats$dist1_sq,  dist2_sq = dist_mats$dist2_sq, 
-                                dist12 = dist_mats$dist12, nu = 0.5, N = N,
+```{r, eval = FALSE}
+constants_RisserCalder <- list( nu = 0.5, N = N,
                                 X_mu = Xmat, p_mu = ncol(Xmat), mu_HP1 = 10,
                                 X_sigma = Xmat, p_sigma = ncol(Xmat), log_sigma_HP1 = 10,
                                 X_Sigma = Xmat, p_Sigma = ncol(Xmat), Sigma_HP1 = c(10,10), 
                                 Sigma_HP2 = c(2,2), Sigma_HP5 = 16)
 
 # Defaults: tau_model = "constant"
-Rmodel_RisserCalder <- nsgpModel( likelihood = "fullGP", constants = constants_RisserCalder, z = z,
-                                  mu_model = "linReg", sigma_model = "logLinReg", Sigma_model = "covReg" )
-compl_model_RisserCalder <- compileNimble( Rmodel_RisserCalder )
-conf_model_RisserCalder <- configureMCMC( Rmodel_RisserCalder )
-conf_model_RisserCalder$removeSamplers( c("psi11", "psi22", "rho") )
-conf_model_RisserCalder$addSampler( target = c("psi11", "psi22", "rho"), type = "RW_block" )
-nim_mcmc_RisserCalder <- buildMCMC(conf_model_RisserCalder)
-nim_Cmcmc_RisserCalder <- compileNimble(nim_mcmc_RisserCalder, project = Rmodel_RisserCalder)
-
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_RisserCalder, 
+                    coords = coords, z = z, 
+                    mu_model = "linReg", sigma_model = "logLinReg", Sigma_model = "covReg" )
+conf <- configureMCMC(Rmodel)
+conf$removeSamplers( c("psi11", "psi22", "rho") )
+conf$addSampler( target = c("psi11", "psi22", "rho"), type = "RW_block" )
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-nim_Cmcmc_RisserCalder$run(niter)
-RisserCalder.tm <- proc.time() - prt
-postSamp_RisserCalder <- as.matrix(nim_Cmcmc_RisserCalder$mvSamples)[strt.kp:niter,]
+samples_RisserCalder <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000)
+time_RisserCalder <- proc.time() - prt
 
-# save(PacScher.tm, postSamp_PacScher, RisserCalder.tm, postSamp_RisserCalder, file = "~/CASCADE_Projects/bayes_nsgp/BayesNSGP_analysis/analysis1.RData")
+# Prediction
+prt <- proc.time()
+pred_RisserCalder <- nsgpPredict(model = Rmodel, samples = samples_RisserCalder[seq(10,10000,10),], 
+                             coords.predict = predCoords, 
+                             PX_sigma = Xmat_pred, PX_Sigma = Xmat_pred, PX_mu = Xmat_pred )
+time_RisserCalder_pred <- proc.time() - prt
+
+save(samples_RisserCalder, time_RisserCalder, pred_RisserCalder, time_RisserCalder_pred, file = "RisserCalder.RData")
+
+# grid.arrange(
+#   ggplot(predCoords, aes(x = longitude, y = latitude, fill = apply(pred_RisserCalder$pred, 2, mean))) + geom_tile() +
+#     scale_fill_gradientn(colors = viridis_pal(option = "viridis")(9), name = "Mean") + coord_fixed(ratio = 1.1),
+#   ggplot() +
+#     geom_tile(data = predCoords, mapping = aes(x = longitude, y = latitude, fill = apply(pred_RisserCalder$pred, 2, sd)))+
+#     scale_fill_gradientn(colors = viridis_pal(option = "viridis")(9), name = "SD", trans = "log", breaks = c(0.01,0.03,0.1,0.3)) + coord_fixed(ratio = 1.1) +
+#     geom_point(data = as.data.frame(coords), mapping = aes(x = Longitude, y = Latitude), color = "white", size = 0.5),
+#   ncol = 2
+# )
 
 ```
 
@@ -224,7 +266,8 @@ First, compare computational time (in minutes) for each model:
 ```{r, echo = FALSE}
 data.frame(
   Model = c("Paciorek and Schervish", "Risser and Calder"),
-  MCMC_time = c(PacScher.tm[3]/60, RisserCalder.tm[3]/60)
+  MCMC_time = round(c(time_PacScher[3]/60, time_RisserCalder[3]/60),1),
+  Prediction_time = round(c(time_PacScher_pred[3]/60, time_RisserCalder_pred[3]/60),1)
 )
 ```
 
@@ -233,10 +276,10 @@ Next, for the Paciorek and Schervish analysis: posterior summaries are not provi
 ```{r, echo = FALSE}
 data.frame(
   Parameter = c("Mean", "Spatial variance", "Nugget variance"),
-  PosteriorMean = round(c(mean(postSamp_PacScher[,"beta"]), mean(postSamp_PacScher[,"alpha"]),
-                    mean(postSamp_PacScher[,"delta"])), 3),
-   PosteriorSD = round(c(sd(postSamp_PacScher[,"beta"]), sd(postSamp_PacScher[,"alpha"]),
-                   sd(postSamp_PacScher[,"delta"])), 3)
+  PosteriorMean = round(c(mean(samples_PacScher[,"beta"]), mean(samples_PacScher[,"alpha"]),
+                    mean(samples_PacScher[,"delta"])), 3),
+  PosteriorSD = round(c(sd(samples_PacScher[,"beta"]), sd(samples_PacScher[,"alpha"]),
+                   sd(samples_PacScher[,"delta"])), 3)
 )
 
 ```
@@ -245,14 +288,14 @@ The anisotropy process is somewhat more difficult to summarize, given the high d
 
 ```{r, echo = FALSE, fig.height=6, fig.width=10, warning = FALSE}
 grid.arrange(
-  plot_spat(coords, round(colMeans(log(postSamp_PacScher[,1:217])),1), pt.size = 1.25, shp = 16, brk_rd = 1,
+  plot_spat(coords, round(colMeans(log(samples_PacScher[,1:217])),1), pt.size = 1.25, shp = 16, brk_rd = 1,
             ttle.txt = "Posterior mean: log(Sigma11)", 
             col.pal = viridis_pal(option = "viridis")(9)),
-  plot_spat(coords, round(colMeans(log(postSamp_PacScher[,435:651])),1), pt.size = 1.25, shp = 16, brk_rd = 1,
+  plot_spat(coords, round(colMeans(log(samples_PacScher[,435:651])),1), pt.size = 1.25, shp = 16, brk_rd = 1,
             ttle.txt = "Posterior mean: log(Sigma22)", 
             col.pal = viridis_pal(option = "viridis")(9)),
-  plot_spat(coords, colMeans(postSamp_PacScher[,218:434]), pt.size = 1.25, shp = 16, brk_rd = 3,
-            ttle.txt = "Posterior mean: Sigma12", col.lim = c(-0.01, 0.01),
+  plot_spat(coords, colMeans(samples_PacScher[,218:434]), pt.size = 1.25, shp = 16, brk_rd = 3,
+            ttle.txt = "Posterior mean: Sigma12", col.lim = c(-0.05, 0.05),
             col.pal = brewer.pal(9,"RdBu")),
   nrow = 2
 )
@@ -262,7 +305,7 @@ Alternatively, we can summarize the matrix process $\Sigma(\cdot)$ via the ellip
 
 ```{r, echo = FALSE}
 # Look at ellipses
-Sigma_postMed <- matrix(apply(postSamp_PacScher[,1:651], 2, median), ncol = 3, byrow = FALSE)
+Sigma_postMed <- matrix(apply(samples_PacScher[,1:651], 2, median), ncol = 3, byrow = FALSE)
 # Closest to knot locs
 x_min <- min(coords[,1])
 x_max <- max(coords[,1])
@@ -317,7 +360,7 @@ oldResults <- data.frame(
 
 # Results for the current analysis
 # Condition on gamma12 being positive
-sampUse <- postSamp_RisserCalder[postSamp_RisserCalder[,"gamma1[2]"] >= 0,]
+sampUse <- samples_RisserCalder[samples_RisserCalder[,"gamma1[2]"] >= 0,]
 sampUse[,"alpha[1]"] <- exp(sampUse[,"alpha[1]"])^2 # Convert alpha[1] to sigmasq0
 sampUse[,"rho"] <- sampUse[,"rho"]*sqrt(sampUse[,"psi11"]*sampUse[,"psi22"]) # Convert rho to psi12
 

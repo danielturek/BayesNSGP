@@ -159,14 +159,9 @@ determineNeighbors <- function(s, k) {
 ## - nsDist: calculate coordinate-specific distance matrices
 ## - nsCrossdist: calculate coordinate-specific cross-distance matrices
 ## - nsDist3d (formerly ns_dist_3d)
-## - nsCrossdist3d (TODO)
+## - nsCrossdist3d 
 ## - nsgpModel: NIMBLE code for a generic nonstationary GP model 
-## - nsgpPredict: posterior prediction for the NSGP TODO
-
-# TODO: 
-# -- Code up prediction functions (full GP, NNGP, SGV)
-# -- nsCrossdist3d for prediction
-
+## - nsgpPredict: posterior prediction for the NSGP 
 
 #==============================================================================
 # Inverse eigendecomposition 
@@ -292,8 +287,6 @@ inverseEigen <- nimble::nimbleFunction(
 #==============================================================================
 # Calculate a nonstationary Matern correlation matrix 
 #==============================================================================
-
-
 
 # ROxygen comments ----
 #' Calculate a nonstationary Matern correlation matrix
@@ -839,11 +832,11 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
 }   
 
 #==============================================================================
-# Coordinate-specific distance matrices, only for NN
+# Coordinate-specific cross-distance matrices, only for NN
 #==============================================================================
 
 # ROxygen comments ----
-#' Calculate coordinate-specific distance matrices, only for nearest neighbors
+#' Calculate coordinate-specific cross-distance matrices, only for nearest neighbors
 #' and store in an array
 #' 
 #' \code{nsCrossdist3d} generates and returns new 3-dimensional arrays containing
@@ -1049,7 +1042,7 @@ nsgpModel <- function( tau_model   = "constant",
         tauGP_sigma ~ dunif(0, tau_HP4) # SD parameter, GP
         
       }),
-      constants_needed = c("ones", "tau_cross_dist", "tau_knot_dist", "p_tau", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4"),
+      constants_needed = c("ones", "tau_knot_coords", "tau_cross_dist", "tau_knot_dist", "p_tau", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4"),
       inits = list(
         w_tau = quote(rep(0, p_tau)),
         tauGP_mu = quote(0),
@@ -1063,7 +1056,6 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   ## Models for sigma
   ##============================================
-  
   sigma_model_list <- list(
     constant = list(
       ## 1. sigma_HP1        Standard deviation for the log-linear standard deviation
@@ -1140,7 +1132,7 @@ nsgpModel <- function( tau_model   = "constant",
         sigmaGP_phi ~ dunif(0, sigma_HP3) # Range parameter, GP
         sigmaGP_sigma ~ dunif(0, sigma_HP4) # SD parameter, GP
       }),
-      constants_needed = c("ones", "sigma_cross_dist", "sigma_knot_dist", "p_sigma", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4"),
+      constants_needed = c("ones", "sigma_knot_coords", "sigma_cross_dist", "sigma_knot_dist", "p_sigma", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4"),
       inits = list(
         w_sigma = quote(rep(0, p_sigma)),
         sigmaGP_mu = quote(0),
@@ -1153,7 +1145,6 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   ## Models for Sigma
   ##============================================
-  
   Sigma_model_list <- list(
     
     constant = list(
@@ -1401,7 +1392,7 @@ nsgpModel <- function( tau_model   = "constant",
         
       }),
       constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
-                           "Sigma_HP5", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
+                           "Sigma_HP5", "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
       inits = list(
         w1_Sigma = quote(rep(0,p_Sigma)),
         w2_Sigma = quote(rep(0,p_Sigma)),
@@ -1450,7 +1441,7 @@ nsgpModel <- function( tau_model   = "constant",
         
       }),
       constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
-                           "Sigma_HP5", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
+                           "Sigma_HP5", "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
       inits = list(
         w1_Sigma = quote(rep(0,p_Sigma)),
         SigmaGP_mu = quote(rep(0,1)),
@@ -1465,7 +1456,6 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   ## Models for mu
   ##============================================
-  
   mu_model_list <- list(
     constant = list(
       ## 1. sigma_HP1          Standard deviation for the log-linear standard deviation
@@ -1502,7 +1492,6 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   ## Models for likelihood
   ##============================================
-  
   likelihood_list <- list(
     fullGP = list(
       code = quote({
@@ -1543,6 +1532,10 @@ nsgpModel <- function( tau_model   = "constant",
       inits = list()
     )
   )
+  
+  ##============================================
+  ## Setup
+  ##============================================
   
   tau_model_list$mixComp <- tau_model_list$logLinReg        ## add duplicated "mixComp" model option
   sigma_model_list$mixComp <- sigma_model_list$logLinReg    ## add duplicated "mixComp" model option
@@ -1613,6 +1606,9 @@ nsgpModel <- function( tau_model   = "constant",
     mu_HP1 = sd_default,            ## standard deviation
     nu = matern_nu_default         ## matern_corr 'nu'  parameter
   )
+  
+  ## use the isotropic model?
+  useIsotropic <- (Sigma_model %in% c(constantIso, compRegIso, npApproxGPIso))
 
   ## initialize constants_to_use with constants_defaults_list
   constants_to_use <- constants_defaults_list
@@ -1629,18 +1625,61 @@ nsgpModel <- function( tau_model   = "constant",
     if(length(constants) > 0 && (is.null(names(constants)) || any(names(constants) == ""))) stop("All elements in constants list argument must be named")
     constants_to_use[names(constants)] <- constants
   }
-
+  
   ## generate and add dist1_sq, dist2_sq, and dist12 arrays to constants_to_use list
   if(likelihood == 'fullGP') {
-      dist_list <- nsDist(coords)
+    dist_list <- nsDist(coords = coords, isotropic = useIsotropic)
   } else { ## likelihood is NNGP, or SGV:
-      if(is.null(constants_to_use$k)) stop(paste0('missing k constants argument for ', likelihood, ' likelihood'))
+    if(is.null(constants_to_use$k)) stop(paste0('missing k constants argument for ', likelihood, ' likelihood'))
+    mmd.seed <- seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
+    if(likelihood == 'NNGP') {
+      # Re-order the coordinates/data
+      coords_mmd <- orderCoordinatesMMD(coords)
+      ord <- coords_mmd$orderedIndicesNoNA
+      coords <- coords[ord,]
+      z <- z[ord]
+      # Set neighbors and calculate distances
       nID <- determineNeighbors(coords, constants_to_use$k)
       constants_to_use$nID <- nID
-      dist_list <- nsDist(coords, nID)
+      dist_list <- nsDist3d(coords = coords, nID = nID, isotropic = useIsotropic)
+    }
+    if(likelihood == 'SGV') {
+      setupSGV <- sgvSetup(locs = coords, k = constants_to_use$k, seed = mmd.seed)
+      constants_to_use$nID <- setupSGV$nID
+      constants_to_use$cond_on_y <- setupSGV$cond_on_y
+      constants_to_use$num_NZ <- setupSGV$num_NZ
+      ord <- setupSGV$ord
+      # Re-order the coordinates/data
+      coords <- coords[ord,]
+      z <- z[ord]
+      dist_list <- nsDist3d(coords = coords, nID = setupSGV$nID, isotropic = useIsotropic)
+    }
+    # Re-order any design matrices
+    if(!is.null(constants_to_use$X_tau)) constants_to_use$X_tau <- constants_to_use$X_tau[ord,]
+    if(!is.null(constants_to_use$X_sigma)) constants_to_use$X_sigma <- constants_to_use$X_sigma[ord,]
+    if(!is.null(constants_to_use$X_Sigma)) constants_to_use$X_Sigma <- constants_to_use$X_Sigma[ord,]
+    if(!is.null(constants_to_use$X_mu)) constants_to_use$X_mu <- constants_to_use$X_mu[ord,]
   }
+  constants_to_use$coords <- coords
   constants_to_use[names(dist_list)] <- dist_list
-
+  
+  ## if any models use approxGP: calculate XX_knot_dist and XX_cross_dist (coords already re-ordered for NNGP/SGV)
+  if( tau_model == 'approxGP' ) {
+    if(is.null(constants_to_use$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model = approxGP'))
+    constants_to_use$tau_knot_dist <- sqrt(nsDist(coords = constants_to_use$tau_knot_coords, isotropic = TRUE)$dist1_sq)
+    constants_to_use$tau_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$tau_knot_coords, isotropic = TRUE)$dist1_sq)
+  }
+  if( sigma_model == 'approxGP' ) {
+    if(is.null(constants_to_use$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model = approxGP'))
+    constants_to_use$sigma_knot_dist <- sqrt(nsDist(coords = constants_to_use$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+    constants_to_use$sigma_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+  }
+  if( Sigma_model %in% c('npApproxGP', 'npApproxGPIso') ) {
+    if(is.null(constants_to_use$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', Sigma_model))
+    constants_to_use$Sigma_knot_dist <- sqrt(nsDist(coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+    constants_to_use$Sigma_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+  }
+ 
   ## add the following (derived numbers of columns) to constants_to_use:
   ## p_tau:
   if(!is.null(constants_to_use$X_tau)) constants_to_use$p_tau <- ncol(constants_to_use$X_tau)
@@ -1654,7 +1693,6 @@ nsgpModel <- function( tau_model   = "constant",
   ## p_mu:
   if(!is.null(constants_to_use$X_mu)) constants_to_use$p_mu <- ncol(constants_to_use$X_mu)
 
-         
   ## get a vector of all the constants we need for this model
   constants_needed <- unique(unlist(lapply(model_selections_list, function(x) x$constants_needed), use.names = FALSE))
   ## check if we're missing any constants we need, and throw an error if any are missing
@@ -1663,10 +1701,16 @@ nsgpModel <- function( tau_model   = "constant",
     stop(paste0("Missing values for the following model constants: ",
                 paste0(constants_missing, collapse = ", "),
                 ".\nThese values should be provided as named arguments, or named elements in the constants list argument"))
-}
+  }
   
   ## generate the constants list
   constants <- constants_to_use[constants_needed]
+  
+  ## append the mmd.seed and ord for SGV/NNGP
+  if(likelihood != 'fullGP') {
+    constants$mmd.seed <- mmd.seed
+    constants$ord <- ord
+  }
   
   ## data
   data <- list(z = z)
@@ -1746,8 +1790,17 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   ## modelsList$Sigma
   ## modelsList$mu
   ## modelsList$likelihood
-
-
+  
+  ## order predCoords for SGV
+  if( modelsList$likelihood == "SGV" ) {
+    predSGV_setup <- sgvSetup(coords, predCoords, k, seed = model_constants$mmd.seed)
+    prednID_SGV <- predSGV_setup$nID_ord
+    obs_ord <- predSGV_setup$ord
+    if( !all(obs_ord == model_constants$ord) ) stop("Mismatch in ordering coords from nsgpModel and nsgpPredict.")
+    pred_ord <- predSGV_setup$ord_pred
+    predCoords <- predCoords[pred_ord,]
+  }
+  
   constants_to_use <- list()
   ## update constants_to_use with those arguments provided via ...
   dotdotdot <- list(...)
@@ -1760,6 +1813,20 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     if(length(constants) > 0 && (is.null(names(constants)) || any(names(constants) == ""))) stop("All elements in constants list argument must be named")
     constants_to_use[names(constants)] <- constants
   }
+  ## calculate XX_cross_dist_pred if necessary
+  if( modelsList$tau_model == 'approxGP' ) {
+    if(is.null(model_constants$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model = approxGP'))
+    constants_to_use$tau_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = constants_to_use$tau_knot_coords, isotropic = TRUE)$dist1_sq)
+  }
+  if( modelsList$sigma_model == 'approxGP' ) {
+    if(is.null(model_constants$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model = approxGP'))
+    constants_to_use$sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = constants_to_use$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+  }
+  if( modelsList$Sigma_model %in% c('npApproxGP', 'npApproxGPIso') ) {
+    if(is.null(model_constants$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', Sigma_model))
+    constants_to_use$Sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+  }
+  
   ## check for discrepancies in any duplicates, between
   ## constants_to_use provided here, and model_constants from Rmodel
   duplicatedNames <- intersect(names(constants_to_use), names(model_constants))
@@ -1778,19 +1845,19 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       tau = list(
           constant = character(),
           logLinReg = c('X_tau', 'PX_tau'),
-          approxGP = c('p_tau', 'tau_cross_dist_obs', 'tau_cross_dist_pred', 'tau_HP2')),
+          approxGP = c('p_tau', 'tau_cross_dist', 'tau_cross_dist_pred', 'tau_HP2')),
       sigma = list(
           constant = character(),
           logLinReg = c('X_sigma', 'PX_sigma'),
-          approxGP = c('p_sigma', 'sigma_cross_dist_obs', 'sigma_cross_dist_pred', 'sigma_HP2')),
+          approxGP = c('p_sigma', 'sigma_cross_dist', 'sigma_cross_dist_pred', 'sigma_HP2')),
       Sigma = list(
           constant = character(),
           constantIso = character(),
           covReg = c('X_Sigma', 'PX_Sigma'),
           compReg = c('X_Sigma', 'PX_Sigma'),
           compRegIso = c('X_Sigma', 'PX_Sigma'),
-          npApproxGP = c('p_Sigma', 'Sigma_cross_dist_obs', 'Sigma_cross_dist_pred', 'Sigma_HP2'),
-          npApproxGPIso = c('p_Sigma', 'Sigma_cross_dist_obs', 'Sigma_cross_dist_pred', 'Sigma_HP2')),
+          npApproxGP = c('p_Sigma', 'Sigma_cross_dist', 'Sigma_cross_dist_pred', 'Sigma_HP2'),
+          npApproxGPIso = c('p_Sigma', 'Sigma_cross_dist', 'Sigma_cross_dist_pred', 'Sigma_HP2')),
       mu = list(
           constant = character(),
           linReg = c('X_mu', 'PX_mu'),
@@ -1873,8 +1940,6 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     k <- constants$k # number of neighbors
     nu <- constants$nu
     # Prediction setup
-    predSGV_setup <- sgvSetup(coords, predCoords, k, seed = seed)##SGV_setup$seed)
-    prednID_SGV <- predSGV_setup$nID_ord
     if(dist2_3d[1,1,1] == -1){
       preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV, isotropic = TRUE )
     } else{
@@ -1885,35 +1950,17 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     Alldist12_3d <- preddist_SGV$dist12_3d
     M <- dim(predCoords)[1] # number of prediction locations
     # REORDER INPUTS (for model != "constant") =================
-    obs_ord <- predSGV_setup$ord
-    pred_ord <- predSGV_setup$ord_pred
     if( modelsList$tau == "logLinReg" ){
-      X_tau_ord <- constants$X_tau[obs_ord,]
-      PX_tau_ord <- constants$PX_tau[pred_ord,]
-    }
-    if( modelsList$tau == "approxGP" ){
-      tau_cross_dist_obs_ord <- constants$tau_cross_dist_obs[obs_ord,]
-      tau_cross_dist_pred_ord <- constants$tau_cross_dist_pred[pred_ord,]
+      constants$PX_tau <- constants$PX_tau[pred_ord,]
     }
     if( modelsList$sigma == "logLinReg" ){
-      X_sigma_ord <- constants$X_sigma[obs_ord,]
-      PX_sigma_ord <- constants$PX_sigma[pred_ord,]
-    }
-    if( modelsList$sigma == "approxGP" ){
-      sigma_cross_dist_obs_ord <- constants$sigma_cross_dist_obs[obs_ord,]
-      sigma_cross_dist_pred_ord <- constants$sigma_cross_dist_pred[pred_ord,]
+      constants$PX_sigma <- constants$PX_sigma[pred_ord,]
     }
     if( modelsList$Sigma == "covReg" | modelsList$Sigma == "compReg" ){
-      X_Sigma_ord <- constants$X_Sigma[obs_ord,]
-      PX_Sigma_ord <- constants$PX_Sigma[pred_ord,]
-    }
-    if( modelsList$Sigma == "npApproxGP" ){
-      Sigma_cross_dist_obs_ord <- constants$Sigma_cross_dist_obs[obs_ord,]
-      Sigma_cross_dist_pred_ord <- constants$Sigma_cross_dist_pred[pred_ord,]
+      constants$PX_Sigma <- constants$PX_Sigma[pred_ord,]
     }
     if( modelsList$mu == "linReg" ){
-      X_mu_ord <- constants$X_mu[obs_ord,]
-      PX_mu_ord <- constants$PX_mu[pred_ord,]
+      constants$PX_mu <- constants$PX_mu[pred_ord,]
     }
     postPredDrawsCols <- M+N
   } else stop('')
@@ -1943,9 +1990,9 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       Plog_tau_vec_j <- as.numeric(PX_tau %*% samp_j[paste("delta[",1:ncol(PX_tau),"]",sep = "")])
     }
     if( modelsList$tau == "approxGP" ){
-      # Required constants: p_tau, tau_cross_dist_obs, tau_cross_dist_pred, tau_HP2
+      # Required constants: p_tau, tau_cross_dist, tau_cross_dist_pred, tau_HP2
       p_tau <- constants$p_tau
-      tau_cross_dist_obs <- constants$tau_cross_dist_obs
+      tau_cross_dist_obs <- constants$tau_cross_dist
       tau_cross_dist_pred <- constants$tau_cross_dist_pred
       tau_HP2 <- constants$tau_HP2
       w_tau_j <- as.numeric(samp_j[paste("w_tau[",1:p_tau,"]",sep = "")])
@@ -1973,9 +2020,9 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       Plog_sigma_vec_j <- as.numeric(PX_sigma %*% samp_j[paste("alpha[",1:ncol(PX_sigma),"]",sep = "")])
     }
     if( modelsList$sigma == "approxGP" ){
-      # Required constants: p_sigma, sigma_cross_dist_obs, sigma_cross_dist_pred, sigma_HP2
+      # Required constants: p_sigma, sigma_cross_dist, sigma_cross_dist_pred, sigma_HP2
       p_sigma <- constants$p_sigma
-      sigma_cross_dist_obs <- constants$sigma_cross_dist_obs
+      sigma_cross_dist_obs <- constants$sigma_cross_dist
       sigma_cross_dist_pred <- constants$sigma_cross_dist_pred
       sigma_HP2 <- constants$sigma_HP2
       w_sigma_j <- as.numeric(samp_j[paste("w_sigma[",1:p_sigma,"]",sep = "")])
@@ -2058,9 +2105,9 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       PSigma22_j <- rep(0,N)
     }
     if( modelsList$Sigma == "npApproxGP" ){
-      # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+      # Required constants: p_Sigma, Sigma_cross_dist, Sigma_cross_dist_pred, Sigma_HP2
       p_Sigma <- constants$p_Sigma
-      Sigma_cross_dist_obs <- constants$Sigma_cross_dist_obs
+      Sigma_cross_dist_obs <- constants$Sigma_cross_dist
       Sigma_cross_dist_pred <- constants$Sigma_cross_dist_pred
       Sigma_HP2 <- constants$Sigma_HP2
       w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
@@ -2088,9 +2135,9 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       PSigma22_j <- as.numeric(inverseEigen(Peigen_comp1_j, Peigen_comp2_j, Peigen_comp3_j, 2))
     }
     if( modelsList$Sigma == "npApproxGPIso" ){
-      # Required constants: p_Sigma, Sigma_cross_dist_obs, Sigma_cross_dist_pred, Sigma_HP2
+      # Required constants: p_Sigma, Sigma_cross_dist, Sigma_cross_dist_pred, Sigma_HP2
       p_Sigma <- constants$p_Sigma
-      Sigma_cross_dist_obs <- constants$Sigma_cross_dist_obs
+      Sigma_cross_dist_obs <- constants$Sigma_cross_dist
       Sigma_cross_dist_pred <- constants$Sigma_cross_dist_pred
       Sigma_HP2 <- constants$Sigma_HP2
       w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
@@ -2241,7 +2288,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   } else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
     output <- list(obs = NULL, pred = postPredDraws)
   } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
-    output <- list(obs = PPD_obs_orig, pred = PPD_pred_orig)
+    output <- list(obs = PPD_obs_orig[,model_constants$ord], pred = PPD_pred_orig[,pred_ord]) # Re-order to correspond to original ordering
   } else stop('')
   
   return(output)
