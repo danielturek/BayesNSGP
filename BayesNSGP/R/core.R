@@ -637,7 +637,7 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
   
   N <- nrow(coords)
   d <- ncol(coords)
-  if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
+  if( !isotropic & d != 2 ) stop("nsDist: Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
   
   if(!isotropic){
     # Calculate distances
@@ -793,8 +793,8 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
   
   N <- nrow(coords)
   M <- nrow(Pcoords)
-  d <- ncol(coords)
-  if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
+  d <- ncol(Pcoords)
+  if( !isotropic & d != 2 ) stop("nsCrossdist: Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
   
   if(!isotropic){
     # Calculate distances
@@ -1608,7 +1608,7 @@ nsgpModel <- function( tau_model   = "constant",
   )
   
   ## use the isotropic model?
-  useIsotropic <- (Sigma_model %in% c(constantIso, compRegIso, npApproxGPIso))
+  useIsotropic <- (Sigma_model %in% c("constantIso", "compRegIso", "npApproxGPIso"))
 
   ## initialize constants_to_use with constants_defaults_list
   constants_to_use <- constants_defaults_list
@@ -1814,19 +1814,18 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     constants_to_use[names(constants)] <- constants
   }
   ## calculate XX_cross_dist_pred if necessary
-  if( modelsList$tau_model == 'approxGP' ) {
+  if( modelsList$tau == 'approxGP' ) {
     if(is.null(model_constants$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model = approxGP'))
-    constants_to_use$tau_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = constants_to_use$tau_knot_coords, isotropic = TRUE)$dist1_sq)
+    constants_to_use$tau_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$tau_knot_coords, isotropic = TRUE)$dist1_sq)
   }
-  if( modelsList$sigma_model == 'approxGP' ) {
+  if( modelsList$sigma == 'approxGP' ) {
     if(is.null(model_constants$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model = approxGP'))
-    constants_to_use$sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = constants_to_use$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+    constants_to_use$sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
-  if( modelsList$Sigma_model %in% c('npApproxGP', 'npApproxGPIso') ) {
+  if( modelsList$Sigma %in% c('npApproxGP', 'npApproxGPIso') ) {
     if(is.null(model_constants$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', Sigma_model))
-    constants_to_use$Sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
+    constants_to_use$Sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
-  
   ## check for discrepancies in any duplicates, between
   ## constants_to_use provided here, and model_constants from Rmodel
   duplicatedNames <- intersect(names(constants_to_use), names(model_constants))
@@ -1879,7 +1878,6 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   ## do NOT truncate constants list like this:
   ##constants <- constants_to_use[constants_needed]
   constants <- constants_to_use
-  
   
   d <- constants$d
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
