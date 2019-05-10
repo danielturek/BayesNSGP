@@ -35,30 +35,33 @@ require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 #' 2018. (Points are selected to maximize their minimum distance to already-
 #' selected points).
 #' 
-#' @param s N x 2 array of N 2-dimensional (x,y) spatial coordinates.
+#' @param coords N x 2 array of N 2-dimensional (x,y) spatial coordinates.
 #' @param exact Logical; \code{FALSE} uses a fast approximation to MMD ordering 
 #' (and is almost always recommended), while \code{TRUE} uses exact MMD 
 #' ordering but is infeasible for large number of locations.
 #' 
-#' @return A list with two components: (1) an N x 2 array containing the 
-#' same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
-#' any NA values removed.
+#' @return A list of distances matrices, with the following components:
+#' \item{orderedCoords}{N x 2 matrix; contains the ordered spatial coordinates
+#' as \code{coords}.}
+#' \item{orderedIndicesNoNA}{N-vector; contains the ordered indices with any
+#' NA values removed.}
 #' 
 #' @examples
-#' # TODO
+#' coords <- cbind(runif(100), runif(100))
+#' orderCoordinatesMMD(coords)
 #'
 #' @export
 #' 
-orderCoordinatesMMD <- function(s, exact = FALSE) {
-  ## input s: an Nx2 array of spatial coordinates
-  N <- dim(s)[1]
-  if(N < 3) return(s)
+orderCoordinatesMMD <- function(coords, exact = FALSE) {
+  ## input coords: an Nx2 array of spatial coordinates
+  N <- dim(coords)[1]
+  if(N < 3) return(coords)
   if(!exact) {       ## approximate MMD ordering
     initialOrdering <- sample(1:N)
     orderedIndices <- c(initialOrdering, rep(NA, 3*N))
     indexLookupVector <- order(initialOrdering)
     maxNeighbors <- floor(sqrt(N))
-    NN <- FNN::get.knn(s, k = maxNeighbors)$nn.index
+    NN <- FNN::get.knn(coords, k = maxNeighbors)$nn.index
     nextSpot <- N+1
     cycleCheckIndex <- -1
     for(i in 2:(3*N)) {
@@ -75,26 +78,26 @@ orderCoordinatesMMD <- function(s, exact = FALSE) {
       } else cycleCheckIndex <- -1
     }
     orderedIndicesNoNA <- orderedIndices[!is.na(orderedIndices)]
-    orderedS <- s[orderedIndicesNoNA,]
+    orderedCoords <- coords[orderedIndicesNoNA,]
   } else {           ## exact MMD ordering
     availableIndices <- 1:N
-    orderedS <- array(NA, c(N,2))
-    sbar <- apply(s, 2, mean)   ## group centroid
-    iNext <- which.min(sapply(1:N, function(i) sum((s[i,] - sbar)^2)))
-    orderedS[1,] <- s[iNext,]
+    orderedCoords <- array(NA, c(N,2))
+    sbar <- apply(coords, 2, mean)   ## group centroid
+    iNext <- which.min(sapply(1:N, function(i) sum((coords[i,] - sbar)^2)))
+    orderedCoords[1,] <- coords[iNext,]
     availableIndices <- setdiff(availableIndices, iNext)
     for(i in 2:N) {
       aIndNext <- which.max(    ## this indexes the availableIndices vector
         sapply(1:(N-i+1), function(j) {
-          min(sapply(1:(i-1), function(k) sum((s[availableIndices[j],] - orderedS[k,])^2)))
+          min(sapply(1:(i-1), function(k) sum((coords[availableIndices[j],] - orderedCoords[k,])^2)))
         }))
       iNext <- availableIndices[aIndNext]   ## this indexes rows of the original s[] array
-      orderedS[i,] <- s[iNext,]
+      orderedS[i,] <- coords[iNext,]
       availableIndices <- setdiff(availableIndices, iNext)
     }
     orderedIndicesNoNA <- NULL
   }
-  return(list(orderedS = orderedS, orderedIndicesNoNA = orderedIndicesNoNA))
+  return(list(orderedCoords = orderedCoords, orderedIndicesNoNA = orderedIndicesNoNA))
 }
 
 #==============================================================================
@@ -105,45 +108,41 @@ orderCoordinatesMMD <- function(s, exact = FALSE) {
 #' Determine the k-nearest neighbors for each spatial coordinate.
 #' 
 #' \code{determineNeighbors} returns an N x k matrix of the nearest neighbors 
-#' for spatial locations s, with the ith row giving indices of the k nearest 
+#' for spatial locations coords, with the ith row giving indices of the k nearest 
 #' neighbors to the ith location, which are selected from among the 1,...(i-1) 
 #' other spatial locations. The first row is -1's, since the first location has 
 #' no neighbors. The i=2 through i=(k+1) rows each necessarily contain 1:i.
 #' 
-#' @param s N x 2 array of N 2-dimensional (x,y) spatial coordinates.
+#' @param coords N x 2 array of N 2-dimensional (x,y) spatial coordinates.
 #' @param k Scalar; number of neighbors
 #' 
 #' @return An N x k matrix of nearest neighbor indices
 #' 
 #' @examples
-#' # TODO
+#' coords <- cbind(runif(100), runif(100))
+#' determineNeighbors(coords, 20)
 #'
 #' @export
 #' 
-determineNeighbors <- function(s, k) {
-  N <- dim(s)[1]
-  d <- dim(s)[2]
+determineNeighbors <- function(coords, k) {
+  N <- dim(coords)[1]
+  d <- dim(coords)[2]
   if(k+2 > N) stop()
   nID <- array(-1, c(N,k))     ## populate unused values with -1, to prevent a warning from NIMBLE
   for(i in 2:(k+1))   nID[i, 1:(i-1)] <- as.numeric(1:(i-1))
   if(d == 2){
-    for(i in (k+2):N)   nID[i, 1:k] <- as.numeric(order((s[1:(i-1),1] - s[i,1])^2 + (s[1:(i-1),2] - s[i,2])^2)[1:k])
+    for(i in (k+2):N)   nID[i, 1:k] <- as.numeric(order((coords[1:(i-1),1] - coords[i,1])^2 + (coords[1:(i-1),2] - coords[i,2])^2)[1:k])
   } else{
     for(i in (k+2):N){
       disti <- 0
       for(j in 1:d){
-        disti <- disti + (s[1:(i-1),j] - s[i,j])^2
+        disti <- disti + (coords[1:(i-1),j] - coords[i,j])^2
       }
       nID[i, 1:k] <- as.numeric(order(disti)[1:k])
     }   
   }
   return(nID)
 }
-
-
-
-
-
 
 
 
@@ -171,63 +170,34 @@ determineNeighbors <- function(s, k) {
 #' Calculate covariance elements based on eigendecomposition components
 #'
 #' \code{inverseEigen} calculates the inverse eigendecomposition -- in other
-#' words, the covariance elements based on the eigenvalues and vectors (see
-#' Paciorek and Schervish, 2006, for details on the parameterization). The 
-#' function is coded as a \code{nimbleFunction} (see the \code{nimble} package) 
-#' but can also be used as a regular R function.
+#' words, the covariance elements based on the eigenvalues and vectors. For a
+#' 2x2 anisotropy (covariance) matrix, we parameterize the three unique values
+#' in terms of the two log eigenvalues and a rotation parameter on the 
+#' rescaled logit. The function is coded as a \code{nimbleFunction} (see the 
+#' \code{nimble} package) but can also be used as a regular R function.
 #' 
-#' @param eigen_comp1 N-vector; contains values of the log of the second
+#' @param eigen_comp1 N-vector; contains values of the log of the first
 #' anisotropy eigenvalue for a set of locations.
-#' @param eigen_comp2 N-vector; contains values of the first eigenvector
-#' component for a set of locations.
-#' @param eigen_comp3 N-vector; contains values of the second eigenvector 
-#' component for a set of locations.
+#' @param eigen_comp2 N-vector; contains values of the log of the second
+#' anisotropy eigenvalue for a set of locations.
+#' @param eigen_comp3 N-vector; contains values of the rescaled logit of 
+#' the anisotropy rotation for a set of locations.
 #' @param which_Sigma Scalar; one of \code{(1,2,3)}, corresponding to which
 #' covariance component should be calculated (Sigma11, Sigma22, or Sigma12,
 #' respectively).
 #' 
-#' @return A correlation matrix for a fixed set of stations and fixed
-#' parameter values.
+#' @return A vector of anisotropy values (Sigma11, Sigma22, or Sigma12; depends
+#' on \code{which_Sigma}) for the corresponding set of locations.
 #'
 #' @examples
-#' # TODO
+#' # Generate some eigendecomposition elements (all three are real-valued)
+#' eigen_comp1 <- rnorm(10)
+#' eigen_comp2 <- rnorm(10)
+#' eigen_comp3 <- rnorm(10)
+#' inverseEigen( eigen_comp1, eigen_comp2, eigen_comp3, 2) # Return the Sigma22 values
 #'
 #' @export
 #'
-# inverseEigen <- nimble::nimbleFunction(     
-#   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
-#                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
-#     returnType(double(1))
-#     
-#     Gam_denom <- sqrt( eigen_comp2^2 + eigen_comp3^2 )
-#     Gam11 <- eigen_comp2/Gam_denom
-#     Gam22 <- eigen_comp2/Gam_denom
-#     Gam12 <- -eigen_comp3/Gam_denom
-#     Gam21 <- eigen_comp3/Gam_denom
-#     
-#     Lam2 <- exp(eigen_comp1)
-#     Lam1 <- eigen_comp2^2 + eigen_comp3^2 
-#     
-#     if( which_Sigma == 1 ){ # Return Sigma11
-#       return( Gam11^2*Lam1 + Gam12^2*Lam2 )
-#     }
-#     if( which_Sigma == 2 ){ # Return Sigma22
-#       return( Gam21^2*Lam1 + Gam22^2*Lam2 )
-#     }
-#     if( which_Sigma == 3 ){ # Return Sigma12
-#       return( Gam11*Gam21*Lam1 + Gam12*Gam22*Lam2 )
-#     }
-# 
-#     stop('Error in inverseEigen function')  ## prevent compiler warning
-#     return(numeric(10))                     ## prevent compiler warning
-#     
-#   }, where = getLoadingNamespace()
-# )
-#
-# Alternatively, parameterize in terms of the two log eigenvalues and rotation parameter
-# eigen_comp1 = log(lambda1)
-# eigen_comp2 = log(lambda2)
-# eigen_comp3 = logit(2*gamma/pi)
 inverseEigen <- nimble::nimbleFunction(     
   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
@@ -316,13 +286,23 @@ inverseEigen <- nimble::nimbleFunction(
 #' @param nu Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
 #' to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 #' correlation function.
-#' @param d TODO
+#' @param d Scalar; dimension of the spatial coordinates.
 #' 
 #' @return A correlation matrix for a fixed set of stations and fixed
 #' parameter values.
 #' 
 #' @examples
-#' # TODO
+#' # Generate some coordinates and parameters
+#' coords <- cbind(runif(100),runif(100))
+#' Sigma11 <- rep(1, 100) # Identity anisotropy process
+#' Sigma22 <- rep(1, 100)
+#' Sigma12 <- rep(0, 100)
+#' nu <- 2
+#' # Calculate distances
+#' dist_list <- nsDist(coords)
+#' # Calculate the correlation matrix
+#' corMat <- nsCorr(dist_list$dist1_sq, dist_list$dist2_sq, dist_list$dist12,
+#'                  Sigma11, Sigma22, Sigma12, nu, ncol(coords))
 #' 
 #' @export
 #' 
@@ -419,7 +399,13 @@ nsCorr <- nimble::nimbleFunction(
 #' parameter values.
 #' 
 #' @examples
-#' # TODO
+#' # Generate some coordinates
+#' coords <- cbind(runif(100),runif(100))
+#' nu <- 2
+#' # Calculate distances -- can use nsDist to calculate Euclidean distances
+#' dist_list <- nsDist(coords, isotropic = TRUE)
+#' # Calculate the correlation matrix
+#' corMat <- matern_corr(sqrt(dist_list$dist1_sq), 1, nu)
 #'
 #' @export
 #' 
@@ -435,9 +421,7 @@ matern_corr <- nimble::nimbleFunction(
     if( nu == Inf ){ # Gaussian (squared exponential) correlation
       return(exp(-(dist/rho)^2))
     } 
-    
     # Else: Matern with smoothness nu
-    ##temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * besselK( x = dist/rho, nu = nu )
     xVector <- besselK(dist/rho, nu)
     xMatrix <- matrix(xVector, dim(dist)[1], dim(dist)[2])
     temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * xMatrix
@@ -447,8 +431,6 @@ matern_corr <- nimble::nimbleFunction(
     return(temp)
   }, where = getLoadingNamespace()
 )
-
-
 
 #==============================================================================
 # Calculate a nonstationary Matern cross-correlation matrix 
@@ -491,11 +473,25 @@ matern_corr <- nimble::nimbleFunction(
 #' correlation function.
 #' @param d TODO
 #' 
-#' @return A cross-correlation matrix for two fixed sets of stations and fixed
-#' parameter values.
+#' @return A M x N cross-correlation matrix for two fixed sets of stations and 
+#' fixed parameter values.
 #' 
 #' @examples
-#' # TODO
+#' # Generate some coordinates and parameters
+#' coords <- cbind(runif(100),runif(100))
+#' Sigma11 <- rep(1, 100) # Identity anisotropy process
+#' Sigma22 <- rep(1, 100)
+#' Sigma12 <- rep(0, 100)
+#' Pcoords <- cbind(runif(200),runif(200))
+#' PSigma11 <- rep(1, 200) # Identity anisotropy process
+#' PSigma22 <- rep(1, 200)
+#' PSigma12 <- rep(0, 200)
+#' nu <- 2
+#' # Calculate distances
+#' Xdist_list <- nsCrossdist(coords, Pcoords)
+#' # Calculate the correlation matrix
+#' XcorMat <- nsCrosscorr(Xdist_list$dist1_sq, Xdist_list$dist2_sq, Xdist_list$dist12,
+#'    Sigma11, Sigma22, Sigma12, PSigma11, PSigma22, PSigma12, nu, ncol(coords))
 #'
 #' @export
 #' 
@@ -508,7 +504,7 @@ nsCrosscorr <- nimble::nimbleFunction(
     returnType(double(2))
     N <- length(Sigma11)
     M <- length(PSigma11)
- 
+    
     if( Xdist2_sq[1,1] == -1 ){ # Isotropic case
       # Calculate the scale matrix 
       if(N == 1){
@@ -569,7 +565,7 @@ nsCrosscorr <- nimble::nimbleFunction(
       inv12 <- -mat12 * oneOverDet12
       Dist.mat <- sqrt( inv11*Xdist1_sq + 2*inv12*Xdist12 + inv22*Xdist2_sq )
     }
- 
+    
     # Combine 
     if( nu == 0.5 ){ # Exponential correlation
       Unscl.corr <- exp(-Dist.mat) 
@@ -629,7 +625,12 @@ nsCrosscorr <- nimble::nimbleFunction(
 #' \item{scale_factor}{Value of the scale factor used to rescale distances.}
 #' 
 #' @examples
-#' # TODO
+#' # Generate some coordinates
+#' coords <- cbind(runif(100),runif(100))
+#' # Calculate distances
+#' dist_list <- nsDist(coords)
+#' # Use nsDist to calculate Euclidean distances
+#' dist_Euclidean <- sqrt(nsDist(coords, isotropic = TRUE)$dist1_sq)
 #'
 #' @export
 #' 
@@ -681,7 +682,7 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
 #' and store in an array
 #' 
 #' \code{nsDist3d} generates and returns new 3-dimensional arrays containing
-#' the former dist1_sq, dist2_s1, and dist12 matrices, but
+#' the former dist1_sq, dist2_sq, and dist12 matrices, but
 #' only as needed for the k nearest-neighbors of each location.
 #' these 3D matrices (dist1_3d, dist2_3d, and dist12_3d)
 #' are used in the new implementation of calculateAD_ns().
@@ -698,8 +699,12 @@ nsDist <- function( coords, scale_factor = NULL, isotropic = FALSE ){
 #' direction.
 #' 
 #' @examples
-#' # TODO
-#'
+#' # Generate some coordinates and neighbors
+#' coords <- cbind(runif(100),runif(100))
+#' nID <- determineNeighbors(coords, 10)
+#' # Calculate distances
+#' nsDist3d(coords, nID)
+#' 
 #' @export
 #' 
 nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
@@ -755,8 +760,6 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
               scale_factor = scale_factor))
 }
 
-
-
 #==============================================================================
 # Calculate coordinate-specific cross-distance matrices 
 #==============================================================================
@@ -785,7 +788,11 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
 #' \item{scale_factor}{Value of the scale factor used to rescale distances.}
 #' 
 #' @examples
-#' # TODO
+#' # Generate some coordinates 
+#' coords <- cbind(runif(100),runif(100))
+#' Pcoords <- cbind(runif(200),runif(200))
+#' # Calculate distances
+#' Xdist_list <- nsCrossdist(coords, Pcoords)
 #'
 #' @export
 #' 
@@ -845,27 +852,33 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
 #' these 3D matrices (dist1_3d, dist2_3d, and dist12_3d)
 #' are used in the new implementation of calculateAD_ns().
 #' 
-#' @param coords N x 2 matrix; contains the x-y coordinates of stations.
-#' @param predCoords TODO
+#' @param coords N x d matrix; contains the x-y coordinates of stations.
+#' @param predCoords M x d matrix
 #' @param P_nID N x k matrix; contains indices of nearest neighbors.
 #' @param scale_factor Scalar; optional argument for re-scaling the distances.
 #' @param isotropic Logical; indicates whether distances should be calculated
 #' separately for each coordinate dimension (FALSE) or simultaneously for all
-#' coordinate dimensions (TRUE). \code{isotropic = TRUE} can only be used for
+#' coordinate dimensions (TRUE). \code{isotropic = FALSE} can only be used for
 #' two-dimensional coordinate systems.
 #' 
 #' @return Arrays with nearest neighbor distances in each coordinate 
-#' direction.
+#' direction. When the spatial dimension d > 2, dist1_3d contains squared
+#' Euclidean distances, and dist2_3d and dist12_3d are empty.
 #' 
 #' @examples
-#' # TODO
+#' # Generate some coordinates and neighbors
+#' coords <- cbind(runif(100),runif(100))
+#' Pcoords <- cbind(runif(200),runif(200))
+#' P_nID <- FNN::get.knnx(coords, predCoords, k = 10)$nn.index # Prediction NN
+#' # Calculate distances
+#' Pdist <- nsCrossdist3d(coords, predCoords, P_nID)
 #'
 #' @export
 #' 
 nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotropic = FALSE) {
   N <- nrow(coords)
   M <- nrow(predCoords)
-
+  
   d <- ncol(coords)
   if( !isotropic & d != 2 ) stop("Anisotropy (isotropic = FALSE) only available for 2-dimensional coordinate systems.")
   
@@ -922,32 +935,60 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' TODO: add documentation
 #' 
 #' @param tau_model Character; specifies the model to be used for the log(tau) 
-#' process. Options are \code{"logLinReg"} (log-linear regression), 
-#' \code{"mixComp"} (mixture component representation), \code{"GP"} (stationary
-#' Gaussian process), and \code{"approxGP"} (approximation to a Gaussian 
-#' process). 
+#' process. Options are \code{"constant"} (spatially-constant), 
+#' \code{"logLinReg"} (log-linear regression), and \code{"approxGP"} 
+#' (approximation to a Gaussian process). 
 #' @param sigma_model Character; specifies the model to be used for the 
 #' log(sigma) process. See \code{tau_model} for options.
 #' @param Sigma_model Character; specifies the model to be used for the 
-#' Sigma anisotropy process. Options are \code{"covReg"} (covariance 
-#' regression), \code{"compReg"} (componentwise regression), 
-#' \code{"npMixComp"} (nonparameteric regression via the mixture component
-#' approach), \code{"npGP"} (nonparameteric regression via a stationary 
-#' Gaussian process), or \code{"npApproxGP"} (nonparameteric regression via an
-#' approximation to a stationary Gaussian process).
-#' @param mu_model TODO
-#' @param likelihood TODO
-#' @param coords TODO
-#' @param z TODO
-#' @param constants TODO
+#' Sigma anisotropy process. Options are \code{"constant"} (spatially-constant),
+#' \code{"constantIso"} (spatially-constant and isotropic), \code{"covReg"} 
+#' (covariance regression), \code{"compReg"} (componentwise regression), 
+#' \code{"compRegIso"} (isotropic componentwise regression), \code{"npApproxGP"}
+#' (nonparameteric regression via an approximation to a stationary Gaussian 
+#' process), and \code{"npApproxGPIso"} (isotropic nonparameteric regression 
+#' via an approximation to a stationary Gaussian process)
+#' @param mu_model Character; specifies the model to be used for the mu mean 
+#' process. Options are \code{"constant"} (spatially-constant), \code{"linReg"}
+#' (linear regression), and \code{"zero"} (a fixed zero-mean).
+#' @param likelihood Character; specifies the likelihood model. Options are
+#' \code{"fullGP"} (the exact Gaussian process likelihood), \code{"NNGP"} (the
+#' nearest-neighbor GP for the response approximate likelihood), and \code{"SGV} 
+#' (the sparse general Vecchia approximate likelihood).
+#' @param coords N x d matrix of spatial coordinates.
+#' @param z N-vector; observed vector of the spatial process of interest
+#' @param constants A list of constants required to build the model; depends on
+#' the specific parameter process models chosen.
 #' @param returnModelComponents TODO
 #' @param ... TODO
 #' 
 #' @return A \code{nimbleCode} object.
 #' 
 #' @examples
-#' # TODO
-#'
+#' # Generate some data: stationary/isotropic
+#' N <- 100
+#' coords <- matrix(runif(2*N), ncol = 2)
+#' alpha_vec <- rep(log(sqrt(1)), N) # Log process SD
+#' delta_vec <- rep(log(sqrt(0.05)), N) # Log nugget SD
+#' Sigma11_vec <- rep(0.4, N) # Kernel matrix element 1,1
+#' Sigma22_vec <- rep(0.4, N) # Kernel matrix element 2,2
+#' Sigma12_vec <- rep(0, N) # Kernel matrix element 1,2
+#' mu_vec <- rep(0, N) # Mean
+#' nu <- 0.5 # Smoothness
+#' dist_list <- nsDist(coords)
+#' Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq, 
+#'                    dist12 = dist_list$dist12, Sigma11 = Sigma11_vec, 
+#'                    Sigma22 = Sigma22_vec, Sigma12 = Sigma12_vec, nu = nu )
+#' Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
+#' D_mat <- diag(exp(delta_vec)^2) 
+#' set.seed(110)
+#' z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+#' # Set up constants
+#' constants <- list( nu = 0.5, Sigma_HP1 = 2 )
+#' # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
+#' # and Sigma_model = "constant"
+#' Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
+#' 
 #' @export
 #' 
 nsgpModel <- function( tau_model   = "constant",
@@ -991,33 +1032,6 @@ nsgpModel <- function( tau_model   = "constant",
       constants_needed = c("X_tau", "p_tau", "tau_HP1"),
       inits = list(delta = quote(rep(0, p_tau)))
     ),
-    
-    # GP = list(
-    #   ## 1. tau_HP1         Gaussian process standard deviation 
-    #   ## 2. tau_HP2         Gaussian process mean
-    #   ## 3. tau_HP3         Gaussian process range
-    #   ## 4. tau_HP4         Gaussian process smoothness
-    #   ## 5. ones            N-vector of 1's
-    #   ## 6. dist            N x N matrix of inter-point Euclidean distances
-    #   code = quote({
-    #     log_tau_vec[1:N] ~ dmnorm(mean = log_tau_mn[1:N], cov = log_tau_C[1:N,1:N])
-    #     log_tau_mn[1:N] <- tauGP_mu*ones[1:N] 
-    #     log_tau_C[1:N,1:N] <- tauGP_sigma^2 * matern_corr(dist[1:N,1:N], tauGP_phi, tau_HP2)
-    #     
-    #     # Hyperparameters
-    #     tauGP_mu ~ dnorm(0, sd = tau_HP1)
-    #     tauGP_phi ~ dunif(0, tau_HP3) # Range parameter, GP
-    #     tauGP_sigma ~ dunif(0, tau_HP4) # SD parameter, GP
-    #     
-    #   }),
-    #   constants_needed = c("ones", "dist", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4"),
-    #   inits = list(
-    #     log_tau_vec = quote(rep(0, N)),
-    #     tauGP_mu = quote(0),
-    #     tauGP_phi = quote(tau_HP3/2),
-    #     tauGP_sigma = quote(tau_HP4/2)
-    #   )
-    # ),
     
     approxGP = list(
       ## 1. tau_HP1          Gaussian process standard deviation
@@ -1083,32 +1097,6 @@ nsgpModel <- function( tau_model   = "constant",
       constants_needed = c("X_sigma", "p_sigma", "sigma_HP1"),
       inits = list(alpha = quote(rep(0, p_sigma)))
     ),
-    
-    # GP = list(
-    #   ## 1. sigma_HP1        Gaussian process standard deviation 
-    #   ## 2. sigma_HP2        Gaussian process mean
-    #   ## 3. sigma_HP3        Gaussian process range
-    #   ## 4. sigma_HP4        Gaussian process smoothness
-    #   ## 5. ones             N-vector of 1's
-    #   ## 6. dist             N x N matrix of inter-point Euclidean distances
-    #   code = quote({
-    #     log_sigma_vec[1:N] ~ dmnorm(mean = log_sigma_mn[1:N], cov = log_sigma_C[1:N,1:N])
-    #     log_sigma_mn[1:N] <- sigmaGP_mu*ones[1:N] 
-    #     log_sigma_C[1:N,1:N] <- sigmaGP_sigma^2 * matern_corr(dist[1:N,1:N], sigmaGP_phi, sigma_HP2)
-    #     
-    #     # Hyperparameters
-    #     sigmaGP_mu ~ dnorm(0, sd = sigma_HP1)
-    #     sigmaGP_phi ~ dunif(0, sigma_HP3) # Range parameter, GP
-    #     sigmaGP_sigma ~ dunif(0, sigma_HP4) # SD parameter, GP
-    #   }),
-    #   constants_needed = c("ones", "dist", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4"),
-    #   inits = list(
-    #     log_sigma_vec = quote(rep(0, N)),
-    #     sigmaGP_mu = quote(0),
-    #     sigmaGP_phi = quote(sigma_HP3/2),
-    #     sigmaGP_sigma = quote(sigma_HP4/2)
-    #   )
-    # ),
     
     approxGP = list(
       ## 1. sigma_HP1        Gaussian process standard deviation
@@ -1196,20 +1184,20 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma12[1:N] <- rho*sqrt(psi11*psi22)*ones[1:N] + (X_Sigma[1:N,1:p_Sigma]%*%gamma1[1:p_Sigma])*(X_Sigma[1:N,1:p_Sigma]%*%gamma2[1:p_Sigma])
         Sigma22[1:N] <- psi22*ones[1:N] + (X_Sigma[1:N,1:p_Sigma] %*% gamma2[1:p_Sigma])^2
         psi11 ~ dunif(0, Sigma_HP2[1])
-        psi22 ~ dunif(0, Sigma_HP2[1])
+        psi22 ~ dunif(0, Sigma_HP2[2])
         rho ~ dunif(-1, 1)
         for(j in 1:p_Sigma){
           gamma1[j] ~ dnorm(0, sd = Sigma_HP1[1])
-          gamma2[j] ~ dnorm(0, sd = Sigma_HP1[1])
+          gamma2[j] ~ dnorm(0, sd = Sigma_HP1[2])
         }
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
         constraint1 ~ dconstraint( max(Sigma11[1:N]) < Sigma_HP5 )
         constraint2 ~ dconstraint( max(Sigma22[1:N]) < Sigma_HP5 )
-    }),
+      }),
       constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2", "Sigma_HP5"),
       inits = list(
         psi11 = quote(Sigma_HP2[1]/2),
-        psi22 = quote(Sigma_HP2[1]/2),
+        psi22 = quote(Sigma_HP2[2]/2),
         rho = 0,
         gamma1 = quote(rep(0, p_Sigma)),
         gamma2 = quote(rep(0, p_Sigma)),
@@ -1268,84 +1256,6 @@ nsgpModel <- function( tau_model   = "constant",
         constraint1 = 1
       )
     ),
-    
-    # npGP = list( 
-    #   code = quote({
-    #     ## 1. Sigma_HP1          3-vector; Gaussian process mean
-    #     ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
-    #     ## 3. ones                   N-vector of 1's
-    #     ## 4. dist                   N x N matrix of inter-point Euclidean distances
-    #     
-    #     Sigma11[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 1)
-    #     Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3) 
-    #     Sigma22[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 2)
-    #     
-    #     # GP1
-    #     eigen_comp1[1:N] ~ dmnorm(mean = eigen1_mn[1:N], cov = eigen1_C[1:N,1:N])
-    #     eigen1_mn[1:N] <- SigmaGP_mu[1]*ones[1:N] 
-    #     eigen1_C[1:N,1:N] <- SigmaGP_sigma[1]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[1], Sigma_HP2[1])
-    #     
-    #     # GP2
-    #     eigen_comp2[1:N] ~ dmnorm(mean = eigen2_mn[1:N], cov = eigen2_C[1:N,1:N])
-    #     eigen2_mn[1:N] <- SigmaGP_mu[1]*ones[1:N] 
-    #     eigen2_C[1:N,1:N] <- SigmaGP_sigma[1]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[1], Sigma_HP2[2])
-    #     
-    #     # GP3
-    #     eigen_comp3[1:N] ~ dmnorm(mean = eigen3_mn[1:N], cov = eigen3_C[1:N,1:N])
-    #     eigen3_mn[1:N] <- SigmaGP_mu[2]*ones[1:N] 
-    #     eigen3_C[1:N,1:N] <- SigmaGP_sigma[2]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[2], Sigma_HP2[3])
-    #     
-    #     # Hyperparameters
-    #     for(w in 1:2){
-    #       SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
-    #       SigmaGP_phi[w] ~ dunif(0, Sigma_HP3[w]) # Range parameter, GP
-    #       SigmaGP_sigma[w] ~ dunif(0, Sigma_HP4[w]) # SD parameter, GP
-    #     }
-    #     
-    #   }),
-    #   constants_needed = c("ones", "dist", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4"),    
-    #   inits = list(
-    #     eigen_comp1 = quote(rep(0,N)),
-    #     eigen_comp2 = quote(rep(0,N)),
-    #     eigen_comp3 = quote(rep(0,N)),
-    #     SigmaGP_mu = quote(rep(0,2)),
-    #     SigmaGP_phi = quote(rep(Sigma_HP3/2,2)),
-    #     SigmaGP_sigma = quote(rep(Sigma_HP4/2,2))
-    #   )
-    # ),
-    # 
-    # npGPIso = list( 
-    #   code = quote({
-    #     ## 1. Sigma_HP1          3-vector; Gaussian process mean
-    #     ## 2. Sigma_HP2          3-vector; Gaussian process smoothness
-    #     ## 3. ones                   N-vector of 1's
-    #     ## 4. dist                   N x N matrix of inter-point Euclidean distances
-    #     
-    #     Sigma11[1:N] <- exp(eigen_comp1[1:N])
-    #     Sigma22[1:N] <- exp(eigen_comp1[1:N])
-    #     Sigma12[1:N] <- ones[1:N]*0
-    #     
-    #     # GP1
-    #     eigen_comp1[1:N] ~ dmnorm(mean = eigen1_mn[1:N], cov = eigen1_C[1:N,1:N])
-    #     eigen1_mn[1:N] <- SigmaGP_mu[1]*ones[1:N] 
-    #     eigen1_C[1:N,1:N] <- SigmaGP_sigma[1]^2 * matern_corr(dist[1:N,1:N], SigmaGP_phi[1], Sigma_HP2[1])
-    #     
-    #     # Hyperparameters
-    #     for(w in 1){
-    #       SigmaGP_mu[w] ~ dnorm(0, sd = Sigma_HP1[w])
-    #       SigmaGP_phi[w] ~ dunif(0, Sigma_HP3[w]) # Range parameter, GP
-    #       SigmaGP_sigma[w] ~ dunif(0, Sigma_HP4[w]) # SD parameter, GP
-    #     }
-    #     
-    #   }),
-    #   constants_needed = c("ones", "dist", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4"),    
-    #   inits = list(
-    #     eigen_comp1 = quote(rep(0,N)),
-    #     SigmaGP_mu = quote(rep(0,1)),
-    #     SigmaGP_phi = quote(rep(Sigma_HP3/2,1)),
-    #     SigmaGP_sigma = quote(rep(Sigma_HP4/2,1))
-    #   )
-    # ),
     
     npApproxGP = list( 
       code = quote({
@@ -1537,10 +1447,6 @@ nsgpModel <- function( tau_model   = "constant",
   ## Setup
   ##============================================
   
-  tau_model_list$mixComp <- tau_model_list$logLinReg        ## add duplicated "mixComp" model option
-  sigma_model_list$mixComp <- sigma_model_list$logLinReg    ## add duplicated "mixComp" model option
-  Sigma_model_list$npMixComp <- Sigma_model_list$compReg    ## add duplicated "npMixComp" model option
-  
   if(is.null(  tau_model_list[[  tau_model]])) stop("unknown specification for tau_model")
   if(is.null(sigma_model_list[[sigma_model]])) stop("unknown specification for sigma_model")
   if(is.null(Sigma_model_list[[Sigma_model]])) stop("unknown specification for Sigma_model")
@@ -1581,7 +1487,7 @@ nsgpModel <- function( tau_model   = "constant",
   
   if(missing(coords)) stop("must provide 'coords' argument, array of spatial coordinates")
   d <- ncol(coords)
-
+  
   sd_default <- 100
   mu_default <- 0
   matern_rho_default <- 1
@@ -1609,7 +1515,7 @@ nsgpModel <- function( tau_model   = "constant",
   
   ## use the isotropic model?
   useIsotropic <- (Sigma_model %in% c("constantIso", "compRegIso", "npApproxGPIso"))
-
+  
   ## initialize constants_to_use with constants_defaults_list
   constants_to_use <- constants_defaults_list
   
@@ -1618,7 +1524,7 @@ nsgpModel <- function( tau_model   = "constant",
   ## make sure all ... arguments were provided with names
   if(length(dotdotdot) > 0 && (is.null(names(dotdotdot)) || any(names(dotdotdot) == ""))) stop("Only named arguemnts should be provided through ... argument")
   constants_to_use[names(dotdotdot)] <- dotdotdot
-
+  
   ## add 'constants' argument to constants_to_use list:
   ## if provided, make sure 'constants' argument is a named list
   if(!missing(constants)) {
@@ -1679,7 +1585,7 @@ nsgpModel <- function( tau_model   = "constant",
     constants_to_use$Sigma_knot_dist <- sqrt(nsDist(coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
     constants_to_use$Sigma_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
- 
+  
   ## add the following (derived numbers of columns) to constants_to_use:
   ## p_tau:
   if(!is.null(constants_to_use$X_tau)) constants_to_use$p_tau <- ncol(constants_to_use$X_tau)
@@ -1692,7 +1598,7 @@ nsgpModel <- function( tau_model   = "constant",
   if(!is.null(constants_to_use$Sigma_cross_dist)) constants_to_use$p_Sigma <- ncol(constants_to_use$Sigma_cross_dist)
   ## p_mu:
   if(!is.null(constants_to_use$X_mu)) constants_to_use$p_mu <- ncol(constants_to_use$X_mu)
-
+  
   ## get a vector of all the constants we need for this model
   constants_needed <- unique(unlist(lapply(model_selections_list, function(x) x$constants_needed), use.names = FALSE))
   ## check if we're missing any constants we need, and throw an error if any are missing
@@ -1734,7 +1640,7 @@ nsgpModel <- function( tau_model   = "constant",
   Rmodel <- nimble::nimbleModel(code, constants, data, inits, name = thisName)
   lp <- Rmodel$getLogProb()
   if(is(lp, 'try-error') || is.nan(lp) || is.na(lp) || abs(lp) == Inf) stop('model not properly initialized')
-
+  
   ## store 'constants' list into Rmodel$isDataEnv
   Rmodel$isDataEnv$.BayesNSGP_constants_list <- constants
   
@@ -1751,25 +1657,69 @@ nsgpModel <- function( tau_model   = "constant",
 #' Posterior prediction for the NSGP
 #' 
 #' \code{nsgpPredict} conducts posterior prediction for MCMC samples generated
-#' using nsgpModel.
+#' using nimble and nsgpModel.
 #' 
-#' @param model TODO
-#' @param samples TODO
-#' @param coords.predict TODO
-#' @param predict.y TODO
-#' @param constants TODO
-#' @param seed TODO
+#' @param model A NSGP nimble object; the output of \code{nsgpModel}.
+#' @param samples A matrix of \code{J} rows, each is an MCMC sample of the 
+#' parameters corresponding to the specification in \code{nsgpModel}. 
+#' @param coords.predict M x d matrix of prediction coordinates.
+#' @param predict.y Logical; determines whether the prediction corresponds to 
+#' the y(·) process (\code{TRUE}) or z(·) (\code{FALSE}; this would likely 
+#' only be used for, e.g., cross-validation).
+#' @param constants  An optional list of contants to use for prediction; 
+#' alternatively, additional arguments can be passed to the function via the
+#' ... argument.
+#' @param seed An optional random seed argument for reproducibility.
 #' @param ... TODO
 #' 
-#' @return  TODO
+#' @return The output of the function is a list with two elements: \code{obs},
+#' a matrix of \code{J} posterior predictive samples for the N observed 
+#' locations (only for \code{likelihood = "SGV"}, which produces predictions 
+#' for the observed locations by default; this element is \code{NULL} 
+#' otherwise); and \code{pred}, a corresponding matrix of posterior predictive 
+#' samples for the prediction locations. Ordering and neighbor selection
+#' for the prediction coordinates in the SGV likelihood are conducted 
+#' internally, as with \code{nsgpModel}.
 #' 
 #' @examples
-#' # TODO
+#' \dontrun{
+#' # Generate some data: stationary/isotropic
+#' N <- 100
+#' coords <- matrix(runif(2*N), ncol = 2)
+#' alpha_vec <- rep(log(sqrt(1)), N) # Log process SD
+#' delta_vec <- rep(log(sqrt(0.05)), N) # Log nugget SD
+#' Sigma11_vec <- rep(0.4, N) # Kernel matrix element 1,1
+#' Sigma22_vec <- rep(0.4, N) # Kernel matrix element 2,2
+#' Sigma12_vec <- rep(0, N) # Kernel matrix element 1,2
+#' mu_vec <- rep(0, N) # Mean
+#' nu <- 0.5 # Smoothness
+#' dist_list <- nsDist(coords)
+#' Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq, 
+#'                    dist12 = dist_list$dist12, Sigma11 = Sigma11_vec, 
+#'                    Sigma22 = Sigma22_vec, Sigma12 = Sigma12_vec, nu = nu )
+#' Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
+#' D_mat <- diag(exp(delta_vec)^2) 
+#' set.seed(110)
+#' z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+#' # Set up constants
+#' constants <- list( nu = 0.5, Sigma_HP1 = 2 )
+#' # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
+#' # and Sigma_model = "constant"
+#' Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
+#' conf <- configureMCMC(Rmodel)
+#' Rmcmc <- buildMCMC(conf)
+#' Cmodel <- compileNimble(Rmodel)
+#' Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+#' samples <- runMCMC(Cmcmc, niter = 200, nburnin = 100)
+#' # Prediction
+#' predCoords <- as.matrix(expand.grid(seq(0,1,l=10),seq(0,1,l=10)))
+#' postpred <- nsgpPredict( model = Rmodel, samples = samples, coords.predict = predCoords )
+#' }
 #' 
 #' @export
 #' 
 nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, constants, seed = 0, ... ) {
-
+  
   if(!nimble::is.model(model)) stop('first argument must be NSGP NIMBLE model object')
   Rmodel <- if(nimble::is.Rmodel(model)) model else model$Rmodel
   if(!nimble::is.Rmodel(Rmodel)) stop('something went wrong')
@@ -1779,7 +1729,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   
   mcmc_samples <- samples
   predCoords <- coords.predict
-
+  
   ## extract the "submodel" information from the nimble model object "name"
   thisName <- Rmodel$getModelDef()$name
   modelsList <- lapply(strsplit(thisName, '_')[[1]], function(x) strsplit(x, '=')[[1]][2])
@@ -1831,40 +1781,40 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   duplicatedNames <- intersect(names(constants_to_use), names(model_constants))
   discrepancies <- character()
   if(length(duplicatedNames) > 0) {
-      for(name in duplicatedNames) {
-          if(!identical(constants_to_use[[name]], model_constants[[name]]))
-              discrepancies <- c(discrepancies, name)
-      }
+    for(name in duplicatedNames) {
+      if(!identical(constants_to_use[[name]], model_constants[[name]]))
+        discrepancies <- c(discrepancies, name)
+    }
   }
   if(length(discrepancies) > 0) stop(paste0('Inconsistent values were provided for the following constants: ', paste0(discrepancies, collapse = ', ')))
   ## move original model_constants from nsgpModel into constants_to_use:
   constants_to_use[names(model_constants)] <- model_constants
   ## determine the constants needed
   predictConstantsNeeded <- list(
-      tau = list(
-          constant = character(),
-          logLinReg = c('X_tau', 'PX_tau'),
-          approxGP = c('p_tau', 'tau_cross_dist', 'tau_cross_dist_pred', 'tau_HP2')),
-      sigma = list(
-          constant = character(),
-          logLinReg = c('X_sigma', 'PX_sigma'),
-          approxGP = c('p_sigma', 'sigma_cross_dist', 'sigma_cross_dist_pred', 'sigma_HP2')),
-      Sigma = list(
-          constant = character(),
-          constantIso = character(),
-          covReg = c('X_Sigma', 'PX_Sigma'),
-          compReg = c('X_Sigma', 'PX_Sigma'),
-          compRegIso = c('X_Sigma', 'PX_Sigma'),
-          npApproxGP = c('p_Sigma', 'Sigma_cross_dist', 'Sigma_cross_dist_pred', 'Sigma_HP2'),
-          npApproxGPIso = c('p_Sigma', 'Sigma_cross_dist', 'Sigma_cross_dist_pred', 'Sigma_HP2')),
-      mu = list(
-          constant = character(),
-          linReg = c('X_mu', 'PX_mu'),
-          zero = character()),
-      likelihood = list(
-          fullGP = character(),
-          NNGP = character(),
-          SGV = character())
+    tau = list(
+      constant = character(),
+      logLinReg = c('X_tau', 'PX_tau'),
+      approxGP = c('p_tau', 'tau_cross_dist', 'tau_cross_dist_pred', 'tau_HP2')),
+    sigma = list(
+      constant = character(),
+      logLinReg = c('X_sigma', 'PX_sigma'),
+      approxGP = c('p_sigma', 'sigma_cross_dist', 'sigma_cross_dist_pred', 'sigma_HP2')),
+    Sigma = list(
+      constant = character(),
+      constantIso = character(),
+      covReg = c('X_Sigma', 'PX_Sigma'),
+      compReg = c('X_Sigma', 'PX_Sigma'),
+      compRegIso = c('X_Sigma', 'PX_Sigma'),
+      npApproxGP = c('p_Sigma', 'Sigma_cross_dist', 'Sigma_cross_dist_pred', 'Sigma_HP2'),
+      npApproxGPIso = c('p_Sigma', 'Sigma_cross_dist', 'Sigma_cross_dist_pred', 'Sigma_HP2')),
+    mu = list(
+      constant = character(),
+      linReg = c('X_mu', 'PX_mu'),
+      zero = character()),
+    likelihood = list(
+      fullGP = character(),
+      NNGP = character(),
+      SGV = character())
   )
   constants_needed <- unique(unlist(lapply(1:length(modelsList), function(i) predictConstantsNeeded[[names(modelsList)[i]]][[modelsList[[i]]]] )))
   ## check if we're missing any constants we need, and throw an error if any are missing
@@ -1873,7 +1823,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     stop(paste0("Missing values for the following model constants: ",
                 paste0(constants_missing, collapse = ", "),
                 ".\nThese values should be provided as named arguments, or named elements in the constants list argument"))
-}
+  }
   ## generate the constants list
   ## do NOT truncate constants list like this:
   ##constants <- constants_to_use[constants_needed]
@@ -2096,7 +2046,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       Sigma11_j <- as.numeric(exp(eigen_comp1_j))
       Sigma12_j <- as.numeric(exp(eigen_comp1_j))
       Sigma22_j <- rep(0,N)
- 
+      
       Peigen_comp1_j <- PX_Sigma %*% samp_j[paste("Sigma_coef1[",1:ncol(X_Sigma),"]",sep = "")]
       PSigma11_j <- as.numeric(exp(Peigen_comp1_j))
       PSigma12_j <- as.numeric(exp(Peigen_comp1_j))
@@ -2139,7 +2089,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       Sigma_cross_dist_pred <- constants$Sigma_cross_dist_pred
       Sigma_HP2 <- constants$Sigma_HP2
       w1_Sigma_j <- samp_j[paste("w1_Sigma[",1:p_Sigma,"]",sep = "")]
- 
+      
       # Obs locations
       Pmat12_Sigma_obs_j <- matern_corr(Sigma_cross_dist_obs, samp_j["SigmaGP_phi[1]"], Sigma_HP2[1])
       eigen_comp1_j <- samp_j["SigmaGP_mu[1]"]*rep(1,N) + samp_j["SigmaGP_sigma[1]"] * Pmat12_Sigma_obs_j %*% w1_Sigma_j
@@ -2292,15 +2242,3 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   return(output)
   
 }
-
-
-
-
-
-
-
-
-
-
-
-
