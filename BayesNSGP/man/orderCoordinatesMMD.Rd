@@ -4,19 +4,21 @@
 \alias{orderCoordinatesMMD}
 \title{Order coordinates according to a maximum-minimum distance criterion.}
 \usage{
-orderCoordinatesMMD(s, exact = FALSE)
+orderCoordinatesMMD(coords, exact = FALSE)
 }
 \arguments{
-\item{s}{N x 2 array of N 2-dimensional (x,y) spatial coordinates.}
+\item{coords}{N x 2 array of N 2-dimensional (x,y) spatial coordinates.}
 
 \item{exact}{Logical; \code{FALSE} uses a fast approximation to MMD ordering 
 (and is almost always recommended), while \code{TRUE} uses exact MMD 
 ordering but is infeasible for large number of locations.}
 }
 \value{
-A list with two components: (1) an N x 2 array containing the 
-same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
-any NA values removed.
+A list of distances matrices, with the following components:
+\item{orderedCoords}{N x 2 matrix; contains the ordered spatial coordinates
+as \code{coords}.}
+\item{orderedIndicesNoNA}{N-vector; contains the ordered indices with any
+NA values removed.}
 }
 \description{
 \code{orderCoordinatesMMD} orders an array of (x,y) spatial coordinates 
@@ -25,6 +27,7 @@ according to the "maximum minimum distance" (MMD), as described in Guinness,
 selected points).
 }
 \examples{
-# TODO
+coords <- cbind(runif(100), runif(100))
+orderCoordinatesMMD(coords)
 
 }

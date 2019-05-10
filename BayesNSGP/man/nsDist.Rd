@@ -33,6 +33,11 @@ is important. The function contains an optional argument for re-scaling
 the distances such that the coordinates lie in a square.
 }
 \examples{
-# TODO
+# Generate some coordinates
+coords <- cbind(runif(100),runif(100))
+# Calculate distances
+dist_list <- nsDist(coords)
+# Use nsDist to calculate Euclidean distances
+dist_Euclidean <- sqrt(nsDist(coords, isotropic = TRUE)$dist1_sq)
 
 }

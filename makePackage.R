@@ -7,7 +7,7 @@
 library(devtools)
 library(roxygen2)
 library(nimble, warn.conflicts = FALSE)
-if('Github' %in% list.files('~/Documents')) {   ## this should work for either of us
+if('GitHub' %in% list.files('~/Documents')) {   ## this should work for either of us
     baseDir <- '~/Documents/Github/BayesNSGP/'  ## Risser
 } else { baseDir <- '~/github/BayesNSGP/' }     ## Turek
 if(!('makePackage.R' %in% list.files(baseDir))) stop('change baseDir directory')

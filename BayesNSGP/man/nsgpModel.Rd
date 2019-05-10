@@ -11,31 +11,37 @@ nsgpModel(tau_model = "constant", sigma_model = "constant",
 }
 \arguments{
 \item{tau_model}{Character; specifies the model to be used for the log(tau) 
-process. Options are \code{"logLinReg"} (log-linear regression), 
-\code{"mixComp"} (mixture component representation), \code{"GP"} (stationary
-Gaussian process), and \code{"approxGP"} (approximation to a Gaussian 
-process).}
+process. Options are \code{"constant"} (spatially-constant), 
+\code{"logLinReg"} (log-linear regression), and \code{"approxGP"} 
+(approximation to a Gaussian process).}
 
 \item{sigma_model}{Character; specifies the model to be used for the 
 log(sigma) process. See \code{tau_model} for options.}
 
 \item{Sigma_model}{Character; specifies the model to be used for the 
-Sigma anisotropy process. Options are \code{"covReg"} (covariance 
-regression), \code{"compReg"} (componentwise regression), 
-\code{"npMixComp"} (nonparameteric regression via the mixture component
-approach), \code{"npGP"} (nonparameteric regression via a stationary 
-Gaussian process), or \code{"npApproxGP"} (nonparameteric regression via an
-approximation to a stationary Gaussian process).}
+Sigma anisotropy process. Options are \code{"constant"} (spatially-constant),
+\code{"constantIso"} (spatially-constant and isotropic), \code{"covReg"} 
+(covariance regression), \code{"compReg"} (componentwise regression), 
+\code{"compRegIso"} (isotropic componentwise regression), \code{"npApproxGP"}
+(nonparameteric regression via an approximation to a stationary Gaussian 
+process), and \code{"npApproxGPIso"} (isotropic nonparameteric regression 
+via an approximation to a stationary Gaussian process)}
 
-\item{mu_model}{TODO}
+\item{mu_model}{Character; specifies the model to be used for the mu mean 
+process. Options are \code{"constant"} (spatially-constant), \code{"linReg"}
+(linear regression), and \code{"zero"} (a fixed zero-mean).}
 
-\item{likelihood}{TODO}
+\item{likelihood}{Character; specifies the likelihood model. Options are
+\code{"fullGP"} (the exact Gaussian process likelihood), \code{"NNGP"} (the
+nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"} 
+(the sparse general Vecchia approximate likelihood).}
 
-\item{coords}{TODO}
+\item{coords}{N x d matrix of spatial coordinates.}
 
-\item{z}{TODO}
+\item{z}{N-vector; observed vector of the spatial process of interest}
 
-\item{constants}{TODO}
+\item{constants}{A list of constants required to build the model; depends on
+the specific parameter process models chosen.}
 
 \item{returnModelComponents}{TODO}
 
@@ -48,6 +54,28 @@ A \code{nimbleCode} object.
 TODO: add documentation
 }
 \examples{
-# TODO
+# Generate some data: stationary/isotropic
+N <- 100
+coords <- matrix(runif(2*N), ncol = 2)
+alpha_vec <- rep(log(sqrt(1)), N) # Log process SD
+delta_vec <- rep(log(sqrt(0.05)), N) # Log nugget SD
+Sigma11_vec <- rep(0.4, N) # Kernel matrix element 1,1
+Sigma22_vec <- rep(0.4, N) # Kernel matrix element 2,2
+Sigma12_vec <- rep(0, N) # Kernel matrix element 1,2
+mu_vec <- rep(0, N) # Mean
+nu <- 0.5 # Smoothness
+dist_list <- nsDist(coords)
+Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq, 
+                   dist12 = dist_list$dist12, Sigma11 = Sigma11_vec, 
+                   Sigma22 = Sigma22_vec, Sigma12 = Sigma12_vec, nu = nu )
+Cov_mat <- diag(exp(alpha_vec)) \%*\% Cor_mat \%*\% diag(exp(alpha_vec))
+D_mat <- diag(exp(delta_vec)^2) 
+set.seed(110)
+z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
+# Set up constants
+constants <- list( nu = 0.5, Sigma_HP1 = 2 )
+# Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
+# and Sigma_model = "constant"
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
 
 }

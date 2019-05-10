@@ -25,12 +25,16 @@ direction.
 }
 \description{
 \code{nsDist3d} generates and returns new 3-dimensional arrays containing
-the former dist1_sq, dist2_s1, and dist12 matrices, but
+the former dist1_sq, dist2_sq, and dist12 matrices, but
 only as needed for the k nearest-neighbors of each location.
 these 3D matrices (dist1_3d, dist2_3d, and dist12_3d)
 are used in the new implementation of calculateAD_ns().
 }
 \examples{
-# TODO
+# Generate some coordinates and neighbors
+coords <- cbind(runif(100),runif(100))
+nID <- determineNeighbors(coords, 10)
+# Calculate distances
+nsDist3d(coords, nID)
 
 }

@@ -9,9 +9,9 @@ nsCrossdist3d(coords, predCoords, P_nID, scale_factor = NULL,
   isotropic = FALSE)
 }
 \arguments{
-\item{coords}{N x 2 matrix; contains the x-y coordinates of stations.}
+\item{coords}{N x d matrix; contains the x-y coordinates of stations.}
 
-\item{predCoords}{TODO}
+\item{predCoords}{M x d matrix}
 
 \item{P_nID}{N x k matrix; contains indices of nearest neighbors.}
 
@@ -19,12 +19,13 @@ nsCrossdist3d(coords, predCoords, P_nID, scale_factor = NULL,
 
 \item{isotropic}{Logical; indicates whether distances should be calculated
 separately for each coordinate dimension (FALSE) or simultaneously for all
-coordinate dimensions (TRUE). \code{isotropic = TRUE} can only be used for
+coordinate dimensions (TRUE). \code{isotropic = FALSE} can only be used for
 two-dimensional coordinate systems.}
 }
 \value{
 Arrays with nearest neighbor distances in each coordinate 
-direction.
+direction. When the spatial dimension d > 2, dist1_3d contains squared
+Euclidean distances, and dist2_3d and dist12_3d are empty.
 }
 \description{
 \code{nsCrossdist3d} generates and returns new 3-dimensional arrays containing
@@ -34,6 +35,11 @@ these 3D matrices (dist1_3d, dist2_3d, and dist12_3d)
 are used in the new implementation of calculateAD_ns().
 }
 \examples{
-# TODO
+# Generate some coordinates and neighbors
+coords <- cbind(runif(100),runif(100))
+Pcoords <- cbind(runif(200),runif(200))
+P_nID <- FNN::get.knnx(coords, predCoords, k = 10)$nn.index # Prediction NN
+# Calculate distances
+Pdist <- nsCrossdist3d(coords, predCoords, P_nID)
 
 }

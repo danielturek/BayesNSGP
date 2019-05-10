@@ -28,6 +28,12 @@ function is coded as a \code{nimbleFunction} (see the \code{nimble} package)
 but can also be used as a regular R function.
 }
 \examples{
-# TODO
+# Generate some coordinates
+coords <- cbind(runif(100),runif(100))
+nu <- 2
+# Calculate distances -- can use nsDist to calculate Euclidean distances
+dist_list <- nsDist(coords, isotropic = TRUE)
+# Calculate the correlation matrix
+corMat <- matern_corr(sqrt(dist_list$dist1_sq), 1, nu)
 
 }

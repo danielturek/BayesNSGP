@@ -60,11 +60,7 @@ orderCoordinatesMMD <- function(coords, exact = FALSE) {
     orderedIndices <- c(initialOrdering, rep(NA, 3*N))
     indexLookupVector <- order(initialOrdering)
     maxNeighbors <- floor(sqrt(N))
-<<<<<<< HEAD
     NN <- FNN::get.knn(coords, k = maxNeighbors)$nn.index
-=======
-    NN <- get.knn(s, k = maxNeighbors)$nn.index
->>>>>>> f6191cbe517f7f79e1a125ced8beaa209bbb260b
     nextSpot <- N+1
     cycleCheckIndex <- -1
     for(i in 2:(3*N)) {
@@ -201,45 +197,8 @@ determineNeighbors <- function(coords, k) {
 #'
 #' @export
 #'
-<<<<<<< HEAD
-inverseEigen <- nimble::nimbleFunction(     
-=======
-# inverseEigen <- nimbleFunction(
-#   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
-#                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
-#     returnType(double(1))
-#     
-#     Gam_denom <- sqrt( eigen_comp2^2 + eigen_comp3^2 )
-#     Gam11 <- eigen_comp2/Gam_denom
-#     Gam22 <- eigen_comp2/Gam_denom
-#     Gam12 <- -eigen_comp3/Gam_denom
-#     Gam21 <- eigen_comp3/Gam_denom
-#     
-#     Lam2 <- exp(eigen_comp1)
-#     Lam1 <- eigen_comp2^2 + eigen_comp3^2 
-#     
-#     if( which_Sigma == 1 ){ # Return Sigma11
-#       return( Gam11^2*Lam1 + Gam12^2*Lam2 )
-#     }
-#     if( which_Sigma == 2 ){ # Return Sigma22
-#       return( Gam21^2*Lam1 + Gam22^2*Lam2 )
-#     }
-#     if( which_Sigma == 3 ){ # Return Sigma12
-#       return( Gam11*Gam21*Lam1 + Gam12*Gam22*Lam2 )
-#     }
-# 
-#     stop('Error in inverseEigen function')  ## prevent compiler warning
-#     return(numeric(10))                     ## prevent compiler warning
-#     
-#   }
-# )
-#
-# Alternatively, parameterize in terms of the two log eigenvalues and rotation parameter
-# eigen_comp1 = log(lambda1)
-# eigen_comp2 = log(lambda2)
-# eigen_comp3 = logit(2*gamma/pi)
-inverseEigen <- nimbleFunction(
->>>>>>> f6191cbe517f7f79e1a125ced8beaa209bbb260b
+
+inverseEigen <- nimble::nimbleFunction(
   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
     returnType(double(1))
@@ -347,7 +306,7 @@ inverseEigen <- nimbleFunction(
 #' 
 #' @export
 #' 
-nsCorr <- nimbleFunction(
+nsCorr <- nimble::nimbleFunction(
   run = function( dist1_sq = double(2), dist2_sq = double(2), dist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1), 
                   nu = double(0), d = double(0) ) {
@@ -450,7 +409,7 @@ nsCorr <- nimbleFunction(
 #'
 #' @export
 #' 
-matern_corr <- nimbleFunction(
+matern_corr <- nimble::nimbleFunction(
   run = function( dist = double(2), rho = double(0), nu = double(0) ) {
     returnType(double(2))
     
@@ -536,7 +495,7 @@ matern_corr <- nimbleFunction(
 #'
 #' @export
 #' 
-nsCrosscorr <- nimbleFunction(
+nsCrosscorr <- nimble::nimbleFunction(
   run = function( Xdist1_sq = double(2), Xdist2_sq = double(2), Xdist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
                   PSigma11 = double(1), PSigma22 = double(1), PSigma12 = double(1), 
@@ -994,7 +953,7 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' (linear regression), and \code{"zero"} (a fixed zero-mean).
 #' @param likelihood Character; specifies the likelihood model. Options are
 #' \code{"fullGP"} (the exact Gaussian process likelihood), \code{"NNGP"} (the
-#' nearest-neighbor GP for the response approximate likelihood), and \code{"SGV} 
+#' nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"} 
 #' (the sparse general Vecchia approximate likelihood).
 #' @param coords N x d matrix of spatial coordinates.
 #' @param z N-vector; observed vector of the spatial process of interest
@@ -1085,7 +1044,7 @@ nsgpModel <- function( tau_model   = "constant",
       ## 8. p_tau            Number of knot locations
       code = quote({
         
-        log_tau_vec[1:N][1:N] <- tauGP_mu*ones[1:N] + tauGP_sigma*Pmat_tau[1:N,1:p_tau] %*% w_tau[1:p_tau]
+        log_tau_vec[1:N] <- tauGP_mu*ones[1:N] + tauGP_sigma*Pmat_tau[1:N,1:p_tau] %*% w_tau[1:p_tau]
         Pmat_tau[1:N,1:p_tau] <- matern_corr(tau_cross_dist[1:N,1:p_tau], tauGP_phi, tau_HP2)
         Vmat_tau[1:p_tau,1:p_tau] <- matern_corr(tau_knot_dist[1:p_tau,1:p_tau], tauGP_phi, tau_HP2)
         w_tau_mean[1:p_tau] <- 0*ones[1:p_tau]
@@ -1150,7 +1109,7 @@ nsgpModel <- function( tau_model   = "constant",
       ## 8. p_sigma          Number of knot locations
       code = quote({
         
-        log_sigma_vec[1:N][1:N] <- sigmaGP_mu*ones[1:N] + sigmaGP_sigma*Pmat_sigma[1:N,1:p_sigma] %*% w_sigma[1:p_sigma]
+        log_sigma_vec[1:N] <- sigmaGP_mu*ones[1:N] + sigmaGP_sigma*Pmat_sigma[1:N,1:p_sigma] %*% w_sigma[1:p_sigma]
         Pmat_sigma[1:N,1:p_sigma] <- matern_corr(sigma_cross_dist[1:N,1:p_sigma], sigmaGP_phi, sigma_HP2)
         Vmat_sigma[1:p_sigma,1:p_sigma] <- matern_corr(sigma_knot_dist[1:p_sigma,1:p_sigma], sigmaGP_phi, sigma_HP2)
         w_sigma_mean[1:p_sigma] <- 0*ones[1:p_sigma]
@@ -1760,18 +1719,11 @@ nsgpModel <- function( tau_model   = "constant",
 #' @export
 #' 
 nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, constants, seed = 0, ... ) {
-<<<<<<< HEAD
   
   if(!nimble::is.model(model)) stop('first argument must be NSGP NIMBLE model object')
   Rmodel <- if(nimble::is.Rmodel(model)) model else model$Rmodel
   if(!nimble::is.Rmodel(Rmodel)) stop('something went wrong')
-=======
 
-  if(!is.model(model)) stop('first argument must be NSGP NIMBLE model object')
-  Rmodel <- if(is.Rmodel(model)) model else model$Rmodel
-  if(!is.Rmodel(Rmodel)) stop('something went wrong')
->>>>>>> f6191cbe517f7f79e1a125ced8beaa209bbb260b
-  
   model_constants <- Rmodel$isDataEnv$.BayesNSGP_constants_list
   coords <- model_constants$coords
   

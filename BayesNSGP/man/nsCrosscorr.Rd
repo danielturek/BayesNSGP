@@ -44,8 +44,8 @@ correlation function.}
 \item{d}{TODO}
 }
 \value{
-A cross-correlation matrix for two fixed sets of stations and fixed
-parameter values.
+A M x N cross-correlation matrix for two fixed sets of stations and 
+fixed parameter values.
 }
 \description{
 \code{nsCrosscorr} calculates a nonstationary cross-correlation matrix 
@@ -58,6 +58,20 @@ specific distance matrices (see below). The function is coded as a
 used as a regular R function.
 }
 \examples{
-# TODO
+# Generate some coordinates and parameters
+coords <- cbind(runif(100),runif(100))
+Sigma11 <- rep(1, 100) # Identity anisotropy process
+Sigma22 <- rep(1, 100)
+Sigma12 <- rep(0, 100)
+Pcoords <- cbind(runif(200),runif(200))
+PSigma11 <- rep(1, 200) # Identity anisotropy process
+PSigma22 <- rep(1, 200)
+PSigma12 <- rep(0, 200)
+nu <- 2
+# Calculate distances
+Xdist_list <- nsCrossdist(coords, Pcoords)
+# Calculate the correlation matrix
+XcorMat <- nsCrosscorr(Xdist_list$dist1_sq, Xdist_list$dist2_sq, Xdist_list$dist12,
+   Sigma11, Sigma22, Sigma12, PSigma11, PSigma22, PSigma12, nu, ncol(coords))
 
 }

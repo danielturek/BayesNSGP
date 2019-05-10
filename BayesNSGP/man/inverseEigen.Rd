@@ -7,31 +7,36 @@
 inverseEigen(eigen_comp1, eigen_comp2, eigen_comp3, which_Sigma)
 }
 \arguments{
-\item{eigen_comp1}{N-vector; contains values of the log of the second
+\item{eigen_comp1}{N-vector; contains values of the log of the first
 anisotropy eigenvalue for a set of locations.}
 
-\item{eigen_comp2}{N-vector; contains values of the first eigenvector
-component for a set of locations.}
+\item{eigen_comp2}{N-vector; contains values of the log of the second
+anisotropy eigenvalue for a set of locations.}
 
-\item{eigen_comp3}{N-vector; contains values of the second eigenvector 
-component for a set of locations.}
+\item{eigen_comp3}{N-vector; contains values of the rescaled logit of 
+the anisotropy rotation for a set of locations.}
 
 \item{which_Sigma}{Scalar; one of \code{(1,2,3)}, corresponding to which
 covariance component should be calculated (Sigma11, Sigma22, or Sigma12,
 respectively).}
 }
 \value{
-A correlation matrix for a fixed set of stations and fixed
-parameter values.
+A vector of anisotropy values (Sigma11, Sigma22, or Sigma12; depends
+on \code{which_Sigma}) for the corresponding set of locations.
 }
 \description{
 \code{inverseEigen} calculates the inverse eigendecomposition -- in other
-words, the covariance elements based on the eigenvalues and vectors (see
-Paciorek and Schervish, 2006, for details on the parameterization). The 
-function is coded as a \code{nimbleFunction} (see the \code{nimble} package) 
-but can also be used as a regular R function.
+words, the covariance elements based on the eigenvalues and vectors. For a
+2x2 anisotropy (covariance) matrix, we parameterize the three unique values
+in terms of the two log eigenvalues and a rotation parameter on the 
+rescaled logit. The function is coded as a \code{nimbleFunction} (see the 
+\code{nimble} package) but can also be used as a regular R function.
 }
 \examples{
-# TODO
+# Generate some eigendecomposition elements (all three are real-valued)
+eigen_comp1 <- rnorm(10)
+eigen_comp2 <- rnorm(10)
+eigen_comp3 <- rnorm(10)
+inverseEigen( eigen_comp1, eigen_comp2, eigen_comp3, 2) # Return the Sigma22 values
 
 }

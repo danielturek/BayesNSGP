@@ -31,7 +31,7 @@ anisotropy process for each station.}
 to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 correlation function.}
 
-\item{d}{TODO}
+\item{d}{Scalar; dimension of the spatial coordinates.}
 }
 \value{
 A correlation matrix for a fixed set of stations and fixed
@@ -47,6 +47,16 @@ specific distance matrices (see below). The function is coded as a
 used as a regular R function.
 }
 \examples{
-# TODO
+# Generate some coordinates and parameters
+coords <- cbind(runif(100),runif(100))
+Sigma11 <- rep(1, 100) # Identity anisotropy process
+Sigma22 <- rep(1, 100)
+Sigma12 <- rep(0, 100)
+nu <- 2
+# Calculate distances
+dist_list <- nsDist(coords)
+# Calculate the correlation matrix
+corMat <- nsCorr(dist_list$dist1_sq, dist_list$dist2_sq, dist_list$dist12,
+                 Sigma11, Sigma22, Sigma12, nu, ncol(coords))
 
 }

@@ -33,6 +33,10 @@ and x-y for use in the nonstationary cross-correlation calculation. This
 function is useful for calculating posterior predictions.
 }
 \examples{
-# TODO
+# Generate some coordinates 
+coords <- cbind(runif(100),runif(100))
+Pcoords <- cbind(runif(200),runif(200))
+# Calculate distances
+Xdist_list <- nsCrossdist(coords, Pcoords)
 
 }
