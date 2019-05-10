@@ -1,5 +1,4 @@
 
-require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 
 #================================================
 # Bayesian nonstationary Gaussian process 
@@ -50,7 +49,7 @@ require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 #' 
 #' @export
 #' 
-calcQF <- nimble::nimbleFunction(
+calcQF <- nimbleFunction(
   run = function(u = double(1), v = double(1), AD = double(2), nID = double(2)) {
     N <- dim(AD)[1]
     k <- dim(AD)[2] - 1
@@ -62,7 +61,7 @@ calcQF <- nimble::nimbleFunction(
     }
     returnType(double())
     return(qf)
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -103,7 +102,7 @@ calcQF <- nimble::nimbleFunction(
 #'
 #' @export
 #' 
-calculateAD_ns <- nimble::nimbleFunction(
+calculateAD_ns <- nimbleFunction(
   run = function(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
@@ -119,7 +118,6 @@ calculateAD_ns <- nimble::nimbleFunction(
       d12 <- dist12_3d[i,1:(nNei+1),1:(nNei+1)]
       S1 <- Sigma11[ind];      S2 <- Sigma22[ind];      S12 <- Sigma12[ind]
       Cor <- nsCorr(d1, d2, d12, S1, S2, S12, nu, d)
-      ##Cor <- BayesNSGP::nsCorr(d1, d2, d12, S1, S2, S12, nu, d)
       sigmaMat <- diag(exp(log_sigma_vec[ind]))
       Cov <- sigmaMat %*% Cor %*% sigmaMat
       C <- Cov + diag(exp(log_tau_vec[ind])^2)
@@ -128,7 +126,7 @@ calculateAD_ns <- nimble::nimbleFunction(
     } 
     returnType(double(2))
     return(AD)
-  }, where = getLoadingNamespace(), check = FALSE
+  }, check = FALSE
 )
 
 
@@ -159,25 +157,24 @@ calculateAD_ns <- nimble::nimbleFunction(
 #'
 #' @export
 #' 
-dmnorm_nngp <- nimble::nimbleFunction(
+dmnorm_nngp <- nimbleFunction(
   run = function(x = double(1), mean = double(1), AD = double(2), nID = double(2), N = double(), k = double(), log = double()) {
     xCentered <- x - mean
     qf <- calcQF(xCentered, xCentered, AD, nID)
-    ##qf <- BayesNSGP::calcQF(xCentered, xCentered, AD, nID)
     lp <- -0.5 * (1.83787706649*N + sum(log(AD[1:N,k+1])) + qf)      # log(2pi) = 1.8378770664
     returnType(double())
     return(lp)
-  }, where = getLoadingNamespace(), check = FALSE
+  }, check = FALSE
 )
 
-rmnorm_nngp <- nimble::nimbleFunction(
+rmnorm_nngp <- nimbleFunction(
   run = function(n = integer(), mean = double(1), AD = double(2), nID = double(2), N = double(), k = double()) {
     returnType(double(1))
     return(numeric(N))
-  }, where = getLoadingNamespace()
+  }
 )
 
-nimble::registerDistributions(list(
+registerDistributions(list(
   dmnorm_nngp = list(
     BUGSdist = 'dmnorm_nngp(mean, AD, nID, N, k)',
     types = c('value = double(1)', 'mean = double(1)', 'AD = double(2)', 'nID = double(2)', 'N = double()', 'k = double()'),
