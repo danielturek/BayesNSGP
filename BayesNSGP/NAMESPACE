@@ -1,5 +1,9 @@
-import(stats)
+importFrom("stats", "dist", "rnorm")
 import(methods)
+import(nimble)
+import(FNN)
+import(Matrix)
+import(StatMatch)
 
 export(R_sparse_chol)
 export(calcQF)

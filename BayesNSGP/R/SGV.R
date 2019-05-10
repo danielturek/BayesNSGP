@@ -1,5 +1,4 @@
 
-require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 
 #================================================
 # Bayesian nonstationary Gaussian process 
@@ -62,7 +61,7 @@ conditionLatentObs <- function( nID, locs_ord, N ){
     }
     ind_h_i <- which(size_intrsct_qyj_qi == max(size_intrsct_qyj_qi))
     h_i <- q_i[ind_h_i]
-    ind_k_i <- which.min( as.numeric(StatMatch::mahalanobis.dist(data.x = matrix(locs_ord[i,], ncol = d, byrow = TRUE), 
+    ind_k_i <- which.min( as.numeric(mahalanobis.dist(data.x = matrix(locs_ord[i,], ncol = d, byrow = TRUE),
                                                                  data.y = matrix(locs_ord[h_i,], ncol = d, byrow = TRUE),
                                                                  vc = diag(d))) ) 
     k_i <- h_i[ind_k_i]
@@ -198,7 +197,7 @@ sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
 #'
 #' @export
 #' 
-calculateU_ns <- nimble::nimbleFunction(  # Create the sparse U matrix for specific theta
+calculateU_ns <- nimbleFunction(  # Create the sparse U matrix for specific theta
   run = function(
     dist1_3d = double(3), dist2_3d = double(3), dist12_3d = double(3),
     Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
@@ -246,7 +245,6 @@ calculateU_ns <- nimble::nimbleFunction(  # Create the sparse U matrix for speci
       
       # Cross-covariance between location and the conditioning set
       Crosscor <- nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu, d)
-      ##Crosscor <- BayesNSGP::nsCrosscorr(Xd1, Xd2, Xd12, S1, S2, S12, xS1, xS2, xS12, nu, d)
       if(length(ind) == 1) {
         sigmaMat_cond <- array(exp(log_sigma_vec[ind]), c(1,1))
       } else {
@@ -256,7 +254,6 @@ calculateU_ns <- nimble::nimbleFunction(  # Create the sparse U matrix for speci
       
       # Covariance of conditioning set
       Cor_cond <- nsCorr(d1, d2, d12, xS1, xS2, xS12, nu, d)
-      ##Cor_cond <- BayesNSGP::nsCorr(d1, d2, d12, xS1, xS2, xS12, nu, d)
       Cov_cond <- sigmaMat_cond %*% Cor_cond %*% sigmaMat_cond # Formerly pt2
       
       # Covariance of the process at the location
@@ -322,18 +319,16 @@ calculateU_ns <- nimble::nimbleFunction(  # Create the sparse U matrix for speci
     
     returnType(double(2))
     return(U_ijx)
-  }, where = getLoadingNamespace(), check = FALSE
+  }, check = FALSE
 )
 
 
-# Matrix::tcrossprod
 R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
-  ##require(Matrix)
-  Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
+  Asparse <- sparseMatrix(i = i, j = j, x = x)
   if(subset[1] < 0){ # No subset
-    ans.dsCMatrix <- Matrix::tcrossprod(Asparse)
+    ans.dsCMatrix <- tcrossprod(Asparse)
   } else{
-    ans.dsCMatrix <- Matrix::tcrossprod(Asparse[subset,])
+    ans.dsCMatrix <- tcrossprod(Asparse[subset,])
   }
   ans.dgTMatrix <- as(ans.dsCMatrix, 'dgTMatrix')
   i <- ans.dgTMatrix@i + 1
@@ -350,30 +345,28 @@ R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
 #' @param x TODO
 #' @param subset TODO
 #' @export
-nimble_sparse_tcrossprod <- nimble::nimbleRcall(
+nimble_sparse_tcrossprod <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), subset = double(1)) {},
   returnType = double(2),
   Rfun = 'R_sparse_tcrossprod'
 )
 
-# Matrix::crossprod
 R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
-  ##require(Matrix)
   ## Mark: TODO.  What should be on the next line??  
-  zSparse <- array(1:9, c(3,3))  ## Matrix::sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
+  zSparse <- array(1:9, c(3,3))  ## sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
   if(transp == 1){ # use crossprod
-    Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
+    Asparse <- sparseMatrix(i = i, j = j, x = x)
     if(subset[1] < 0){ # No subset
-      ans.dsCMatrix <- Matrix::crossprod(Asparse, zSparse)
+      ans.dsCMatrix <- crossprod(Asparse, zSparse)
     } else{
-      ans.dsCMatrix <- Matrix::crossprod(Asparse[subset,], as.numeric(z))
+      ans.dsCMatrix <- crossprod(Asparse[subset,], as.numeric(z))
     }
   } else{ # Use %*%
-    Asparse <- Matrix::sparseMatrix(i = j, j = i, x = x)
+    Asparse <- sparseMatrix(i = j, j = i, x = x)
     if(subset[1] < 0){ # No subset
-      ans.dsCMatrix <- Matrix::crossprod(Asparse, zSparse)
+      ans.dsCMatrix <- crossprod(Asparse, zSparse)
     } else{
-      ans.dsCMatrix <- Matrix::crossprod(Asparse[,subset], as.numeric(z))
+      ans.dsCMatrix <- crossprod(Asparse[,subset], as.numeric(z))
     }
   }
   return(ans.dsCMatrix@x)
@@ -389,7 +382,7 @@ R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
 #' @param subset TODO
 #' @param transp TODO
 #' @export
-nimble_sparse_crossprod <- nimble::nimbleRcall(
+nimble_sparse_crossprod <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), z = double(1), n = double(), subset = double(1), transp = double()) {},
   returnType = double(1),
   Rfun = 'R_sparse_crossprod'
@@ -403,9 +396,8 @@ nimble_sparse_crossprod <- nimble::nimbleRcall(
 #' @param n TODO
 #' @export
 R_sparse_chol <- function(i, j, x, n) {
-  ##require(Matrix)
-  Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
-  ans.dsCMatrix <- t(Matrix::chol(Asparse[n:1,n:1]))
+  Asparse <- sparseMatrix(i = i, j = j, x = x)
+  ans.dsCMatrix <- t(chol(Asparse[n:1,n:1]))
   ans.dgTMatrix <- as(ans.dsCMatrix, 'dgTMatrix')
   i <- ans.dgTMatrix@i + 1
   j <- ans.dgTMatrix@j + 1
@@ -421,20 +413,17 @@ R_sparse_chol <- function(i, j, x, n) {
 #' @param x TODO
 #' @param n TODO
 #' @export
-nimble_sparse_chol <- nimble::nimbleRcall(
+nimble_sparse_chol <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), n = double()) {},
   returnType = double(2),
   Rfun = 'R_sparse_chol'
-  ##Rfun = 'BayesNSGP::R_sparse_chol'
 )
 
-# Matrix::solve
 R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
-  ##require(Matrix)
-  Asparse <- Matrix::sparseMatrix(i = i, j = j, x = x)
+  Asparse <- sparseMatrix(i = i, j = j, x = x)
   z_rev <- rev(z)
-  ans.dsCMatrix <- Matrix::solve(Asparse, z_rev, system = "L")
+  ans.dsCMatrix <- solve(Asparse, z_rev, system = "L")
   return(ans.dsCMatrix@x)
 }
 
@@ -445,7 +434,7 @@ R_sparse_solve <- function(i, j, x, z) {
 #' @param x TODO
 #' @param z TODO
 #' @export
-nimble_sparse_solve <- nimble::nimbleRcall(
+nimble_sparse_solve <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), z = double(1)) {},
   returnType = double(1),
   Rfun = 'R_sparse_solve'
@@ -477,43 +466,38 @@ nimble_sparse_solve <- nimble::nimbleRcall(
 #'
 #' @export
 #' 
-dmnorm_sgv <- nimble::nimbleFunction(
+dmnorm_sgv <- nimbleFunction(
   run = function(x = double(1), mean = double(1), U = double(2),
                  N = double(), k = double(), log = double(0, default = 1)) {
     # Components
     zo_ord <- x
     z1 <- nimble_sparse_crossprod(
-    ##z1 <- BayesNSGP::nimble_sparse_crossprod(
         i = U[,1], j = U[,2], x = U[,3], z = zo_ord - mean, n = N,
         subset = seq(from = 2, to = 2*N, by = 2), transp = 1)
     logdet_U <- -sum(log(U[U[,1] == U[,2],3]))
     z2 <- nimble_sparse_crossprod(
-    ##z2 <- BayesNSGP::nimble_sparse_crossprod(
         i = U[,1], j = U[,2], x = U[,3], z = z1, n = N,
         subset = seq(from = 1, to = 2*N, by = 2), transp = 0)
     Amat <- nimble_sparse_tcrossprod(
-    ##Amat <- BayesNSGP::nimble_sparse_tcrossprod(
         i = U[,1], j = U[,2], x = U[,3], 
         subset = seq(from = 1, to = 2*N, by = 2))
     Vmat_ord <- nimble_sparse_chol(i = Amat[,1], j = Amat[,2], x = Amat[,3], n = N)
-    ##Vmat_ord <- BayesNSGP::nimble_sparse_chol(i = Amat[,1], j = Amat[,2], x = Amat[,3], n = N)
     logdet_V <- sum(log(Vmat_ord[Vmat_ord[,1] == Vmat_ord[,2],3]))
     z3 <- nimble_sparse_solve(i = Vmat_ord[,1], j = Vmat_ord[,2], x = Vmat_ord[,3], z = z2)
-    ##z3 <- BayesNSGP::nimble_sparse_solve(i = Vmat_ord[,1], j = Vmat_ord[,2], x = Vmat_ord[,3], z = z2)
     lp <- -(logdet_U + logdet_V + 0.5*sum(z1^2) - 0.5*sum(z3^2)) - 0.5*1.83787706649*N
     returnType(double())
     return(lp)
-  }, where = getLoadingNamespace(), check = FALSE
+  }, check = FALSE
 )
 
-rmnorm_sgv <- nimble::nimbleFunction(
+rmnorm_sgv <- nimbleFunction(
   run = function(n = integer(), mean = double(1), U = double(2), N = double(), k = double()) {
     returnType(double(1))
     return(numeric(N))
-  }, where = getLoadingNamespace()
+  }
 )
 
-nimble::registerDistributions(list(
+registerDistributions(list(
   dmnorm_sgv = list(
     BUGSdist = 'dmnorm_sgv(mean, U, N, k)',
     types = c('value = double(1)', 'mean = double(1)', 'U = double(2)', 'N = double()', 'k = double()'),

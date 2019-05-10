@@ -1,5 +1,4 @@
 
-require(nimble, quietly = TRUE, warn.conflicts = FALSE)
 
 #================================================
 # Bayesian nonstationary Gaussian process 
@@ -61,7 +60,11 @@ orderCoordinatesMMD <- function(coords, exact = FALSE) {
     orderedIndices <- c(initialOrdering, rep(NA, 3*N))
     indexLookupVector <- order(initialOrdering)
     maxNeighbors <- floor(sqrt(N))
+<<<<<<< HEAD
     NN <- FNN::get.knn(coords, k = maxNeighbors)$nn.index
+=======
+    NN <- get.knn(s, k = maxNeighbors)$nn.index
+>>>>>>> f6191cbe517f7f79e1a125ced8beaa209bbb260b
     nextSpot <- N+1
     cycleCheckIndex <- -1
     for(i in 2:(3*N)) {
@@ -198,7 +201,45 @@ determineNeighbors <- function(coords, k) {
 #'
 #' @export
 #'
+<<<<<<< HEAD
 inverseEigen <- nimble::nimbleFunction(     
+=======
+# inverseEigen <- nimbleFunction(
+#   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
+#                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
+#     returnType(double(1))
+#     
+#     Gam_denom <- sqrt( eigen_comp2^2 + eigen_comp3^2 )
+#     Gam11 <- eigen_comp2/Gam_denom
+#     Gam22 <- eigen_comp2/Gam_denom
+#     Gam12 <- -eigen_comp3/Gam_denom
+#     Gam21 <- eigen_comp3/Gam_denom
+#     
+#     Lam2 <- exp(eigen_comp1)
+#     Lam1 <- eigen_comp2^2 + eigen_comp3^2 
+#     
+#     if( which_Sigma == 1 ){ # Return Sigma11
+#       return( Gam11^2*Lam1 + Gam12^2*Lam2 )
+#     }
+#     if( which_Sigma == 2 ){ # Return Sigma22
+#       return( Gam21^2*Lam1 + Gam22^2*Lam2 )
+#     }
+#     if( which_Sigma == 3 ){ # Return Sigma12
+#       return( Gam11*Gam21*Lam1 + Gam12*Gam22*Lam2 )
+#     }
+# 
+#     stop('Error in inverseEigen function')  ## prevent compiler warning
+#     return(numeric(10))                     ## prevent compiler warning
+#     
+#   }
+# )
+#
+# Alternatively, parameterize in terms of the two log eigenvalues and rotation parameter
+# eigen_comp1 = log(lambda1)
+# eigen_comp2 = log(lambda2)
+# eigen_comp3 = logit(2*gamma/pi)
+inverseEigen <- nimbleFunction(
+>>>>>>> f6191cbe517f7f79e1a125ced8beaa209bbb260b
   run = function( eigen_comp1 = double(1), eigen_comp2 = double(1),
                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
     returnType(double(1))
@@ -225,7 +266,7 @@ inverseEigen <- nimble::nimbleFunction(
     stop('Error in inverseEigen function')  ## prevent compiler warning
     return(numeric(10))                     ## prevent compiler warning
     
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -244,13 +285,13 @@ inverseEigen <- nimble::nimbleFunction(
 # 
 # @return A matrix with values of the corresponding Bessel function.
 # 
-# RbesselK <- nimble::nimbleFunction(
+# RbesselK <- nimbleFunction(
 #   run = function(dst = double(2), nu = double(0)) {
 #     xVector <- besselK(dst, nu)
 #     xMatrix <- matrix(xVector, dim(dst)[1], dim(dst)[2])
 #     returnType(double(2))
 #     return(xMatrix)
-#   }, where = getLoadingNamespace()
+#   }
 # )
 
 
@@ -306,7 +347,7 @@ inverseEigen <- nimble::nimbleFunction(
 #' 
 #' @export
 #' 
-nsCorr <- nimble::nimbleFunction(     
+nsCorr <- nimbleFunction(
   run = function( dist1_sq = double(2), dist2_sq = double(2), dist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1), 
                   nu = double(0), d = double(0) ) {
@@ -370,7 +411,7 @@ nsCorr <- nimble::nimbleFunction(
     }
     nsCorr <- Scale.mat*Unscl.corr
     return(nsCorr)
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -409,7 +450,7 @@ nsCorr <- nimble::nimbleFunction(
 #'
 #' @export
 #' 
-matern_corr <- nimble::nimbleFunction(     
+matern_corr <- nimbleFunction(
   run = function( dist = double(2), rho = double(0), nu = double(0) ) {
     returnType(double(2))
     
@@ -429,7 +470,7 @@ matern_corr <- nimble::nimbleFunction(
       diag(temp) <- 1
     }
     return(temp)
-  }, where = getLoadingNamespace()
+  }
 )
 
 #==============================================================================
@@ -495,7 +536,7 @@ matern_corr <- nimble::nimbleFunction(
 #'
 #' @export
 #' 
-nsCrosscorr <- nimble::nimbleFunction(     
+nsCrosscorr <- nimbleFunction(
   run = function( Xdist1_sq = double(2), Xdist2_sq = double(2), Xdist12 = double(2), 
                   Sigma11 = double(1), Sigma22 = double(1), Sigma12 = double(1),
                   PSigma11 = double(1), PSigma22 = double(1), PSigma12 = double(1), 
@@ -591,7 +632,7 @@ nsCrosscorr <- nimble::nimbleFunction(
     }
     nsCrosscorr <- Scale.mat*Unscl.corr
     return(nsCrosscorr)
-  }, where = getLoadingNamespace()
+  }
 )
 
 
@@ -805,8 +846,8 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
   
   if(!isotropic){
     # Calculate distances
-    dists1 <- StatMatch::mahalanobis.dist(data.x = Pcoords[,1], data.y = coords[,1], vc = diag(1))
-    dists2 <- StatMatch::mahalanobis.dist(data.x = Pcoords[,2], data.y = coords[,2], vc = diag(1))
+    dists1 <- mahalanobis.dist(data.x = Pcoords[,1], data.y = coords[,1], vc = diag(1))
+    dists2 <- mahalanobis.dist(data.x = Pcoords[,2], data.y = coords[,2], vc = diag(1))
     
     temp1a <- matrix(coords[,1], nrow = M, ncol = N, byrow = TRUE) 
     temp1b <- matrix(Pcoords[,1], nrow = M, ncol = N) 
@@ -822,7 +863,7 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
     dist2_sq <- dists2^2
     dist12 <- sgn_mat1*dists1*sgn_mat2*dists2
   } else{
-    dist1_sq <- StatMatch::mahalanobis.dist(data.x = Pcoords, data.y = coords, vc = diag(d))^2
+    dist1_sq <- mahalanobis.dist(data.x = Pcoords, data.y = coords, vc = diag(d))^2
     dist2_sq <- matrix(-1, M, N)
     dist12 <- matrix(0, M, N)
   }
@@ -1637,7 +1678,7 @@ nsgpModel <- function( tau_model   = "constant",
   )
   
   ## NIMBLE model object
-  Rmodel <- nimble::nimbleModel(code, constants, data, inits, name = thisName)
+  Rmodel <- nimbleModel(code, constants, data, inits, name = thisName)
   lp <- Rmodel$getLogProb()
   if(is(lp, 'try-error') || is.nan(lp) || is.na(lp) || abs(lp) == Inf) stop('model not properly initialized')
   
@@ -1719,10 +1760,17 @@ nsgpModel <- function( tau_model   = "constant",
 #' @export
 #' 
 nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, constants, seed = 0, ... ) {
+<<<<<<< HEAD
   
   if(!nimble::is.model(model)) stop('first argument must be NSGP NIMBLE model object')
   Rmodel <- if(nimble::is.Rmodel(model)) model else model$Rmodel
   if(!nimble::is.Rmodel(Rmodel)) stop('something went wrong')
+=======
+
+  if(!is.model(model)) stop('first argument must be NSGP NIMBLE model object')
+  Rmodel <- if(is.Rmodel(model)) model else model$Rmodel
+  if(!is.Rmodel(Rmodel)) stop('something went wrong')
+>>>>>>> f6191cbe517f7f79e1a125ced8beaa209bbb260b
   
   model_constants <- Rmodel$isDataEnv$.BayesNSGP_constants_list
   coords <- model_constants$coords
@@ -1864,7 +1912,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     k <- constants$k # number of neighbors
     nu <- constants$nu
     # Prediction/cross distances
-    P_nID <- FNN::get.knnx(coords, predCoords, k = k)$nn.index # Prediction NN
+    P_nID <- get.knnx(coords, predCoords, k = k)$nn.index # Prediction NN
     if(dist2_3d[1,1,1] == -1){
       Pdist <- nsCrossdist3d(coords, predCoords, P_nID, isotropic = TRUE)
     } else{
@@ -2201,20 +2249,20 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
         log_tau_vec = c(log_tau_vec_j, Plog_tau_vec_j), nu = nu, 
         nID = prednID_SGV, cond_on_y = predSGV_setup$condition_on_y_ord, 
         N = N, k = k, M = M, d = d )
-      Usm <- Matrix::sparseMatrix(i = U_j[,1], j = U_j[,2], x = U_j[,3])
+      Usm <- sparseMatrix(i = U_j[,1], j = U_j[,2], x = U_j[,3])
       Asm <- Usm[c(seq(from = 1, to = 2*N, by = 2), 2*N + 1:M),]
       Bsm <- Usm[seq(from = 2, to = 2*N, by = 2),]
       # Calculate V = rchol(W)
       Aoo_sm <- Asm[1:N,1:(2*N)]
-      Woo_sm <- Matrix::tcrossprod(Aoo_sm)[N:1,N:1]
-      Voo_sm <- Matrix::t(Matrix::chol(Woo_sm))[N:1,N:1]
+      Woo_sm <- tcrossprod(Aoo_sm)[N:1,N:1]
+      Voo_sm <- t(chol(Woo_sm))[N:1,N:1]
       Vsm <- Asm[,-(1:N)]
       Vsm[1:N,1:N] <- Voo_sm
       # Kriging predictor (mean zero)
-      ABtz <- Matrix::crossprod(t(Asm), Matrix::crossprod(Bsm, z - mu))
-      krigPredictor <- -as.numeric(Matrix::solve(Matrix::tcrossprod(Vsm), ABtz))
+      ABtz <- crossprod(t(Asm), crossprod(Bsm, z - mu))
+      krigPredictor <- -as.numeric(solve(tcrossprod(Vsm), ABtz))
       # Draw mean zero
-      pred_sample <- Matrix::solve(t(Vsm), rnorm(N+M), system = "L")
+      pred_sample <- solve(t(Vsm), rnorm(N+M), system = "L")
       # Combine (with mean)
       # postpred_draw <- Pmu + pred_sample[-(1:N)] + krigPredictor[-(1:N)]
       postpred_draw <- c(mu,Pmu) + as.numeric(pred_sample + krigPredictor)
