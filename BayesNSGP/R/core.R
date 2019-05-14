@@ -1551,14 +1551,14 @@ nsgpModel <- function( tau_model   = "constant",
     }
     if(likelihood == 'SGV') {
       setupSGV <- sgvSetup(locs = coords, k = constants_to_use$k, seed = mmd.seed)
-      constants_to_use$nID <- setupSGV$nID
-      constants_to_use$cond_on_y <- setupSGV$cond_on_y
+      constants_to_use$nID <- setupSGV$nID_ord
+      constants_to_use$cond_on_y <- setupSGV$condition_on_y_ord
       constants_to_use$num_NZ <- setupSGV$num_NZ
       ord <- setupSGV$ord
       # Re-order the coordinates/data
       coords <- coords[ord,]
       z <- z[ord]
-      dist_list <- nsDist3d(coords = coords, nID = setupSGV$nID, isotropic = useIsotropic)
+      dist_list <- nsDist3d(coords = coords, nID = setupSGV$nID_ord, isotropic = useIsotropic)
     }
     # Re-order any design matrices
     if(!is.null(constants_to_use$X_tau)) constants_to_use$X_tau <- constants_to_use$X_tau[ord,]
