@@ -14,10 +14,8 @@ library(StatMatch)
 library(ggplot2)
 library(gridExtra)
 library(RColorBrewer)
-nimbleOptions(verbose = TRUE)
-source("../BayesNSGP/BayesNSGP/R/core.R")
-source("../BayesNSGP/BayesNSGP/R/NNGP.R")
-source("../BayesNSGP/BayesNSGP/R/SGV.R")
+nimbleOptions(verbose = FALSE)
+library(BayesNSGP)
 
 ```
 
@@ -60,28 +58,12 @@ Now, set up the constants list for each likelihood:
 
 ```{r }
 # FullGP 
-dist_fullGP <- nsDist(locs)
-constants_fullGP <- list( dist1_sq = dist_fullGP$dist1_sq, dist2_sq = dist_fullGP$dist2_sq, 
-                          dist12 = dist_fullGP$dist12, nu = 0.5, N = N, Sigma_HP1 = 2, d = 2 )
-
+constants_fullGP <- list( nu = 0.5 )
 # NNGP
-nID_NNGP <- determineNeighbors(locs, k)
-dist_NNGP <- nsDist3d(locs, nID_NNGP)
-constants_NNGP <- list( dist1_3d = dist_NNGP$dist1_3d, dist2_3d = dist_NNGP$dist2_3d, 
-                        dist12_3d = dist_NNGP$dist12_3d, nu = 0.5, N = N, k = k, nID = nID_NNGP, 
-                        Sigma_HP1 = 2, d = 2 )
-
+constants_NNGP <- list( nu = 0.5, k = k )
 # SGV
-SGV_setup <- sgvSetup(locs = locs, k = k, seed = 3)
-nID_SGV <- SGV_setup$nID_ord
-dist_SGV <- nsDist3d(locs[SGV_setup$ord,], nID_SGV)
-constants_SGV <- list( dist1_3d = dist_SGV$dist1_3d, dist2_3d = dist_SGV$dist2_3d, 
-                       dist12_3d = dist_SGV$dist12_3d, num_NZ = 3*N + k*N - (k*(k+1)/2),
-                       nu = 0.5, N = N, k = k, nID = nID_SGV, cond_on_y = SGV_setup$condition_on_y_ord, 
-                       Sigma_HP1 = 2, d = 2 )
+constants_SGV <- list( nu = 0.5, k = k )
 
-niter <- 4000
-strt.kp <- 3001
 ```
 
 \    
@@ -92,25 +74,28 @@ First, we'll use the Full GP likelihood.
 
 ```{r, eval=FALSE}
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
-Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP, z = z )
-compl_model_fullGP <- compileNimble( Rmodel_fullGP )
-conf_model_fullGP <- configureMCMC( Rmodel_fullGP )
-nim_mcmc_fullGP <- buildMCMC(conf_model_fullGP)
-nim_Cmcmc_fullGP <- compileNimble(nim_mcmc_fullGP, project = Rmodel_fullGP)
+Rmodel <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP,
+                     z = z, coords = locs )
+conf <- configureMCMC(Rmodel)
 
+# Build/run
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-nim_Cmcmc_fullGP$run(niter)
+samples_fullGP <- runMCMC(Cmcmc, niter = 500, nburnin = 200)
 fullGP.tm <- proc.time() - prt
-postSamp_fullGP <- as.matrix(nim_Cmcmc_fullGP$mvSamples)[strt.kp:niter,]
 
 # Prediction
 prt <- proc.time()
-postSamp_pred_fullGP <- nsgpPredict( Rmodel_fullGP, postSamp_fullGP, locs, predCoords )
+pred_fullGP <- nsgpPredict( model = Rmodel, 
+                                     samples = samples_fullGP, 
+                                     coords.predict = predCoords )
 fullGP.pred.tm <- proc.time() - prt
 
 # system.time(samples <- nimbleMCMC(model = Rmodel, niter = niter, progressBar = FALSE, setSeed = TRUE))
-samplesList <- list(fullGP = postSamp_fullGP)
-predSamplesList <- list(fullGP = postSamp_pred_fullGP)
+samplesList <- list(fullGP = samples_fullGP)
+predSamplesList <- list(fullGP = pred_fullGP)
 ```
 
 \   
@@ -121,29 +106,59 @@ Next, we'll use the NNGP likelihood approximation, using $k=15$ nearest neighbor
 
 ```{r, eval=FALSE}
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
-Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP, z = z )
-compl_model_NNGP <- compileNimble( Rmodel_NNGP )
-conf_model_NNGP <- configureMCMC( Rmodel_NNGP )
-nim_mcmc_NNGP <- buildMCMC(conf_model_NNGP)
-nim_Cmcmc_NNGP <- compileNimble(nim_mcmc_NNGP, project = Rmodel_NNGP)
+Rmodel <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP,
+                     z = z, coords = locs )
+conf <- configureMCMC(Rmodel)
 
+# Build/run
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-nim_Cmcmc_NNGP$run(niter)
+samples_NNGP <- runMCMC(Cmcmc, niter = 500, nburnin = 200)
 NNGP.tm <- proc.time() - prt
-postSamp_NNGP <- as.matrix(nim_Cmcmc_NNGP$mvSamples)[strt.kp:niter,]
 
 # Prediction
 prt <- proc.time()
-postSamp_pred_NNGP <- nsgpPredict( Rmodel_NNGP, postSamp_NNGP, locs, predCoords )
+pred_NNGP <- nsgpPredict( model = Rmodel, 
+                         samples = samples_NNGP, 
+                         coords.predict = predCoords )
 NNGP.pred.tm <- proc.time() - prt
 
-samplesList$NNGP <- postSamp_NNGP
-predSamplesList$NNGP <- postSamp_pred_NNGP
+samplesList$NNGP <- samples_NNGP
+predSamplesList$NNGP <- pred_NNGP
 ```
 
 ### SGV
 
 Finally, we'll use the SGV likelihood approximation, again using $k=15$ nearest neighbors.
+
+```{r, eval=FALSE}
+# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
+Rmodel <- nsgpModel( likelihood = "SGV", constants = constants_SGV,
+                     z = z, coords = locs )
+conf <- configureMCMC(Rmodel)
+
+# Build/run
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+prt <- proc.time()
+samples_SGV <- runMCMC(Cmcmc, niter = 500, nburnin = 200)
+SGV.tm <- proc.time() - prt
+
+# Prediction
+prt <- proc.time()
+pred_SGV <- nsgpPredict( model = Rmodel, 
+                         samples = samples_SGV, 
+                         coords.predict = predCoords )
+SGV.pred.tm <- proc.time() - prt
+
+samplesList$SGV <- samples_SGV
+predSamplesList$SGV <- pred_SGV
+```
+
+
 
 ```{r, eval=FALSE}
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
