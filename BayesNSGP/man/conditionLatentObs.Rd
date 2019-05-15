@@ -4,12 +4,12 @@
 \alias{conditionLatentObs}
 \title{Assign conditioning sets for the SGV approximation}
 \usage{
-conditionLatentObs(nID, locs_ord, N)
+conditionLatentObs(nID, coords_ord, N)
 }
 \arguments{
 \item{nID}{N x k matrix of neighbor indices.}
 
-\item{locs_ord}{N x 2 matrix of locations.}
+\item{coords_ord}{N x 2 matrix of locations.}
 
 \item{N}{Scalar; number of locations (observed only!).}
 }

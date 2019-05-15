@@ -4,24 +4,29 @@
 \alias{sgvSetup}
 \title{One-time setup wrapper function for the SGV approximation}
 \usage{
-sgvSetup(locs, locs_pred = NULL, k = 15, seed = NULL)
+sgvSetup(coords, coords_pred = NULL, k = 15, seed = NULL,
+  pred.seed = NULL, order_coords = TRUE)
 }
 \arguments{
-\item{locs}{Matrix of observed locations.}
+\item{coords}{Matrix of observed locations.}
 
-\item{locs_pred}{Optional matrix of prediction locations.}
+\item{coords_pred}{Optional matrix of prediction locations.}
 
 \item{k}{Number of neighbors.}
 
 \item{seed}{TODO}
+
+\item{pred.seed}{TODO}
+
+\item{order_coords}{TODO}
 }
 \value{
 A list with the following components:
 \item{ord}{A vector of ordering position for the observed locations.}
 \item{ord_pred}{A vector of ordering position for the prediction 
-locations (if \code{locs_pred} is provided).}
+locations (if \code{coords_pred} is provided).}
 \item{ord_all}{A concatenated vector of \code{ord} and \code{ord_pred}.}
-\item{locs_ord}{A matrix of ordered locations (observed and prediction),
+\item{coords_ord}{A matrix of ordered locations (observed and prediction),
 included for convenience.}
 \item{nID_ord}{A matrix of (ordered) neighbor indices.}
 \item{condition_on_y_ord}{A matrix indicating whether the conditioning

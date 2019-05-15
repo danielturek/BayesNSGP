@@ -167,6 +167,25 @@ dmnorm_nngp <- nimbleFunction(
   }, check = FALSE
 )
 
+# ROxygen comments ----
+#' Function for the evaluating the NNGP approximate density.
+#'
+#' \code{dmnorm_nngp} (and \code{rmnorm_nngp}) calculate the approximate NNGP
+#' likelihood for a fixed set of parameters (i.e., A and D matrices). Finally,
+#' the distributions must be registered within \code{nimble}.
+#' 
+#' @param n N-vector of data.
+#' @param mean N-vector with current values of the mean
+#' @param AD N x (k+1) matrix; the first k columns are the 'A' matrix, and the
+#' last column is the 'D' vector.
+#' @param nID N x k matrix of neighbor indices.
+#' @param N Scalar; number of data measurements.
+#' @param k Scalar; number of nearest neighbors.
+#' 
+#' @return The NNGP approximate density.
+#'
+#' @export
+#' 
 rmnorm_nngp <- nimbleFunction(
   run = function(n = integer(), mean = double(1), AD = double(2), nID = double(2), N = double(), k = double()) {
     returnType(double(1))

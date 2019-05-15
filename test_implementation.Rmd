@@ -64,6 +64,9 @@ constants_NNGP <- list( nu = 0.5, k = k )
 # SGV
 constants_SGV <- list( nu = 0.5, k = k )
 
+nIter <- 2000
+nBurnin <- 1000
+
 ```
 
 \    
@@ -72,7 +75,7 @@ constants_SGV <- list( nu = 0.5, k = k )
 
 First, we'll use the Full GP likelihood.
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
 Rmodel <- nsgpModel( likelihood = "fullGP", constants = constants_fullGP,
                      z = z, coords = locs )
@@ -83,7 +86,7 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_fullGP <- runMCMC(Cmcmc, niter = 500, nburnin = 200)
+samples_fullGP <- runMCMC(Cmcmc, niter = nIter, nburnin = nBurnin)
 fullGP.tm <- proc.time() - prt
 
 # Prediction
@@ -104,7 +107,7 @@ predSamplesList <- list(fullGP = pred_fullGP)
 
 Next, we'll use the NNGP likelihood approximation, using $k=15$ nearest neighbors.
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
 Rmodel <- nsgpModel( likelihood = "NNGP", constants = constants_NNGP,
                      z = z, coords = locs )
@@ -115,7 +118,7 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_NNGP <- runMCMC(Cmcmc, niter = 500, nburnin = 200)
+samples_NNGP <- runMCMC(Cmcmc, niter = nIter, nburnin = nBurnin)
 NNGP.tm <- proc.time() - prt
 
 # Prediction
@@ -133,7 +136,7 @@ predSamplesList$NNGP <- pred_NNGP
 
 Finally, we'll use the SGV likelihood approximation, again using $k=15$ nearest neighbors.
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 # Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
 Rmodel <- nsgpModel( likelihood = "SGV", constants = constants_SGV,
                      z = z, coords = locs )
@@ -144,7 +147,7 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_SGV <- runMCMC(Cmcmc, niter = 500, nburnin = 200)
+samples_SGV <- runMCMC(Cmcmc, niter = nIter, nburnin = nBurnin)
 SGV.tm <- proc.time() - prt
 
 # Prediction
@@ -161,33 +164,13 @@ predSamplesList$SGV <- pred_SGV
 
 
 ```{r, eval=FALSE}
-# Defaults: tau_model = "constant", sigma_model = "constant", Sigma_model = "constant", mu_model = "constant"
-Rmodel_SGV <- nsgpModel( likelihood = "SGV", constants = constants_SGV, z = z_unord[SGV_setup$ord] )
-compl_model_SGV <- compileNimble( Rmodel_SGV )
-conf_model_SGV <- configureMCMC( Rmodel_SGV )
-nim_mcmc_SGV <- buildMCMC(conf_model_SGV)
-nim_Cmcmc_SGV <- compileNimble(nim_mcmc_SGV, project = Rmodel_SGV)
-
-prt <- proc.time()
-nim_Cmcmc_SGV$run(niter)
-SGV.tm <- proc.time() - prt
-postSamp_SGV <- as.matrix(nim_Cmcmc_SGV$mvSamples)[strt.kp:niter,]
-
-# Prediction
-SGV_setup <<- SGV_setup
-prt <- proc.time()
-postSamp_pred_SGV <- nsgpPredict( Rmodel_SGV, postSamp_SGV, locs, predCoords )
-SGV.pred.tm <- proc.time() - prt
-
-samplesList$SGV <- postSamp_SGV
-predSamplesList$SGV <- postSamp_pred_SGV
 
 timeList <- list(
   fullGP = fullGP.tm, fullGP.pred = fullGP.pred.tm,
   NNGP = NNGP.tm, NNGP.pred = NNGP.pred.tm,
   SGV = SGV.tm, SGV.pred = SGV.pred.tm
 )
-# save(samplesList, predSamplesList, timeList, file = "~/CASCADE_Projects/bayes_nsgp/test_implementation.RData")
+save(samplesList, predSamplesList, timeList, file = "~/CASCADE_Projects/bayes_nsgp/test_implementation.RData")
 
 ```
 
@@ -255,6 +238,7 @@ plot(samplesList[[1]][,"alpha"], type = "l", xlab = "", ylab = "Spatial variance
 lines(samplesList[[2]][,"alpha"], col = 4)
 lines(samplesList[[3]][,"alpha"], col = 3)
 abline(h = exp(alpha_vec[1]), col = 2)
+
 ```
 
 ```{r, fig.height=3, fig.width=10, echo=FALSE}
@@ -283,13 +267,16 @@ grid.arrange(
 grid.arrange(
     ggplot(data.frame(x = locs[,1], y = locs[,2], data = z), aes(x = x, y = y, color = data)) + labs(x = NULL, y = NULL) +
       geom_point() + scale_color_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1),
+    ggplot(data.frame(x = locs[,1], y = locs[,2], obsPred = colMeans(predSamplesList$SGV$obs)), aes(x = x, y = y, color = obsPred)) + 
+      labs(x = NULL, y = NULL) +
+      geom_point() + scale_color_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1),
     ggplot(data.frame(x = predCoords[,1], y = predCoords[,2], mean = colMeans(predSamplesList$SGV$pred)), 
            aes(x = x, y = y, fill = mean)) + labs(x = NULL, y = NULL) +
       geom_tile() + scale_fill_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1),
     ggplot(data.frame(x = predCoords[,1], y = predCoords[,2], sd = apply(predSamplesList$SGV$pred,2,sd)), 
            aes(x = x, y = y, fill = sd)) + labs(x = NULL, y = NULL) +
       geom_tile() + scale_fill_gradientn(colors = brewer.pal(9, "Spectral")) + coord_fixed(ratio = 1),
-    ncol = 3, top = "SGV"
+    ncol = 2, top = "SGV"
   )
 
 ```

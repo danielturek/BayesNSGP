@@ -1537,7 +1537,7 @@ nsgpModel <- function( tau_model   = "constant",
     dist_list <- nsDist(coords = coords, isotropic = useIsotropic)
   } else { ## likelihood is NNGP, or SGV:
     if(is.null(constants_to_use$k)) stop(paste0('missing k constants argument for ', likelihood, ' likelihood'))
-    mmd.seed <- seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
+    mmd.seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
     if(likelihood == 'NNGP') {
       # Re-order the coordinates/data
       coords_mmd <- orderCoordinatesMMD(coords)
@@ -1550,7 +1550,7 @@ nsgpModel <- function( tau_model   = "constant",
       dist_list <- nsDist3d(coords = coords, nID = nID, isotropic = useIsotropic)
     }
     if(likelihood == 'SGV') {
-      setupSGV <- sgvSetup(locs = coords, k = constants_to_use$k, seed = mmd.seed)
+      setupSGV <- sgvSetup(coords = coords, k = constants_to_use$k, seed = mmd.seed)
       constants_to_use$nID <- setupSGV$nID_ord
       constants_to_use$cond_on_y <- setupSGV$condition_on_y_ord
       constants_to_use$num_NZ <- setupSGV$num_NZ
@@ -1743,10 +1743,10 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   
   ## order predCoords for SGV
   if( modelsList$likelihood == "SGV" ) {
-    predSGV_setup <- sgvSetup(coords, predCoords, k, seed = model_constants$mmd.seed)
+    pred.mmd.seed <- sample(1e5, 1)
+    predSGV_setup <- sgvSetup(coords = coords, coords_pred = predCoords, k = k, pred.seed = pred.mmd.seed, order_coords = FALSE)
     prednID_SGV <- predSGV_setup$nID_ord
     obs_ord <- predSGV_setup$ord
-    if( !all(obs_ord == model_constants$ord) ) stop("Mismatch in ordering coords from nsgpModel and nsgpPredict.")
     pred_ord <- predSGV_setup$ord_pred
     predCoords <- predCoords[pred_ord,]
   }
@@ -1889,9 +1889,9 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     nu <- constants$nu
     # Prediction setup
     if(dist2_3d[1,1,1] == -1){
-      preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV, isotropic = TRUE )
+      preddist_SGV <- nsDist3d( predSGV_setup$coords_ord, prednID_SGV, isotropic = TRUE )
     } else{
-      preddist_SGV <- nsDist3d( predSGV_setup$locs_ord, prednID_SGV )
+      preddist_SGV <- nsDist3d( predSGV_setup$coords_ord, prednID_SGV )
     }
     Alldist1_3d <- preddist_SGV$dist1_3d
     Alldist2_3d <- preddist_SGV$dist2_3d
@@ -2222,7 +2222,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       postPredDraws[j,] <- postpred_draw
       PPD_obs_ord <- postPredDraws[,1:N]
       PPD_pred_ord <- postPredDraws[,-(1:N)]
-      PPD_obs_orig <- PPD_obs_ord[,order(predSGV_setup$ord)]
+      PPD_obs_orig <- PPD_obs_ord[,order(model_constants$ord)]
       PPD_pred_orig <- PPD_pred_ord[,order(predSGV_setup$ord_pred)]
     } else stop('')
     
@@ -2232,11 +2232,11 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   cat("|\n")
   
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
-    output <- list(obs = NULL, pred = postPredDraws)
+    output <- list(obs = NULL, pred = postPredDraws, pred.mmd.seed = NULL)
   } else if( modelsList$likelihood == "NNGP" ){ # Predictions for the NNGP likelihood
-    output <- list(obs = NULL, pred = postPredDraws)
+    output <- list(obs = NULL, pred = postPredDraws, pred.mmd.seed = NULL)
   } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
-    output <- list(obs = PPD_obs_orig[,model_constants$ord], pred = PPD_pred_orig[,pred_ord]) # Re-order to correspond to original ordering
+    output <- list(obs = PPD_obs_orig, pred = PPD_pred_orig, pred.mmd.seed = pred.mmd.seed) 
   } else stop('')
   
   return(output)

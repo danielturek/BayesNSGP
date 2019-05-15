@@ -21,11 +21,7 @@ rmnorm_sgv(n, mean, U, N, k)
 TODO
 }
 \description{
-\code{rmnorm_sgv} (and \code{rmnorm_sgv}) calculate the approximate SGV
+\code{dmnorm_sgv} (and \code{rmnorm_sgv}) calculate the approximate SGV
 likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
 the distributions must be registered within \code{nimble}.
-}
-\examples{
-# TODO
-
 }

@@ -84,50 +84,50 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_fullGP <- runMCMC(Cmcmc, niter = 10000, nburnin = 0)
+samples_fullGP <- runMCMC(Cmcmc, niter = 40000, nburnin = 0)
 time_fullGP <- proc.time() - prt
 
-save(samples_fullGP, time_fullGP, file = "application2_fullGP_full.RData")
-
-# MCMC setup ====================================
-# Distance matrices and constants
-constants <- list( nu = 0.5, k = 15,
-                   tau_knot_coords = knot_coords, tau_HP1 = 10, tau_HP2 = 5, tau_HP3 = 10, tau_HP4 = 10,
-                   sigma_knot_coords = knot_coords, sigma_HP1 = 10, sigma_HP2 = 5, sigma_HP3 = 10, sigma_HP4 = 10,
-                   X_Sigma = Xmat1, Sigma_HP1 = 5, Sigma_HP5 = 50, X_mu = Xmat2, mu_HP1 = 10 )
-
-# Setup
-Rmodel <- nsgpModel(likelihood = "SGV", constants = constants, 
-                    coords = coords, z = z, tau_model = "approxGP", 
-                    sigma_model = "approxGP", mu_model = "linReg", 
-                    Sigma_model = "compReg")
-conf <- configureMCMC(Rmodel)
-conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
-conf$removeSamplers(c("Sigma_coef1[1]","Sigma_coef1[2]",
-                      "Sigma_coef2[1]","Sigma_coef2[2]",
-                      "Sigma_coef3[1]","Sigma_coef3[2]"))
-conf$removeSamplers(c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"))
-conf$removeSamplers(c("tauGP_mu","tauGP_phi","tauGP_sigma"))
-conf$addSampler(target = c("beta[1]","beta[2]","beta[3]",
-                           "Sigma_coef1[1]","Sigma_coef1[2]",
-                           "Sigma_coef2[1]","Sigma_coef2[2]"), type = "RW_block")
-conf$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]"), type = "RW_block")
-conf$addSampler(target = c("beta[4]"), type = "RW_block")
-conf$addSampler(target = c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"), type = "RW_block")
-conf$addSampler(target = c("tauGP_mu","tauGP_phi","tauGP_sigma"), type = "RW_block")
-conf$getSamplers()
-conf$addMonitors(c("w_sigma", "w_tau"))
-
-# Build/run
-Rmcmc <- buildMCMC(conf)
-Cmodel <- compileNimble(Rmodel)
-Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
-prt <- proc.time()
-samples_SGV <- runMCMC(Cmcmc, niter = 100, nburnin = 0)
-time_SGV <- proc.time() - prt
-
-save(samples_SGV, time_SGV, file = "application2_SGV_full.RData")
-
+save(samples_fullGP, time_fullGP, file = "application2_fullGP_full_long.RData")
+# 
+# # MCMC setup ====================================
+# # Distance matrices and constants
+# constants <- list( nu = 0.5, k = 15,
+#                    tau_knot_coords = knot_coords, tau_HP1 = 10, tau_HP2 = 5, tau_HP3 = 10, tau_HP4 = 10,
+#                    sigma_knot_coords = knot_coords, sigma_HP1 = 10, sigma_HP2 = 5, sigma_HP3 = 10, sigma_HP4 = 10,
+#                    X_Sigma = Xmat1, Sigma_HP1 = 5, Sigma_HP5 = 50, X_mu = Xmat2, mu_HP1 = 10 )
+# 
+# # Setup
+# Rmodel <- nsgpModel(likelihood = "SGV", constants = constants, 
+#                     coords = coords, z = z, tau_model = "approxGP", 
+#                     sigma_model = "approxGP", mu_model = "linReg", 
+#                     Sigma_model = "compReg")
+# conf <- configureMCMC(Rmodel)
+# conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
+# conf$removeSamplers(c("Sigma_coef1[1]","Sigma_coef1[2]",
+#                       "Sigma_coef2[1]","Sigma_coef2[2]",
+#                       "Sigma_coef3[1]","Sigma_coef3[2]"))
+# conf$removeSamplers(c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"))
+# conf$removeSamplers(c("tauGP_mu","tauGP_phi","tauGP_sigma"))
+# conf$addSampler(target = c("beta[1]","beta[2]","beta[3]",
+#                            "Sigma_coef1[1]","Sigma_coef1[2]",
+#                            "Sigma_coef2[1]","Sigma_coef2[2]"), type = "RW_block")
+# conf$addSampler(target = c("Sigma_coef3[1]","Sigma_coef3[2]"), type = "RW_block")
+# conf$addSampler(target = c("beta[4]"), type = "RW_block")
+# conf$addSampler(target = c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"), type = "RW_block")
+# conf$addSampler(target = c("tauGP_mu","tauGP_phi","tauGP_sigma"), type = "RW_block")
+# conf$getSamplers()
+# conf$addMonitors(c("w_sigma", "w_tau"))
+# 
+# # Build/run
+# Rmcmc <- buildMCMC(conf)
+# Cmodel <- compileNimble(Rmodel)
+# Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+# prt <- proc.time()
+# samples_SGV <- runMCMC(Cmcmc, niter = 100, nburnin = 0)
+# time_SGV <- proc.time() - prt
+# 
+# save(samples_SGV, time_SGV, file = "application2_SGV_full.RData")
+# 
 
 
 

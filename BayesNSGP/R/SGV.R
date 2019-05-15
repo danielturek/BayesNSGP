@@ -32,7 +32,7 @@
 #' per SGV analysis.
 #' 
 #' @param nID N x k matrix of neighbor indices.
-#' @param locs_ord N x 2 matrix of locations.
+#' @param coords_ord N x 2 matrix of locations.
 #' @param N Scalar; number of locations (observed only!).
 #' 
 #' @return A matrix indicating whether the conditioning set for each location 
@@ -43,11 +43,11 @@
 #'
 #' @export
 #' 
-conditionLatentObs <- function( nID, locs_ord, N ){
+conditionLatentObs <- function( nID, coords_ord, N ){
   
   Nall <- nrow(nID)
   k <- ncol(nID)
-  d <- ncol(locs_ord)
+  d <- ncol(coords_ord)
   
   cond_on_y <- matrix(0, Nall, k) 
   cond_on_y[nID == -1] <- -1 ## populate unused values with -1, to prevent a warning from NIMBLE
@@ -61,8 +61,8 @@ conditionLatentObs <- function( nID, locs_ord, N ){
     }
     ind_h_i <- which(size_intrsct_qyj_qi == max(size_intrsct_qyj_qi))
     h_i <- q_i[ind_h_i]
-    ind_k_i <- which.min( as.numeric(mahalanobis.dist(data.x = matrix(locs_ord[i,], ncol = d, byrow = TRUE),
-                                                                 data.y = matrix(locs_ord[h_i,], ncol = d, byrow = TRUE),
+    ind_k_i <- which.min( as.numeric(mahalanobis.dist(data.x = matrix(coords_ord[i,], ncol = d, byrow = TRUE),
+                                                                 data.y = matrix(coords_ord[h_i,], ncol = d, byrow = TRUE),
                                                                  vc = diag(d))) ) 
     k_i <- h_i[ind_k_i]
     
@@ -86,17 +86,19 @@ conditionLatentObs <- function( nID, locs_ord, N ){
 #' neighbors, and (3) determine the conditioning set. This function only needs
 #' to be run once per SGV analysis.
 #' 
-#' @param locs Matrix of observed locations.
-#' @param locs_pred Optional matrix of prediction locations.
+#' @param coords Matrix of observed locations.
+#' @param coords_pred Optional matrix of prediction locations.
 #' @param k Number of neighbors.
 #' @param seed TODO
+#' @param pred.seed TODO
+#' @param order_coords TODO
 #' 
 #' @return A list with the following components:
 #' \item{ord}{A vector of ordering position for the observed locations.}
 #' \item{ord_pred}{A vector of ordering position for the prediction 
-#' locations (if \code{locs_pred} is provided).}
+#' locations (if \code{coords_pred} is provided).}
 #' \item{ord_all}{A concatenated vector of \code{ord} and \code{ord_pred}.}
-#' \item{locs_ord}{A matrix of ordered locations (observed and prediction),
+#' \item{coords_ord}{A matrix of ordered locations (observed and prediction),
 #' included for convenience.}
 #' \item{nID_ord}{A matrix of (ordered) neighbor indices.}
 #' \item{condition_on_y_ord}{A matrix indicating whether the conditioning
@@ -108,52 +110,54 @@ conditionLatentObs <- function( nID, locs_ord, N ){
 #'
 #' @export
 #' 
-sgvSetup <- function( locs, locs_pred = NULL, k = 15, seed = NULL ){
+sgvSetup <- function( coords, coords_pred = NULL, k = 15, seed = NULL, pred.seed = NULL, order_coords = TRUE ){
   
   if(is.null(seed)) seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
+  if(is.null(pred.seed)) pred.seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
   
-  d <- ncol(locs) # Spatial dimension
-  n <- nrow(locs) # Number of (observed) locations
+  d <- ncol(coords) # Spatial dimension
+  n <- nrow(coords) # Number of (observed) locations
   num_NZ <- 3*n + k*n - (k*(k+1)/2)
   
   #--------------------------------------------------------
   # Task 1: Order the locations
   #--------------------------------------------------------
-  set.seed(seed)
-  if(is.null(locs_pred)){ # If no prediction
-    locs_mmd <- orderCoordinatesMMD(locs )
-    locs_pred_mmd <- NULL
-    ord <- locs_mmd$orderedIndicesNoNA
+  if(order_coords){
+    set.seed(seed)
+    coords_mmd <- orderCoordinatesMMD(coords )
+    ord <- coords_mmd$orderedIndicesNoNA
+  } else{
+    coords_mmd <- coords
+    ord <- 1:n
+  }
+  
+  if(is.null(coords_pred)){ # If no prediction
+    coords_pred_mmd <- NULL
     ord_pred <- NULL
     ord_all <- ord
-    locs_ord <- locs[ord_all,]
-    
+    coords_ord <- coords[ord_all,]
   } else{
-    n_pred <- nrow(locs_pred) # Number of prediction locations
-    # locs_ord <- orderCoordinatesMMD(locs)
-    # locs_pred_ord <- orderCoordinatesMMD(locs_pred)
-    
-    locs_mmd <- orderCoordinatesMMD(locs)
-    locs_pred_mmd <- orderCoordinatesMMD(locs_pred)
-    ord <- locs_mmd$orderedIndicesNoNA
-    ord_pred <- locs_pred_mmd$orderedIndicesNoNA
+    n_pred <- nrow(coords_pred) # Number of prediction locations
+    set.seed(pred.seed)
+    coords_pred_mmd <- orderCoordinatesMMD(coords_pred)
+    ord_pred <- coords_pred_mmd$orderedIndicesNoNA
     ord_all <- c(ord, n+ord_pred)
-    locs_ord <- rbind(locs, locs_pred)[ord_all,]
+    coords_ord <- rbind(coords, coords_pred)[ord_all,]
   }
   
   #--------------------------------------------------------
   # Task 2: Get nearest neighbors
   #--------------------------------------------------------
-  nID_ord <- determineNeighbors(locs_ord, k)
+  nID_ord <- determineNeighbors(coords_ord, k)
   
   #--------------------------------------------------------
   # Task 3: Conditioning on y or z?
   #--------------------------------------------------------
-  condition_on_y_ord <- conditionLatentObs( nID_ord, locs_ord, n )
+  condition_on_y_ord <- conditionLatentObs( nID_ord, coords_ord, n )
   
   return(list( seed = seed, num_NZ = num_NZ,
                ord = ord, ord_pred = ord_pred, ord_all = ord_all, 
-               locs_ord = locs_ord, nID_ord = nID_ord, 
+               coords_ord = coords_ord, nID_ord = nID_ord, 
                condition_on_y_ord = condition_on_y_ord ))
 }
 
@@ -322,7 +326,13 @@ calculateU_ns <- nimbleFunction(  # Create the sparse U matrix for specific thet
   }, check = FALSE
 )
 
-
+# ROxygen comments ----
+#' nimble_sparse_tcrossprod
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param subset TODO
+#' @export
 R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
   Asparse <- sparseMatrix(i = i, j = j, x = x)
   if(subset[1] < 0){ # No subset
@@ -351,6 +361,16 @@ nimble_sparse_tcrossprod <- nimbleRcall(
   Rfun = 'R_sparse_tcrossprod'
 )
 
+# ROxygen comments ----
+#' nimble_sparse_crossprod
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param z TODO
+#' @param n TODO
+#' @param subset TODO
+#' @param transp TODO
+#' @export
 R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
   ## Mark: TODO.  What should be on the next line??  
   zSparse <- array(1:9, c(3,3))  ## sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
@@ -419,6 +439,13 @@ nimble_sparse_chol <- nimbleRcall(
   Rfun = 'R_sparse_chol'
 )
 
+# ROxygen comments ----
+#' nimble_sparse_solve
+#' @param i TODO
+#' @param j TODO
+#' @param x TODO
+#' @param z TODO
+#' @export
 R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
   Asparse <- sparseMatrix(i = i, j = j, x = x)
@@ -490,6 +517,22 @@ dmnorm_sgv <- nimbleFunction(
   }, check = FALSE
 )
 
+# ROxygen comments ----
+#' Function for the evaluating the SGV approximate density.
+#'
+#' \code{dmnorm_sgv} (and \code{rmnorm_sgv}) calculate the approximate SGV
+#' likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
+#' the distributions must be registered within \code{nimble}.
+#' 
+#' @param n TODO
+#' @param mean TODO
+#' @param U TODO
+#' @param N TODO
+#' @param k TODO
+#' 
+#' @return TODO
+#'
+#' @export
 rmnorm_sgv <- nimbleFunction(
   run = function(n = integer(), mean = double(1), U = double(2), N = double(), k = double()) {
     returnType(double(1))
