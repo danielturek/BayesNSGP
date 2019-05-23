@@ -57,7 +57,7 @@ Xmat_pred <- unname(lm(longitude ~ Zelevation*Zslope10, x = TRUE, data = COpredD
 #================================================
 constants_PacScher <- list( nu = 2, Sigma_knot_coords = knot_coords,
                             Sigma_HP1 = c(10,10), Sigma_HP2 = rep(5,2), Sigma_HP3 = rep(3.85,2), 
-                            Sigma_HP4 = c(10,20), Sigma_HP5 = 16, mu_HP1 = 10 )
+                            Sigma_HP4 = c(10,20), maxAnisoDist = 16, mu_HP1 = 10 )
 
 # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant"
 Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_PacScher, 
@@ -68,13 +68,13 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_PacScher <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000)
+samples_PacScher <- runMCMC(Cmcmc, niter = 50000, nburnin = 30000)
 time_PacScher <- proc.time() - prt
 
 # Prediction
 prt <- proc.time()
 pred_PacScher <- nsgpPredict(model = Rmodel, 
-                             samples = samples_PacScher[seq(10,10000,10),], 
+                             samples = samples_PacScher[seq(5,20000,5),], 
                              coords.predict = predCoords)
 time_PacScher_pred <- proc.time() - prt
 
@@ -86,7 +86,7 @@ save(samples_PacScher, time_PacScher, pred_PacScher, time_PacScher_pred, file = 
 constants_RisserCalder <- list( nu = 0.5, X_mu = Xmat, mu_HP1 = 10,
                                 X_sigma = Xmat, log_sigma_HP1 = 10,
                                 X_Sigma = Xmat, Sigma_HP1 = c(10,10), 
-                                Sigma_HP2 = c(2,2), Sigma_HP5 = 16)
+                                Sigma_HP2 = c(2,2), maxAnisoDist = 16)
 
 # Defaults: tau_model = "constant"
 Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_RisserCalder, coords = coords, z = z, 
@@ -98,12 +98,12 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_RisserCalder <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000)
+samples_RisserCalder <- runMCMC(Cmcmc, niter = 30000, nburnin = 10000)
 time_RisserCalder <- proc.time() - prt
 
 # Prediction
 prt <- proc.time()
-pred_RisserCalder <- nsgpPredict(model = Rmodel, samples = samples_RisserCalder[seq(10,10000,10),], 
+pred_RisserCalder <- nsgpPredict(model = Rmodel, samples = samples_RisserCalder[seq(5,20000,5),], 
                                  coords.predict = predCoords, 
                                  PX_sigma = Xmat_pred, PX_Sigma = Xmat_pred, PX_mu = Xmat_pred )
 time_RisserCalder_pred <- proc.time() - prt

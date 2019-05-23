@@ -868,7 +868,7 @@ nsCrossdist <- function(coords, Pcoords, scale_factor = NULL, isotropic = FALSE 
 #' @examples
 #' # Generate some coordinates and neighbors
 #' coords <- cbind(runif(100),runif(100))
-#' Pcoords <- cbind(runif(200),runif(200))
+#' predCoords <- cbind(runif(200),runif(200))
 #' P_nID <- FNN::get.knnx(coords, predCoords, k = 10)$nn.index # Prediction NN
 #' # Calculate distances
 #' Pdist <- nsCrossdist3d(coords, predCoords, P_nID)
@@ -1801,7 +1801,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     constants_to_use$sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   if( modelsList$Sigma %in% c('npApproxGP', 'npApproxGPIso') ) {
-    if(is.null(model_constants$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', Sigma_model))
+    if(is.null(model_constants$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', modelsList$Sigma))
     constants_to_use$Sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   ## check for discrepancies in any duplicates, between
