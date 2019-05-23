@@ -203,7 +203,7 @@ inverseEigen <- nimble::nimbleFunction(
                   eigen_comp3 = double(1), which_Sigma = double(0) ) {
     returnType(double(1))
     
-    rotAngle <- (3.141593/2)*exp(eigen_comp3)/(1 + exp(eigen_comp3)) # pi = 3.141593
+    rotAngle <- (3.141592653/2)*exp(eigen_comp3)/(1 + exp(eigen_comp3)) # pi = 3.141592653
     Gam11 <- cos(rotAngle)
     Gam22 <- cos(rotAngle)
     Gam12 <- -sin(rotAngle)
@@ -1028,9 +1028,10 @@ nsgpModel <- function( tau_model   = "constant",
         for(l in 1:p_tau){
           delta[l] ~ dnorm(0, sd = tau_HP1)
         }
+        tau_constraint1 ~ dconstraint( max(abs(log_tau_vec[1:N])) < maxAbsLogSD )
       }),
-      constants_needed = c("X_tau", "p_tau", "tau_HP1"),
-      inits = list(delta = quote(rep(0, p_tau)))
+      constants_needed = c("X_tau", "p_tau", "tau_HP1", "maxAbsLogSD"),
+      inits = list(delta = quote(rep(0, p_tau)), tau_constraint1 = 1)
     ),
     
     approxGP = list(
@@ -1043,25 +1044,26 @@ nsgpModel <- function( tau_model   = "constant",
       ## 7. tau_knot_dist    p_tau x p_tau matrix of inter-point Euclidean distances, knot locations
       ## 8. p_tau            Number of knot locations
       code = quote({
-        
         log_tau_vec[1:N] <- tauGP_mu*ones[1:N] + tauGP_sigma*Pmat_tau[1:N,1:p_tau] %*% w_tau[1:p_tau]
         Pmat_tau[1:N,1:p_tau] <- matern_corr(tau_cross_dist[1:N,1:p_tau], tauGP_phi, tau_HP2)
         Vmat_tau[1:p_tau,1:p_tau] <- matern_corr(tau_knot_dist[1:p_tau,1:p_tau], tauGP_phi, tau_HP2)
         w_tau_mean[1:p_tau] <- 0*ones[1:p_tau]
         w_tau[1:p_tau] ~ dmnorm( mean = w_tau_mean[1:p_tau], prec = Vmat_tau[1:p_tau,1:p_tau] )
-        
         # Hyperparameters
         tauGP_mu ~ dnorm(0, sd = tau_HP1)
         tauGP_phi ~ dunif(0, tau_HP3) # Range parameter, GP
         tauGP_sigma ~ dunif(0, tau_HP4) # SD parameter, GP
-        
+        # Constraint
+        tau_constraint1 ~ dconstraint( max(abs(log_tau_vec[1:N])) < maxAbsLogSD )
       }),
-      constants_needed = c("ones", "tau_knot_coords", "tau_cross_dist", "tau_knot_dist", "p_tau", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4"),
+      constants_needed = c("ones", "tau_knot_coords", "tau_cross_dist", "tau_knot_dist", 
+                           "p_tau", "tau_HP1", "tau_HP2", "tau_HP3", "tau_HP4", "maxAbsLogSD"),
       inits = list(
         w_tau = quote(rep(0, p_tau)),
         tauGP_mu = quote(0),
         tauGP_phi = quote(tau_HP3/2),
-        tauGP_sigma = quote(tau_HP4/2)
+        tauGP_sigma = quote(tau_HP4/2),
+        tau_constraint1 = 1
       )
       
     )
@@ -1093,9 +1095,12 @@ nsgpModel <- function( tau_model   = "constant",
         for(l in 1:p_sigma){
           alpha[l] ~ dnorm(0, sd = sigma_HP1)
         }
+        # Constraint
+        sigma_constraint1 ~ dconstraint( max(abs(log_sigma_vec[1:N])) < maxAbsLogSD )
       }),
-      constants_needed = c("X_sigma", "p_sigma", "sigma_HP1"),
-      inits = list(alpha = quote(rep(0, p_sigma)))
+      constants_needed = c("X_sigma", "p_sigma", "sigma_HP1", "maxAbsLogSD"),
+      inits = list(alpha = quote(rep(0, p_sigma)),
+                   sigma_constraint1 = 1)
     ),
     
     approxGP = list(
@@ -1108,24 +1113,26 @@ nsgpModel <- function( tau_model   = "constant",
       ## 7. sigma_knot_dist  p_sigma x p_sigma matrix of inter-point Euclidean distances, knot locations
       ## 8. p_sigma          Number of knot locations
       code = quote({
-        
         log_sigma_vec[1:N] <- sigmaGP_mu*ones[1:N] + sigmaGP_sigma*Pmat_sigma[1:N,1:p_sigma] %*% w_sigma[1:p_sigma]
         Pmat_sigma[1:N,1:p_sigma] <- matern_corr(sigma_cross_dist[1:N,1:p_sigma], sigmaGP_phi, sigma_HP2)
         Vmat_sigma[1:p_sigma,1:p_sigma] <- matern_corr(sigma_knot_dist[1:p_sigma,1:p_sigma], sigmaGP_phi, sigma_HP2)
         w_sigma_mean[1:p_sigma] <- 0*ones[1:p_sigma]
         w_sigma[1:p_sigma] ~ dmnorm( mean = w_sigma_mean[1:p_sigma], prec = Vmat_sigma[1:p_sigma,1:p_sigma] )
-        
         # Hyperparameters
         sigmaGP_mu ~ dnorm(0, sd = sigma_HP1)
         sigmaGP_phi ~ dunif(0, sigma_HP3) # Range parameter, GP
         sigmaGP_sigma ~ dunif(0, sigma_HP4) # SD parameter, GP
+        # Constraint
+        sigma_constraint1 ~ dconstraint( max(abs(log_sigma_vec[1:N])) < maxAbsLogSD )
       }),
-      constants_needed = c("ones", "sigma_knot_coords", "sigma_cross_dist", "sigma_knot_dist", "p_sigma", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4"),
+      constants_needed = c("ones", "sigma_knot_coords", "sigma_cross_dist", "sigma_knot_dist", 
+                           "p_sigma", "sigma_HP1", "sigma_HP2", "sigma_HP3", "sigma_HP4", "maxAbsLogSD"),
       inits = list(
         w_sigma = quote(rep(0, p_sigma)),
         sigmaGP_mu = quote(0),
         sigmaGP_phi = quote(sigma_HP3/2),
-        sigmaGP_sigma = quote(sigma_HP4/2)
+        sigmaGP_sigma = quote(sigma_HP4/2),
+        sigma_constraint1 = 1
       )
     )
   )
@@ -1145,15 +1152,15 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma22[1:N] <- ones[1:N]*(Sigma_coef2*cos(Sigma_coef3)*cos(Sigma_coef3) + Sigma_coef1*sin(Sigma_coef3)*sin(Sigma_coef3))
         Sigma12[1:N] <- ones[1:N]*(Sigma_coef1*cos(Sigma_coef3)*sin(Sigma_coef3) - Sigma_coef2*cos(Sigma_coef3)*sin(Sigma_coef3))
         
-        Sigma_coef1 ~ dunif(0, Sigma_HP1) # phi1
-        Sigma_coef2 ~ dunif(0, Sigma_HP1) # phi2
+        Sigma_coef1 ~ dunif(0, Sigma_HP1[1]) # phi1
+        Sigma_coef2 ~ dunif(0, Sigma_HP1[1]) # phi2
         Sigma_coef3 ~ dunif(0, 1.570796)  # eta --> 1.570796 = pi/2
         
       }),
       constants_needed = c("ones", "Sigma_HP1"),
       inits = list(
-        Sigma_coef1 = quote(Sigma_HP1/2),
-        Sigma_coef2 = quote(Sigma_HP1/2),
+        Sigma_coef1 = quote(Sigma_HP1[1]/2),
+        Sigma_coef2 = quote(Sigma_HP1[1]/2),
         Sigma_coef3 = 0.7853982 # pi/4
       )
     ),
@@ -1162,11 +1169,11 @@ nsgpModel <- function( tau_model   = "constant",
       ## 2. Sigma_HP1            Standard deviation for the anisotropy components
       ## 3. Sigma_coef{1,2,3}    Vectors of length p_Sigma; represents the anisotropy components
       code = quote({
-        Sigma11[1:N] <- ones[1:N]*Sigma_coef1
-        Sigma22[1:N] <- ones[1:N]*Sigma_coef1
+        Sigma11[1:N] <- ones[1:N]*Sigma_coef1[1]
+        Sigma22[1:N] <- ones[1:N]*Sigma_coef1[1]
         Sigma12[1:N] <- ones[1:N]*0
         
-        Sigma_coef1 ~ dunif(0, Sigma_HP1) # phi1
+        Sigma_coef1 ~ dunif(0, Sigma_HP1[1]) # phi1
       }),
       constants_needed = c("ones", "Sigma_HP1"),
       inits = list( Sigma_coef1 = quote(Sigma_HP1[1]/2) )
@@ -1191,17 +1198,18 @@ nsgpModel <- function( tau_model   = "constant",
           gamma2[j] ~ dnorm(0, sd = Sigma_HP1[2])
         }
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
-        constraint1 ~ dconstraint( max(Sigma11[1:N]) < Sigma_HP5 )
-        constraint2 ~ dconstraint( max(Sigma22[1:N]) < Sigma_HP5 )
+        Sigma_constraint1 ~ dconstraint( max(Sigma11[1:N]) < maxAnisoRange )
+        Sigma_constraint2 ~ dconstraint( max(Sigma22[1:N]) < maxAnisoRange )
+        Sigma_constraint3 ~ dconstraint( min(Sigma11[1:N]*Sigma22[1:N] - Sigma12[1:N]*Sigma12[1:N]) > minAnisoDet )
       }),
-      constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2", "Sigma_HP5"),
+      constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2", "maxAnisoRange", "minAnisoDet"),
       inits = list(
         psi11 = quote(Sigma_HP2[1]/2),
         psi22 = quote(Sigma_HP2[2]/2),
         rho = 0,
         gamma1 = quote(rep(0, p_Sigma)),
         gamma2 = quote(rep(0, p_Sigma)),
-        constraint1 = 1, constraint2 = 1
+        Sigma_constraint1 = 1, Sigma_constraint2 = 1, Sigma_constraint3 = 1
       )
     ), 
     compReg = list(
@@ -1217,23 +1225,23 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma12[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 3) 
         Sigma22[1:N] <- inverseEigen(eigen_comp1[1:N], eigen_comp2[1:N], eigen_comp3[1:N], 2)
         for(j in 1:p_Sigma){
-          Sigma_coef1[j] ~ dnorm(0, sd = Sigma_HP1)
-          Sigma_coef2[j] ~ dnorm(0, sd = Sigma_HP1)
-          Sigma_coef3[j] ~ dnorm(0, sd = Sigma_HP1)
+          Sigma_coef1[j] ~ dnorm(0, sd = Sigma_HP1[1])
+          Sigma_coef2[j] ~ dnorm(0, sd = Sigma_HP1[1])
+          Sigma_coef3[j] ~ dnorm(0, sd = Sigma_HP1[1])
         }
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
-        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
-        constraint2 ~ dconstraint( max(eigen_comp2[1:N]) < log(Sigma_HP5) )
+        Sigma_constraint1 ~ dconstraint( max(Sigma11[1:N]) < maxAnisoRange )
+        Sigma_constraint2 ~ dconstraint( max(Sigma22[1:N]) < maxAnisoRange )
+        Sigma_constraint3 ~ dconstraint( min(Sigma11[1:N]*Sigma22[1:N] - Sigma12[1:N]*Sigma12[1:N]) > minAnisoDet )
       }),
-      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP5"),
+      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange", "minAnisoDet"),
       inits = list(
         Sigma_coef1 = quote(rep(0, p_Sigma)),
         Sigma_coef2 = quote(rep(0, p_Sigma)),
         Sigma_coef3 = quote(rep(0, p_Sigma)),
-        constraint1 = 1, constraint2 = 1
+        Sigma_constraint1 = 1, Sigma_constraint2 = 1, Sigma_constraint3 = 1
       )
     ),
-    
     compRegIso = list( # Isotropic version of compReg
       code = quote({
         ## 1. X_Sigma                N x p_Sigma design matrix; leading column of 1's with (p_Sigma - 1) other covariates
@@ -1245,18 +1253,17 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma22[1:N] <- exp(eigen_comp1[1:N])
         Sigma12[1:N] <- ones[1:N]*0
         for(j in 1:p_Sigma){
-          Sigma_coef1[j] ~ dnorm(0, sd = Sigma_HP1)
+          Sigma_coef1[j] ~ dnorm(0, sd = Sigma_HP1[1])
         }
         # Constraints: upper limits on eigen_comp1
-        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
+        Sigma_constraint1 ~ dconstraint( max(Sigma11[1:N]) < maxAnisoRange )
       }),
-      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP5"),
+      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange"),
       inits = list(
         Sigma_coef1 = quote(rep(0, p_Sigma)),
-        constraint1 = 1
+        Sigma_constraint1 = 1
       )
     ),
-    
     npApproxGP = list( 
       code = quote({
         ## 1. Sigma_HP1          3-vector; Gaussian process mean
@@ -1297,23 +1304,21 @@ nsgpModel <- function( tau_model   = "constant",
         }
         
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
-        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
-        constraint2 ~ dconstraint( max(eigen_comp2[1:N]) < log(Sigma_HP5) )
-        
+        Sigma_constraint1 ~ dconstraint( max(Sigma11[1:N]) < maxAnisoRange )
+        Sigma_constraint2 ~ dconstraint( max(Sigma22[1:N]) < maxAnisoRange )
+        Sigma_constraint3 ~ dconstraint( min(Sigma11[1:N]*Sigma22[1:N] - Sigma12[1:N]*Sigma12[1:N]) > minAnisoDet )
       }),
-      constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
-                           "Sigma_HP5", "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
+      constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4", "maxAnisoRange", "minAnisoDet",
+                           "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
       inits = list(
         w1_Sigma = quote(rep(0,p_Sigma)),
         w2_Sigma = quote(rep(0,p_Sigma)),
         w3_Sigma = quote(rep(0,p_Sigma)),
         SigmaGP_mu = quote(rep(0,2)),
-        SigmaGP_phi = quote(rep(Sigma_HP3/2,2)),
-        SigmaGP_sigma = quote(rep(Sigma_HP4/2,2)),
-        constraint1 = 1,
-        constraint2 = 1
+        SigmaGP_phi = quote(rep(Sigma_HP3[1]/2,2)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,2)),
+        Sigma_constraint1 = 1, Sigma_constraint2 = 1, Sigma_constraint3 = 1
       )
-      
     ),
     
     npApproxGPIso = list( 
@@ -1347,17 +1352,16 @@ nsgpModel <- function( tau_model   = "constant",
         }
         
         # Constraints: upper limits on eigen_comp1 and eigen_comp2
-        constraint1 ~ dconstraint( max(eigen_comp1[1:N]) < log(Sigma_HP5) )
-        
+        Sigma_constraint1 ~ dconstraint( max(Sigma11[1:N]) < maxAnisoRange )
       }),
-      constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4",
-                           "Sigma_HP5", "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
+      constants_needed = c("ones", "Sigma_HP1", "Sigma_HP2", "Sigma_HP3", "Sigma_HP4", "maxAnisoRange", 
+                           "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
       inits = list(
         w1_Sigma = quote(rep(0,p_Sigma)),
         SigmaGP_mu = quote(rep(0,1)),
-        SigmaGP_phi = quote(rep(Sigma_HP3/2,1)),
-        SigmaGP_sigma = quote(rep(Sigma_HP4/2,1)),
-        constraint1 = 1
+        SigmaGP_phi = quote(rep(Sigma_HP3[1]/2,1)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,1)),
+        Sigma_constraint1 = 1
       )
       
     )
@@ -1491,7 +1495,12 @@ nsgpModel <- function( tau_model   = "constant",
   sd_default <- 100
   mu_default <- 0
   matern_rho_default <- 1
-  matern_nu_default <- 0.5     ## Mark: is this 0.5 good default choice for 'nu'?
+  matern_nu_default <- 5  
+  maxDist <- 0
+  for(j in 1:d){
+    maxDist <- maxDist + (max(coords[,j]) - min(coords[,j]))^2
+  }
+  maxDist <- sqrt(maxDist) # max(dist(coords))
   
   constants_defaults_list <- list(
     N = N,
@@ -1499,18 +1508,23 @@ nsgpModel <- function( tau_model   = "constant",
     d = d,
     zeros = rep(0, N),
     ones = rep(1, N),
-    tau_HP1 = sd_default,            ## standard deviation
-    tau_HP2 = mu_default,            ## mean
-    tau_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
-    tau_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
-    sigma_HP1 = sd_default,            ## standard deviation
-    sigma_HP2 = mu_default,            ## mean
-    sigma_HP3 = matern_rho_default,    ## matern_corr 'rho' parameter
-    sigma_HP4 = matern_nu_default,     ## matern_corr 'nu'  parameter
-    Sigma_HP1 = 10,    ## standard deviation
-    Sigma_HP2 = 10,    ## uniform upper bound for covReg 'psi' parameters
-    mu_HP1 = sd_default,            ## standard deviation
-    nu = matern_nu_default         ## matern_corr 'nu'  parameter
+    mu_HP1 = sd_default,                 ## standard deviation
+    tau_HP1 = sd_default,                ## standard deviation/upper bound for constant nugget
+    tau_HP2 = matern_nu_default,         ## approxGP smoothness
+    tau_HP3 = maxDist,                   ## upper bound for approxGP range
+    tau_HP4 = sd_default,                ## upper bound for approxGP sd
+    sigma_HP1 = sd_default,              ## standard deviation
+    sigma_HP2 = matern_nu_default,       ## approxGP smoothness
+    sigma_HP3 = maxDist,                 ## upper bound for approxGP range
+    sigma_HP4 = sd_default,              ## upper bound for approxGP sd
+    Sigma_HP1 = rep(10,2),               ## standard deviation/upper bound
+    Sigma_HP2 = rep(10,2),               ## uniform upper bound for covReg 'psi' parameters / latent approxGP smoothness
+    Sigma_HP3 = rep(maxDist,2),          ## upper bound for approxGP range
+    Sigma_HP4 = rep(sd_default, 2),      ## upper bound for approxGP sd
+    maxAbsLogSD = 10,                    ## logSD must live between +/- maxAbsLogSD
+    maxAnisoRange = maxDist,             ## maximum value for the diagonal elements of the anisotropy process
+    minAnisoDet = 1e-5,                  ## lower bound for the determinant of the anisotropy process
+    nu = matern_nu_default               ## Process smoothness parameter
   )
   
   ## use the isotropic model?
@@ -1616,6 +1630,20 @@ nsgpModel <- function( tau_model   = "constant",
   if(likelihood != 'fullGP') {
     constants$mmd.seed <- mmd.seed
     constants$ord <- ord
+  }
+  
+  ## ensure Sigma_HPX parameters are vectors of length 2
+  if(!is.null(constants$Sigma_HP1)){
+    if(length(constants$Sigma_HP1) == 1) constants$Sigma_HP1 <- rep(constants$Sigma_HP1, 2)
+  }
+  if(!is.null(constants$Sigma_HP2)){
+    if(length(constants$Sigma_HP2) == 1) constants$Sigma_HP2 <- rep(constants$Sigma_HP2, 2)
+  }
+  if(!is.null(constants$Sigma_HP3)){
+    if(length(constants$Sigma_HP3) == 1) constants$Sigma_HP3 <- rep(constants$Sigma_HP3, 2)
+  }
+  if(!is.null(constants$Sigma_HP4)){
+    if(length(constants$Sigma_HP4) == 1) constants$Sigma_HP41 <- rep(constants$Sigma_HP4, 2)
   }
   
   ## data
@@ -1830,6 +1858,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   constants <- constants_to_use
   
   d <- constants$d
+  z <- Rmodel$z
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     # Extract needed variables from constants
     dist1_sq <- constants$dist1_sq
@@ -1880,7 +1909,6 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       stop("Prediction for Z(.) not available with SGV.")
     }
     # Extract needed variables from constants
-    z <- Rmodel$z
     dist1_3d <- constants$dist1_3d
     dist2_3d <- constants$dist2_3d
     dist12_3d <- constants$dist12_3d
