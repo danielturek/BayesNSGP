@@ -44,13 +44,17 @@ Xmat_pred <- cbind(rep(1,M), predCoords[,2])
 ## fullGP likelihood
 Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat)
 
+## fullGP likelihood, with approxGP for tau model
+Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', tau_model = 'approxGP', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, tau_knot_coords = locs)
+
 ## NNGP likelihood
 Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
 
 ## SGV likelihood
 Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
 
-conf <- configureMCMC(Rmodel)
+conf <- configureMCMC(Rmodel, multivariateNodesAsScalars = TRUE)   ## important: multivariateNodesAsScalars = TRUE
+conf$printSamplers()
 ## optionally modify samplers here
 
 Rmcmc <- buildMCMC(conf)

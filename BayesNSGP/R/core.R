@@ -1031,7 +1031,8 @@ nsgpModel <- function( tau_model   = "constant",
         tau_constraint1 ~ dconstraint( max(abs(log_tau_vec[1:N])) < maxAbsLogSD )
       }),
       constants_needed = c("X_tau", "p_tau", "tau_HP1", "maxAbsLogSD"),
-      inits = list(delta = quote(rep(0, p_tau)), tau_constraint1 = 1)
+      inits = list(delta = quote(rep(0, p_tau))),
+      constraints_needed = c('tau_constraint1')
     ),
     
     approxGP = list(
@@ -1062,9 +1063,9 @@ nsgpModel <- function( tau_model   = "constant",
         w_tau = quote(rep(0, p_tau)),
         tauGP_mu = quote(0),
         tauGP_phi = quote(tau_HP3/2),
-        tauGP_sigma = quote(tau_HP4/2),
-        tau_constraint1 = 1
-      )
+        tauGP_sigma = quote(tau_HP4/2)
+      ),
+      constraints_needed = c('tau_constraint1')
       
     )
   )
@@ -1099,8 +1100,8 @@ nsgpModel <- function( tau_model   = "constant",
         sigma_constraint1 ~ dconstraint( max(abs(log_sigma_vec[1:N])) < maxAbsLogSD )
       }),
       constants_needed = c("X_sigma", "p_sigma", "sigma_HP1", "maxAbsLogSD"),
-      inits = list(alpha = quote(rep(0, p_sigma)),
-                   sigma_constraint1 = 1)
+      inits = list(alpha = quote(rep(0, p_sigma))),
+      constraints_needed = c('sigma_constraint1')
     ),
     
     approxGP = list(
@@ -1131,9 +1132,8 @@ nsgpModel <- function( tau_model   = "constant",
         w_sigma = quote(rep(0, p_sigma)),
         sigmaGP_mu = quote(0),
         sigmaGP_phi = quote(sigma_HP3/2),
-        sigmaGP_sigma = quote(sigma_HP4/2),
-        sigma_constraint1 = 1
-      )
+        sigmaGP_sigma = quote(sigma_HP4/2)),
+      constraints_needed = c('sigma_constraint1')
     )
   )
   
@@ -1208,9 +1208,9 @@ nsgpModel <- function( tau_model   = "constant",
         psi22 = quote(Sigma_HP2[2]/2),
         rho = 0,
         gamma1 = quote(rep(0, p_Sigma)),
-        gamma2 = quote(rep(0, p_Sigma)),
-        Sigma_constraint1 = 1, Sigma_constraint2 = 1, Sigma_constraint3 = 1
-      )
+        gamma2 = quote(rep(0, p_Sigma))
+      ),
+      constraints_needed = c('Sigma_constraint1', 'Sigma_constraint2', 'Sigma_constraint3')
     ), 
     compReg = list(
       code = quote({
@@ -1238,9 +1238,9 @@ nsgpModel <- function( tau_model   = "constant",
       inits = list(
         Sigma_coef1 = quote(rep(0, p_Sigma)),
         Sigma_coef2 = quote(rep(0, p_Sigma)),
-        Sigma_coef3 = quote(rep(0, p_Sigma)),
-        Sigma_constraint1 = 1, Sigma_constraint2 = 1, Sigma_constraint3 = 1
-      )
+        Sigma_coef3 = quote(rep(0, p_Sigma))
+      ),
+      constraints_needed = c('Sigma_constraint1', 'Sigma_constraint2', 'Sigma_constraint3')
     ),
     compRegIso = list( # Isotropic version of compReg
       code = quote({
@@ -1260,9 +1260,9 @@ nsgpModel <- function( tau_model   = "constant",
       }),
       constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange"),
       inits = list(
-        Sigma_coef1 = quote(rep(0, p_Sigma)),
-        Sigma_constraint1 = 1
-      )
+        Sigma_coef1 = quote(rep(0, p_Sigma))
+      ),
+      constraints_needed = c('Sigma_constraint1')
     ),
     npApproxGP = list( 
       code = quote({
@@ -1316,9 +1316,9 @@ nsgpModel <- function( tau_model   = "constant",
         w3_Sigma = quote(rep(0,p_Sigma)),
         SigmaGP_mu = quote(rep(0,2)),
         SigmaGP_phi = quote(rep(Sigma_HP3[1]/2,2)),
-        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,2)),
-        Sigma_constraint1 = 1, Sigma_constraint2 = 1, Sigma_constraint3 = 1
-      )
+        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,2))
+      ),
+      constraints_needed = c('Sigma_constraint1', 'Sigma_constraint2', 'Sigma_constraint3')
     ),
     
     npApproxGPIso = list( 
@@ -1360,9 +1360,9 @@ nsgpModel <- function( tau_model   = "constant",
         w1_Sigma = quote(rep(0,p_Sigma)),
         SigmaGP_mu = quote(rep(0,1)),
         SigmaGP_phi = quote(rep(Sigma_HP3[1]/2,1)),
-        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,1)),
-        Sigma_constraint1 = 1
-      )
+        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,1))
+      ),
+      constraints_needed = c('Sigma_constraint1')
       
     )
   )
@@ -1585,17 +1585,17 @@ nsgpModel <- function( tau_model   = "constant",
   
   ## if any models use approxGP: calculate XX_knot_dist and XX_cross_dist (coords already re-ordered for NNGP/SGV)
   if( tau_model == 'approxGP' ) {
-    if(is.null(constants_to_use$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model = approxGP'))
+    if(is.null(constants_to_use$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model: approxGP'))
     constants_to_use$tau_knot_dist <- sqrt(nsDist(coords = constants_to_use$tau_knot_coords, isotropic = TRUE)$dist1_sq)
     constants_to_use$tau_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$tau_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   if( sigma_model == 'approxGP' ) {
-    if(is.null(constants_to_use$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model = approxGP'))
+    if(is.null(constants_to_use$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model: approxGP'))
     constants_to_use$sigma_knot_dist <- sqrt(nsDist(coords = constants_to_use$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
     constants_to_use$sigma_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   if( Sigma_model %in% c('npApproxGP', 'npApproxGPIso') ) {
-    if(is.null(constants_to_use$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', Sigma_model))
+    if(is.null(constants_to_use$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model: ', Sigma_model))
     constants_to_use$Sigma_knot_dist <- sqrt(nsDist(coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
     constants_to_use$Sigma_cross_dist <- sqrt(nsCrossdist(Pcoords = coords, coords = constants_to_use$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
@@ -1645,9 +1645,14 @@ nsgpModel <- function( tau_model   = "constant",
   if(!is.null(constants$Sigma_HP4)){
     if(length(constants$Sigma_HP4) == 1) constants$Sigma_HP41 <- rep(constants$Sigma_HP4, 2)
   }
+
+  ## gather constraints_needed data
+  constraints_needed <- unique(unlist(lapply(model_selections_list, function(x) x$constraints_needed), use.names = FALSE))
+  constraints_data <- as.list(rep(1, length(constraints_needed)))
+  names(constraints_data) <- constraints_needed
   
   ## data
-  data <- list(z = z)
+  data <- c(list(z = z), constraints_data)
   
   ## inits
   inits_uneval <- do.call("c", unname(lapply(model_selections_list, function(x) x$inits)))
@@ -1812,15 +1817,15 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   }
   ## calculate XX_cross_dist_pred if necessary
   if( modelsList$tau == 'approxGP' ) {
-    if(is.null(model_constants$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model = approxGP'))
+    if(is.null(model_constants$tau_knot_coords)) stop(paste0('missing tau_knot_coords for tau_model: approxGP'))
     constants_to_use$tau_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$tau_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   if( modelsList$sigma == 'approxGP' ) {
-    if(is.null(model_constants$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model = approxGP'))
+    if(is.null(model_constants$sigma_knot_coords)) stop(paste0('missing sigma_knot_coords for sigma_model: approxGP'))
     constants_to_use$sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   if( modelsList$Sigma %in% c('npApproxGP', 'npApproxGPIso') ) {
-    if(is.null(model_constants$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model = ', modelsList$Sigma))
+    if(is.null(model_constants$Sigma_knot_coords)) stop(paste0('missing Sigma_knot_coords for Sigma_model: ', modelsList$Sigma))
     constants_to_use$Sigma_cross_dist_pred <- sqrt(nsCrossdist(Pcoords = predCoords, coords = model_constants$Sigma_knot_coords, isotropic = TRUE)$dist1_sq)
   }
   ## check for discrepancies in any duplicates, between
