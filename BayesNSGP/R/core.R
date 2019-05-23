@@ -1663,6 +1663,25 @@ nsgpModel <- function( tau_model   = "constant",
     'mu='        , mu_model   , '_',
     'likelihood=', likelihood
   )
+
+  ## register custom NNGP or SGV distributions (if necessary),
+  ## importantly, using mixedSizes = TRUE to avoid warnings
+  if(likelihood == 'NNGP') {
+      registerDistributions(list(
+          dmnorm_nngp = list(
+              BUGSdist = 'dmnorm_nngp(mean, AD, nID, N, k)',
+              types = c('value = double(1)', 'mean = double(1)', 'AD = double(2)', 'nID = double(2)', 'N = double()', 'k = double()'),
+              mixedSizes = TRUE)
+      ), verbose = FALSE)
+  }
+  if(likelihood == 'SGV') {
+      registerDistributions(list(
+          dmnorm_sgv = list(
+              BUGSdist = 'dmnorm_sgv(mean, U, N, k)',
+              types = c('value = double(1)', 'mean = double(1)', 'U = double(2)', 'N = double()', 'k = double()'),
+              mixedSizes = TRUE)
+      ), verbose = FALSE)
+  }
   
   ## NIMBLE model object
   Rmodel <- nimbleModel(code, constants, data, inits, name = thisName)

@@ -36,16 +36,28 @@ z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
 predCoords <- as.matrix(expand.grid(seq(0,1,length = sqrt(M)),seq(0,1,length = sqrt(M))))
 Xmat_pred <- cbind(rep(1,M), predCoords[,2])
 
+#######################
+## User's Workflow   ##
+## (as I see it) -DT ##
+#######################
 
-## User's Workflow
-## (as I see it) -DT
+## fullGP likelihood
 Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat)
+
+## NNGP likelihood
+Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
+
+## SGV likelihood
+Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
+
 conf <- configureMCMC(Rmodel)
 ## optionally modify samplers here
+
 Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 samples <- runMCMC(Cmcmc, niter = 5000)
+
 pred <- nsgpPredict(Rmodel, samples, predCoords, PX_sigma = Xmat_pred, PX_mu = Xmat_pred)
 
 
