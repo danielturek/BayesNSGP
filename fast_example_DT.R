@@ -53,7 +53,7 @@ Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = '
 ## SGV likelihood
 Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
 
-conf <- configureMCMC(Rmodel, multivariateNodesAsScalars = TRUE)   ## important: multivariateNodesAsScalars = TRUE
+conf <- configureMCMC(Rmodel)
 conf$printSamplers()
 ## optionally modify samplers here
 
