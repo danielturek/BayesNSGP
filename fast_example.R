@@ -23,8 +23,9 @@ Sigma22_vec <- rep(0.4, N) # Kernel matrix element 2,2
 Sigma12_vec <- rep(0, N) # Kernel matrix element 1,2
 mu_vec <- as.numeric(Xmat %*% c(0, 2)) # Mean
 nu <- 0.5 # Smoothness
-
+##
 ## Setup
+##
 dist_list <- nsDist(locs)
 Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq, 
                   dist12 = dist_list$dist12, Sigma11 = Sigma11_vec, 
@@ -53,7 +54,9 @@ Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = '
 ## SGV likelihood
 Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
 
+Rmodel$calculate()
 conf <- configureMCMC(Rmodel)
+conf$printMonitors()
 conf$printSamplers()
 ## optionally modify samplers here
 

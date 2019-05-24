@@ -959,6 +959,7 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' @param z N-vector; observed vector of the spatial process of interest
 #' @param constants A list of constants required to build the model; depends on
 #' the specific parameter process models chosen.
+#' @param monitorAllSampledNodes TODO
 #' @param returnModelComponents TODO
 #' @param ... TODO
 #' 
@@ -999,6 +1000,7 @@ nsgpModel <- function( tau_model   = "constant",
                        coords,
                        z,
                        constants = list(),
+                       monitorAllSampledNodes = TRUE,
                        returnModelComponents = FALSE,
                        ... ) {
   
@@ -1700,9 +1702,10 @@ nsgpModel <- function( tau_model   = "constant",
   ## this will sample dmnorm latent process components individually
   nimbleOptions(MCMCmultivariateNodesAsScalars = TRUE)
 
-  ## set nimble package option: MCMCmonitorAllSampledNodes = TRUE,
+  ## using the nsgpModel() argument monitorAllSampledNodes,
+  ## set nimble package option: MCMCmonitorAllSampledNodes,
   ## so that latent process values are monitored by default, for use in predicition
-  nimbleOptions(MCMCmonitorAllSampledNodes = TRUE)
+  nimbleOptions(MCMCmonitorAllSampledNodes = monitorAllSampledNodes)
   
   return(Rmodel)
 }
