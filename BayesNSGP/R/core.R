@@ -1699,6 +1699,10 @@ nsgpModel <- function( tau_model   = "constant",
   ## set nimble package option: MCMCmultivariateNodesAsScalars = TRUE,
   ## this will sample dmnorm latent process components individually
   nimbleOptions(MCMCmultivariateNodesAsScalars = TRUE)
+
+  ## set nimble package option: MCMCmonitorAllSampledNodes = TRUE,
+  ## so that latent process values are monitored by default, for use in predicition
+  nimbleOptions(MCMCmonitorAllSampledNodes = TRUE)
   
   return(Rmodel)
 }
