@@ -1697,11 +1697,7 @@ nsgpModel <- function( tau_model   = "constant",
   
   ## store 'constants' list into Rmodel$isDataEnv
   Rmodel$isDataEnv$.BayesNSGP_constants_list <- constants
-
-  ## set nimble package option: MCMCmultivariateNodesAsScalars = TRUE,
-  ## this will sample dmnorm latent process components individually
-  nimbleOptions(MCMCmultivariateNodesAsScalars = TRUE)
-
+  
   ## using the nsgpModel() argument monitorAllSampledNodes,
   ## set nimble package option: MCMCmonitorAllSampledNodes,
   ## so that latent process values are monitored by default, for use in predicition
