@@ -5,8 +5,6 @@ Version: 0.1.0
 Date: 2019-01-20
 Maintainer: Daniel Turek <dbt1@williams.edu>
 Author: Mark Risser, Daniel Turek
-Depends: R (>= 3.4.0)
-Imports: FNN,Matrix,methods,nimble,StatMatch
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
