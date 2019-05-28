@@ -37,7 +37,7 @@ are used in the new implementation of calculateAD_ns().
 \examples{
 # Generate some coordinates and neighbors
 coords <- cbind(runif(100),runif(100))
-Pcoords <- cbind(runif(200),runif(200))
+predCoords <- cbind(runif(200),runif(200))
 P_nID <- FNN::get.knnx(coords, predCoords, k = 10)$nn.index # Prediction NN
 # Calculate distances
 Pdist <- nsCrossdist3d(coords, predCoords, P_nID)

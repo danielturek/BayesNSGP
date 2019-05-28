@@ -1258,7 +1258,7 @@ nsgpModel <- function( tau_model   = "constant",
         # Constraints: upper limits on eigen_comp1
         Sigma_constraint1 ~ dconstraint( max(Sigma11[1:N]) < maxAnisoRange )
       }),
-      constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange"),
+      constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange"),
       inits = list(
         Sigma_coef1 = quote(rep(0, p_Sigma)),
         Sigma_constraint1 = 1

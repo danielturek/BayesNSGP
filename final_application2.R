@@ -60,7 +60,7 @@ predCoords <- CONUS_predDF[,c("longitude","latitude")]
 constants <- list( 
   nu = 0.5, k = 15, tau_HP1 = 10, sigma_knot_coords = knot_coords, sigma_HP1 = 10, 
   sigma_HP2 = 5, sigma_HP3 = 10, sigma_HP4 = 10, X_Sigma = Xmat1, Sigma_HP1 = 5, 
-  Sigma_HP5 = 30, X_mu = Xmat2, mu_HP1 = 10 )
+  maxAnisoDist = max(dist(coords)), X_mu = Xmat2, mu_HP1 = 10 )
 
 #================================================
 # MCMC using the fullGP likelihood
