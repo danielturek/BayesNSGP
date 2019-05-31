@@ -43,47 +43,20 @@ constants <- list(
   X_mu = Xmat, mu_HP1 = 10 )
 
 #================================================
-# MCMC using the NNGP likelihood
-#================================================
-prt <- proc.time()
-Rmodel <- nsgpModel(likelihood = "NNGP", constants = constants, 
-                    coords = coords, z = z, tau_model = "logLinReg", 
-                    sigma_model = "logLinReg", mu_model = "linReg", 
-                    Sigma_model = "compRegIso")
-conf <- configureMCMC(Rmodel)
-conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
-conf$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
-conf$removeSamplers(c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"))
-conf$addSampler(target = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"), type = "RW_block")
-conf$removeSamplers(c("delta[1]","delta[2]","delta[3]","delta[4]"))
-conf$addSampler(target = c("delta[1]","delta[2]","delta[3]","delta[4]"), type = "RW_block")
-conf$removeSamplers(c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"))
-conf$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef1[3]","Sigma_coef1[4]"), type = "RW_block")
-conf$getSamplers()
-# Build
-Rmcmc <- buildMCMC(conf)
-Cmodel <- compileNimble(Rmodel)
-Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
-time_build <- proc.time() - prt
-# Run
-prt <- proc.time()
-samples <- runMCMC(Cmcmc, niter = 20000, nburnin = 0)
-time_mcmc <- proc.time() - prt
-save(samples, time_mcmc, time_build, file = "NNGP_samples_time.RData")
-
-# par(ask=TRUE)
-# for(h in 1:ncol(samples)) plot(samples[,h], type = "l", main = colnames(samples)[h])
-# par(ask=FALSE)
-
-#================================================
-# MCMC using the NNGP likelihood
+# MCMC using the SGV likelihood
 #================================================
 prt <- proc.time()
 Rmodel <- nsgpModel(likelihood = "SGV", constants = constants, 
                     coords = coords, z = z, tau_model = "logLinReg", 
                     sigma_model = "logLinReg", mu_model = "linReg", 
-                    Sigma_model = "compRegIso")
-conf <- configureMCMC(Rmodel)
+                    Sigma_model = "compRegIso", returnModelComponents = TRUE)
+
+Rmodel_model <- nimbleModel(Rmodel$code, Rmodel$constants, Rmodel$data, Rmodel$inits)
+
+
+
+
+conf <- configureMCMC(Rmodel_model)
 conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
 conf$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
 conf$removeSamplers(c("alpha[1]","alpha[2]","alpha[3]","alpha[4]"))
@@ -102,6 +75,6 @@ time_build <- proc.time() - prt
 prt <- proc.time()
 samples <- runMCMC(Cmcmc, niter = 20000, nburnin = 0)
 time_mcmc <- proc.time() - prt
-save(samples, time_mcmc, time_build, file = "SGV_samples_time.RData")
+save(samples, time_mcmc, time_build, file = "app3_SGV_samples_time.RData")
 
 

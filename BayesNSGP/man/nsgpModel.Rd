@@ -7,7 +7,6 @@
 nsgpModel(tau_model = "constant", sigma_model = "constant",
   Sigma_model = "constant", mu_model = "constant",
   likelihood = "fullGP", coords, z, constants = list(),
-  returnModelComponents = FALSE, ...)
 }
 \arguments{
 \item{tau_model}{Character; specifies the model to be used for the log(tau) 
@@ -42,6 +41,8 @@ nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"}
 
 \item{constants}{A list of constants required to build the model; depends on
 the specific parameter process models chosen.}
+
+\item{monitorAllSampledNodes}{TODO}
 
 \item{returnModelComponents}{TODO}
 

@@ -63,12 +63,31 @@ constants_PacScher <- list( nu = 2, Sigma_knot_coords = knot_coords,
 Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_PacScher, 
                     coords = coords, z = z, Sigma_model = "npApproxGP")
 conf <- configureMCMC(Rmodel)
+# Edit latent process samplers
+knot_groups <- matrix(c(1:4,9:12,17:20,25:28,
+                        5:8,13:16,21:24,29:32,
+                        32+c(1:4,9:12,17:20,25:28),
+                        32+c(5:8,13:16,21:24,29:32)), ncol = 4)
+# plot(coords, asp = 1.2)
+# points(knot_coords[knot_groups[,1],], col = 2, pch = "+")
+# points(knot_coords[knot_groups[,2],], col = 3, pch = "+")
+# points(knot_coords[knot_groups[,3],], col = 4, pch = "+")
+# points(knot_coords[knot_groups[,4],], col = 5, pch = "+")
+conf$removeSamplers("w1_Sigma[1:64]")
+conf$removeSamplers("w2_Sigma[1:64]")
+conf$removeSamplers("w3_Sigma[1:64]")
+for(h in 1:ncol(knot_groups)){
+  conf$addSampler(target = c(paste0("w1_Sigma[",knot_groups[,h],"]")), type = "RW_block" )
+  conf$addSampler(target = c(paste0("w2_Sigma[",knot_groups[,h],"]")), type = "RW_block" )
+  conf$addSampler(target = c(paste0("w3_Sigma[",knot_groups[,h],"]")), type = "RW_block" )
+}
+# conf$getSamplers()
 conf$addMonitors(c("Sigma11", "Sigma22", "Sigma12", "w1_Sigma", "w2_Sigma", "w3_Sigma"))
 Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 prt <- proc.time()
-samples_PacScher <- runMCMC(Cmcmc, niter = 50000, nburnin = 30000)
+samples_PacScher <- runMCMC(Cmcmc, niter = 40000, nburnin = 20000)
 time_PacScher <- proc.time() - prt
 
 # Prediction
@@ -78,7 +97,7 @@ pred_PacScher <- nsgpPredict(model = Rmodel,
                              coords.predict = predCoords)
 time_PacScher_pred <- proc.time() - prt
 
-save(samples_PacScher, time_PacScher, pred_PacScher, time_PacScher_pred, file = "PacScher_mcmc_pred_time.RData")
+save(samples_PacScher, time_PacScher, pred_PacScher, time_PacScher_pred, file = "app1_PacScher_mcmc_pred_time.RData")
 
 #================================================
 # MCMC and prediction for Risser/Calder 
@@ -108,7 +127,17 @@ pred_RisserCalder <- nsgpPredict(model = Rmodel, samples = samples_RisserCalder[
                                  PX_sigma = Xmat_pred, PX_Sigma = Xmat_pred, PX_mu = Xmat_pred )
 time_RisserCalder_pred <- proc.time() - prt
 
-save(samples_RisserCalder, time_RisserCalder, pred_RisserCalder, time_RisserCalder_pred, file = "RisserCalder_mcmc_pred_time.RData")
+save(samples_RisserCalder, time_RisserCalder, pred_RisserCalder, time_RisserCalder_pred, file = "app1_RisserCalder_mcmc_pred_time.RData")
+
+
+# library(mcmcse)
+# summary(ess(samples_PacScher))
+# plot(samples_PacScher[,"SigmaGP_mu[1]"], type = "l")
+# plot(samples_PacScher[,"SigmaGP_mu[2]"], type = "l")
+# plot(samples_PacScher[,"alpha"], type = "l")
+# plot(samples_PacScher[,"beta"], type = "l")
+# plot(samples_PacScher[,"delta"], type = "l")
+# plot(samples_PacScher[,"w1_Sigma[21]"], type = "l")
 
 
 
