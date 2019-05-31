@@ -7,6 +7,7 @@
 nsgpModel(tau_model = "constant", sigma_model = "constant",
   Sigma_model = "constant", mu_model = "constant",
   likelihood = "fullGP", coords, z, constants = list(),
+  monitorAllSampledNodes = TRUE, returnModelComponents = FALSE, ...)
 }
 \arguments{
 \item{tau_model}{Character; specifies the model to be used for the log(tau) 
