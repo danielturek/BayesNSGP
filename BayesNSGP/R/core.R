@@ -425,8 +425,17 @@ matern_corr <- nimble::nimbleFunction(
     xVector <- besselK(dist/rho, nu)
     xMatrix <- matrix(xVector, dim(dist)[1], dim(dist)[2])
     temp <- (exp(lgamma(nu)) * 2^(nu - 1))^(-1) * (dist/rho)^nu * xMatrix
-    if(Nr == Nc){
-      diag(temp) <- 1
+    # Check for zeros in dist
+    if(min(dist) == 0) {
+      for(i in 1:Nc){
+        if( min(dist[1:Nr,i]) == 0 ) {
+          for(j in 1:Nr) {
+            if(dist[j,i] == 0) {
+              temp[j,i] <- 1
+            }
+          }
+        }
+      }
     }
     return(temp)
   }

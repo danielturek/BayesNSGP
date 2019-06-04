@@ -53,10 +53,10 @@ Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = '
 Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = 'linReg', 
                     tau_model = 'approxGP', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, 
                     tau_knot_coords = locs, k = 10)
-Rmodel <- nsgpModel(likelihood = 'NNGP', tau_model = 'logLinReg', mu_model = 'linReg', 
-                    sigma_model = 'approxGP', coords = locs, z = z, X_tau = Xmat, X_mu = Xmat, 
-                    sigma_knot_coords = locs, k = 10, returnModelComponents = TRUE)
-test <- nimbleModel(Rmodel$code, Rmodel$constants, Rmodel$data, Rmodel$inits)
+# Rmodel <- nsgpModel(likelihood = 'NNGP', tau_model = 'logLinReg', mu_model = 'linReg', 
+#                     sigma_model = 'approxGP', coords = locs, z = z, X_tau = Xmat, X_mu = Xmat, 
+#                     sigma_knot_coords = locs, k = 10, returnModelComponents = TRUE)
+# test <- nimbleModel(Rmodel$code, Rmodel$constants, Rmodel$data, Rmodel$inits)
 
 ## SGV likelihood
 Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
