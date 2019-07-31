@@ -62,8 +62,8 @@ conditionLatentObs <- function( nID, coords_ord, N ){
     ind_h_i <- which(size_intrsct_qyj_qi == max(size_intrsct_qyj_qi))
     h_i <- q_i[ind_h_i]
     ind_k_i <- which.min( as.numeric(mahalanobis.dist(data.x = matrix(coords_ord[i,], ncol = d, byrow = TRUE),
-                                                                 data.y = matrix(coords_ord[h_i,], ncol = d, byrow = TRUE),
-                                                                 vc = diag(d))) ) 
+                                                      data.y = matrix(coords_ord[h_i,], ncol = d, byrow = TRUE),
+                                                      vc = diag(d))) ) 
     k_i <- h_i[ind_k_i]
     
     q_y_k_i <- nID[k_i,which(cond_on_y[k_i,] == 1)]

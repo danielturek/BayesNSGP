@@ -54,7 +54,7 @@ CONUS_predDF$Zelevation <- (CONUS_predDF$Xelevation - elevShift)/elevScale
 CONUS_predDF$Zlongitude <- (CONUS_predDF$longitude - lonShift)/lonScale
 PXmat1 <- unname(lm(rnorm(nrow(CONUS_predDF)) ~ Zelevation, x = TRUE, data = CONUS_predDF)$x)
 PXmat2 <- unname(lm(rnorm(nrow(CONUS_predDF)) ~ Zelevation*Zlongitude, x = TRUE, data = CONUS_predDF)$x)
-predCoords <- CONUS_predDF[,c("longitude","latitude")]
+predCoords <- as.matrix(CONUS_predDF[,c("longitude","latitude")])
 
 # Constants for fullGP and SGV ==================
 constants <- list( 
@@ -69,64 +69,48 @@ Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants,
                     coords = coords, z = z, tau_model = "constant", 
                     sigma_model = "approxGP", mu_model = "linReg", 
                     Sigma_model = "compReg")
-conf <- configureMCMC(Rmodel)
-conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
-conf$removeSamplers(c("Sigma_coef1[1]","Sigma_coef1[2]",
-                      "Sigma_coef2[1]","Sigma_coef2[2]",
-                      "Sigma_coef3[1]","Sigma_coef3[2]"))
-conf$removeSamplers(c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"))
-conf$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
-conf$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef2[1]",
-                           "Sigma_coef2[2]","Sigma_coef3[1]","Sigma_coef3[2]"), type = "RW_block")
-conf$addSampler(target = c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"), type = "RW_block")
-conf$getSamplers()
-conf$addMonitors("w_sigma")
-# Build/run
-Rmcmc <- buildMCMC(conf)
-Cmodel <- compileNimble(Rmodel)
-Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+# conf <- configureMCMC(Rmodel)
+# conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
+# conf$removeSamplers(c("Sigma_coef1[1]","Sigma_coef1[2]",
+#                       "Sigma_coef2[1]","Sigma_coef2[2]",
+#                       "Sigma_coef3[1]","Sigma_coef3[2]"))
+# conf$removeSamplers(c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"))
+# conf$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
+# conf$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef2[1]",
+#                            "Sigma_coef2[2]","Sigma_coef3[1]","Sigma_coef3[2]"), type = "RW_block")
+# conf$addSampler(target = c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"), type = "RW_block")
+# # Edit latent process samplers
+# knot_groups <- matrix(c(1:4,9:12,18:21,
+#                         27:30,36:39,45:48,
+#                         5:6,13:15,22:24,31:33,40:42,
+#                         7:8,16:17,25:26,34:35,43:44), ncol = 4)
+# conf$removeSamplers("w_sigma[1:48]")
+# for(h in 1:ncol(knot_groups)){
+#   conf$addSampler(target = c(paste0("w_sigma[",knot_groups[,h],"]")), type = "RW_block" )
+# }
+# conf$getSamplers()
+# conf$addMonitors("w_sigma")
+# # Build/run
+# Rmcmc <- buildMCMC(conf)
+# Cmodel <- compileNimble(Rmodel)
+# Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+# prt <- proc.time()
+# samples_fullGP <- runMCMC(Cmcmc, niter = 40000, nburnin = 0)
+# time_fullGP <- proc.time() - prt
+# save(samples_fullGP, time_fullGP, file = "app2_fullGP_samples_time.RData")
+load("app2_fullGP_samples_time.RData")
+
+# Prediction
 prt <- proc.time()
-samples_fullGP <- runMCMC(Cmcmc, niter = 40000, nburnin = 0)
-time_fullGP <- proc.time() - prt
-save(samples_fullGP, time_fullGP, file = "fullGP_samples_time.RData")
+pred_SGV <- nsgpPredict(model = Rmodel, samples = samples_fullGP[seq(from=30002,to=40000,by=2),], 
+                        coords.predict = predCoords, PX_Sigma = PXmat1, PX_mu = PXmat2)
+time_fullGP_pred <- proc.time() - prt
+save(pred_fullGP, time_fullGP_pred, file = "app2_fullGP_pred.RData")
 
-#================================================
-# MCMC using the SGV likelihood
-#================================================
-Rmodel <- nsgpModel(likelihood = "SGV", constants = constants, 
-                    coords = coords, z = z, tau_model = "constant", 
-                    sigma_model = "approxGP", mu_model = "linReg", 
-                    Sigma_model = "compReg")
-conf <- configureMCMC(Rmodel)
-conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
-conf$removeSamplers(c("Sigma_coef1[1]","Sigma_coef1[2]",
-                      "Sigma_coef2[1]","Sigma_coef2[2]",
-                      "Sigma_coef3[1]","Sigma_coef3[2]"))
-conf$removeSamplers(c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"))
-conf$addSampler(target = c("beta[1]","beta[2]","beta[3]","beta[4]"), type = "RW_block")
-conf$addSampler(target = c("Sigma_coef1[1]","Sigma_coef1[2]","Sigma_coef2[1]",
-                           "Sigma_coef2[2]","Sigma_coef3[1]","Sigma_coef3[2]"), type = "RW_block")
-conf$addSampler(target = c("sigmaGP_mu","sigmaGP_phi","sigmaGP_sigma"), type = "RW_block")
-conf$getSamplers()
-conf$addMonitors("w_sigma")
-# Build/run
-Rmcmc <- buildMCMC(conf)
-Cmodel <- compileNimble(Rmodel)
-Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
-prt <- proc.time()
-samples_SGV <- runMCMC(Cmcmc, niter = 40000, nburnin = 0)
-time_SGV <- proc.time() - prt
-save(samples_SGV, time_SGV, file = "SGV_samples_time.RData")
-
-
-
-
-
-
-
-
-
-
-
+# plot_conus( df = CONUS_predDF, color = colMeans(pred_fullGP$pred), col.lim = c(-1.8,2.4),
+#             col.type = "disc", # scale.trans = "log",
+#             col.pal = viridis_pal(option = "viridis")(9)[9:1], plot.grid = TRUE,
+#             brk_rd = 1, shp = 16, pt.size = 1.25, barheight = 20, n_brks = 10,
+#             xlab = NULL, ylab = NULL, ttle.txt = "Posterior mean: mu(s)" )
 
 

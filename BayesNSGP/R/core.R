@@ -1073,8 +1073,8 @@ nsgpModel <- function( tau_model   = "constant",
       inits = list(
         w_tau = quote(rep(0, p_tau)),
         tauGP_mu = quote(0),
-        tauGP_phi = quote(tau_HP3/2),
-        tauGP_sigma = quote(tau_HP4/2)
+        tauGP_phi = quote(tau_HP3/100),
+        tauGP_sigma = quote(tau_HP4/100)
       ),
       constraints_needed = c('tau_constraint1')
       
@@ -1142,8 +1142,8 @@ nsgpModel <- function( tau_model   = "constant",
       inits = list(
         w_sigma = quote(rep(0, p_sigma)),
         sigmaGP_mu = quote(0),
-        sigmaGP_phi = quote(sigma_HP3/2),
-        sigmaGP_sigma = quote(sigma_HP4/2)),
+        sigmaGP_phi = quote(sigma_HP3/100),
+        sigmaGP_sigma = quote(sigma_HP4/100)),
       constraints_needed = c('sigma_constraint1')
     )
   )
@@ -1170,8 +1170,8 @@ nsgpModel <- function( tau_model   = "constant",
       }),
       constants_needed = c("ones", "Sigma_HP1"),
       inits = list(
-        Sigma_coef1 = quote(Sigma_HP1[1]/2),
-        Sigma_coef2 = quote(Sigma_HP1[1]/2),
+        Sigma_coef1 = quote(Sigma_HP1[1]/4),
+        Sigma_coef2 = quote(Sigma_HP1[1]/4),
         Sigma_coef3 = 0.7853982 # pi/4
       )
     ),
@@ -1187,7 +1187,7 @@ nsgpModel <- function( tau_model   = "constant",
         Sigma_coef1 ~ dunif(0, Sigma_HP1[1]) # phi1
       }),
       constants_needed = c("ones", "Sigma_HP1"),
-      inits = list( Sigma_coef1 = quote(Sigma_HP1[1]/2) )
+      inits = list( Sigma_coef1 = quote(Sigma_HP1[1]/4) )
     ),
     
     covReg = list(
@@ -1215,8 +1215,8 @@ nsgpModel <- function( tau_model   = "constant",
       }),
       constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "Sigma_HP2", "maxAnisoRange", "minAnisoDet"),
       inits = list(
-        psi11 = quote(Sigma_HP2[1]/2),
-        psi22 = quote(Sigma_HP2[2]/2),
+        psi11 = quote(Sigma_HP2[1]/4),
+        psi22 = quote(Sigma_HP2[2]/4),
         rho = 0,
         gamma1 = quote(rep(0, p_Sigma)),
         gamma2 = quote(rep(0, p_Sigma))
@@ -1247,8 +1247,8 @@ nsgpModel <- function( tau_model   = "constant",
       }),
       constants_needed = c("X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange", "minAnisoDet"),
       inits = list(
-        Sigma_coef1 = quote(rep(0, p_Sigma)),
-        Sigma_coef2 = quote(rep(0, p_Sigma)),
+        Sigma_coef1 = quote(c(log(maxAnisoRange/100), rep(0, p_Sigma-1))),
+        Sigma_coef2 = quote(c(log(maxAnisoRange/100), rep(0, p_Sigma-1))),
         Sigma_coef3 = quote(rep(0, p_Sigma))
       ),
       constraints_needed = c('Sigma_constraint1', 'Sigma_constraint2', 'Sigma_constraint3')
@@ -1271,7 +1271,7 @@ nsgpModel <- function( tau_model   = "constant",
       }),
       constants_needed = c("ones", "X_Sigma", "p_Sigma", "Sigma_HP1", "maxAnisoRange"),
       inits = list(
-        Sigma_coef1 = quote(rep(0, p_Sigma))
+        Sigma_coef1 = quote(c(log(maxAnisoRange/100), rep(0, p_Sigma-1)))
       ),
       constraints_needed = c('Sigma_constraint1')
     ),
@@ -1325,9 +1325,9 @@ nsgpModel <- function( tau_model   = "constant",
         w1_Sigma = quote(rep(0,p_Sigma)),
         w2_Sigma = quote(rep(0,p_Sigma)),
         w3_Sigma = quote(rep(0,p_Sigma)),
-        SigmaGP_mu = quote(rep(0,2)),
-        SigmaGP_phi = quote(rep(Sigma_HP3[1]/2,2)),
-        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,2))
+        SigmaGP_mu = quote(rep(log(maxAnisoRange/100),2)),
+        SigmaGP_phi = quote(rep(Sigma_HP3[1]/100,2)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/100,2))
       ),
       constraints_needed = c('Sigma_constraint1', 'Sigma_constraint2', 'Sigma_constraint3')
     ),
@@ -1369,9 +1369,9 @@ nsgpModel <- function( tau_model   = "constant",
                            "Sigma_knot_coords", "Sigma_cross_dist", "Sigma_knot_dist", "p_Sigma"),    
       inits = list(
         w1_Sigma = quote(rep(0,p_Sigma)),
-        SigmaGP_mu = quote(rep(0,1)),
-        SigmaGP_phi = quote(rep(Sigma_HP3[1]/2,1)),
-        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/2,1))
+        SigmaGP_mu = quote(rep(log(maxAnisoRange/100),1)),
+        SigmaGP_phi = quote(rep(Sigma_HP3[1]/100,1)),
+        SigmaGP_sigma = quote(rep(Sigma_HP4[1]/100,1))
       ),
       constraints_needed = c('Sigma_constraint1')
       
@@ -1502,6 +1502,7 @@ nsgpModel <- function( tau_model   = "constant",
   
   if(missing(coords)) stop("must provide 'coords' argument, array of spatial coordinates")
   d <- ncol(coords)
+  coords <- as.matrix(coords)
   
   sd_default <- 100
   mu_default <- 0
@@ -1513,12 +1514,18 @@ nsgpModel <- function( tau_model   = "constant",
   }
   maxDist <- sqrt(maxDist) # max(dist(coords))
   
+  if(N < 200){
+    ones_set <- rep(1,200); zeros_set <- rep(1,200)
+  } else{
+    ones_set <- rep(1,N); zeros_set <- rep(1,N)
+  }
+  
   constants_defaults_list <- list(
     N = N,
     coords = coords,
     d = d,
-    zeros = rep(0, N),
-    ones = rep(1, N),
+    zeros = zeros_set,
+    ones = ones_set,
     mu_HP1 = sd_default,                 ## standard deviation
     tau_HP1 = sd_default,                ## standard deviation/upper bound for constant nugget
     tau_HP2 = matern_nu_default,         ## approxGP smoothness
@@ -1564,6 +1571,7 @@ nsgpModel <- function( tau_model   = "constant",
     if(is.null(constants_to_use$k)) stop(paste0('missing k constants argument for ', likelihood, ' likelihood'))
     mmd.seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
     if(likelihood == 'NNGP') {
+      # cat("\nOrdering the prediction locations and determining neighbors for NNGP (this may take a minute).\n")
       # Re-order the coordinates/data
       coords_mmd <- orderCoordinatesMMD(coords)
       ord <- coords_mmd$orderedIndicesNoNA
@@ -1575,6 +1583,7 @@ nsgpModel <- function( tau_model   = "constant",
       dist_list <- nsDist3d(coords = coords, nID = nID, isotropic = useIsotropic)
     }
     if(likelihood == 'SGV') {
+      # cat("\nOrdering the prediction locations and determining neighbors/conditioning sets for SGV (this may take a minute).\n")
       setupSGV <- sgvSetup(coords = coords, k = constants_to_use$k, seed = mmd.seed)
       constants_to_use$nID <- setupSGV$nID_ord
       constants_to_use$cond_on_y <- setupSGV$condition_on_y_ord
@@ -1796,7 +1805,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   coords <- model_constants$coords
   
   mcmc_samples <- samples
-  predCoords <- coords.predict
+  predCoords <- as.matrix(coords.predict)
   
   ## extract the "submodel" information from the nimble model object "name"
   thisName <- Rmodel$getModelDef()$name
@@ -1811,8 +1820,10 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   
   ## order predCoords for SGV
   if( modelsList$likelihood == "SGV" ) {
+    cat("\nOrdering the prediction locations and determining neighbors/conditioning sets for SGV (this may take a minute).\n")
     pred.mmd.seed <- sample(1e5, 1)
-    predSGV_setup <- sgvSetup(coords = coords, coords_pred = predCoords, k = k, pred.seed = pred.mmd.seed, order_coords = FALSE)
+    predSGV_setup <- sgvSetup(coords = coords, coords_pred = predCoords, k = model_constants$k, 
+                              pred.seed = pred.mmd.seed, order_coords = FALSE)
     prednID_SGV <- predSGV_setup$nID_ord
     obs_ord <- predSGV_setup$ord
     pred_ord <- predSGV_setup$ord_pred
@@ -2196,7 +2207,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       sigmaMat <- diag(exp(log_sigma_vec_j))
       Cov <- sigmaMat %*% Cor %*% sigmaMat
       C <- Cov + diag(exp(log_tau_vec_j)^2)
-      C_chol <- chol(Cov)
+      C_chol <- chol(C)
       # Prediction covariance
       PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu, d)
       PsigmaMat <- diag(exp(Plog_sigma_vec_j))
@@ -2230,7 +2241,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
         sigmaMat <- diag(exp(log_sigma_vec_j[P_nID[m,]]))
         Cov <- sigmaMat %*% Cor %*% sigmaMat
         C <- Cov + diag(exp(log_tau_vec_j[P_nID[m,]])^2)
-        C_chol <- chol(Cov)
+        C_chol <- chol(C)
         # Prediction variance
         # PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu)
         PsigmaMat <- exp(Plog_sigma_vec_j[m])

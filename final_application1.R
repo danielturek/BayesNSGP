@@ -63,6 +63,7 @@ constants_PacScher <- list( nu = 2, Sigma_knot_coords = knot_coords,
 Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_PacScher, 
                     coords = coords, z = z, Sigma_model = "npApproxGP")
 conf <- configureMCMC(Rmodel)
+conf$printSamplers()
 # Edit latent process samplers
 knot_groups <- matrix(c(1:4,9:12,17:20,25:28,
                         5:8,13:16,21:24,29:32,
@@ -82,7 +83,7 @@ for(h in 1:ncol(knot_groups)){
   conf$addSampler(target = c(paste0("w3_Sigma[",knot_groups[,h],"]")), type = "RW_block" )
 }
 # conf$getSamplers()
-conf$addMonitors(c("Sigma11", "Sigma22", "Sigma12", "w1_Sigma", "w2_Sigma", "w3_Sigma"))
+conf$addMonitors(c("Sigma11", "Sigma22", "Sigma12"))
 Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
