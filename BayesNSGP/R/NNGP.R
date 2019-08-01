@@ -92,7 +92,7 @@ calcQF <- nimbleFunction(
 #' @param N Scalar; number of data measurements.
 #' @param k Scalar; number of nearest neighbors.
 #' @param nu Scalar; Matern smoothness parameter.
-#' @param d TODO
+#' @param d Scalar; dimension of the spatial domain.
 #' 
 #' @return A N x (k+1) matrix; the first k columns are the 'A' matrix, and the
 #' last column is the 'D' vector.

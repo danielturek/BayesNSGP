@@ -89,9 +89,11 @@ conditionLatentObs <- function( nID, coords_ord, N ){
 #' @param coords Matrix of observed locations.
 #' @param coords_pred Optional matrix of prediction locations.
 #' @param k Number of neighbors.
-#' @param seed TODO
-#' @param pred.seed TODO
-#' @param order_coords TODO
+#' @param seed Setting the seed for reproducibility of the observed location
+#' ordering
+#' @param pred.seed Setting the seed for reproducibility of the prediction 
+#' ordering.
+#' @param order_coords Logical; should the coordinates be ordered.
 #' 
 #' @return A list with the following components:
 #' \item{ord}{A vector of ordering position for the observed locations.}
@@ -191,10 +193,11 @@ sgvSetup <- function( coords, coords_pred = NULL, k = 15, seed = NULL, pred.seed
 #' values (z, \code{0}). Calculated in \code{sgvSetup}.
 #' @param N Scalar; number of data measurements.
 #' @param k Scalar; number of nearest neighbors.
-#' @param d TODO
-#' @param M TODO
+#' @param d Scalar; dimension of the spatial domain.
+#' @param M Scalar; number of prediction sites.
 #' 
-#' @return TODO
+#' @return Returns a sparse matrix representation of the Cholesky of the
+#' precision matrix for a fixed set of covariance parameters.
 #'
 #' @examples
 #' # TODO
@@ -328,10 +331,10 @@ calculateU_ns <- nimbleFunction(  # Create the sparse U matrix for specific thet
 
 # ROxygen comments ----
 #' nimble_sparse_tcrossprod
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param subset TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param subset Optional vector of rows to include in the calculation.
 #' @export
 R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
   Asparse <- sparseMatrix(i = i, j = j, x = x)
@@ -350,10 +353,10 @@ R_sparse_tcrossprod <- function(i, j, x, subset = -1) {
 
 # ROxygen comments ----
 #' nimble_sparse_tcrossprod
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param subset TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param subset Optional vector of rows to include in the calculation.
 #' @export
 nimble_sparse_tcrossprod <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), subset = double(1)) {},
@@ -363,17 +366,16 @@ nimble_sparse_tcrossprod <- nimbleRcall(
 
 # ROxygen comments ----
 #' nimble_sparse_crossprod
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param z TODO
-#' @param n TODO
-#' @param subset TODO
-#' @param transp TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param z Vector to calculate the cross-product with.
+#' @param n Length of the vector
+#' @param subset Optional vector of rows to include in the calculation.
+#' @param transp Optional indicator of using the transpose
 #' @export
 R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
-  ## Mark: TODO.  What should be on the next line??  
-  zSparse <- array(1:9, c(3,3))  ## sparseMatrix(i = 1:n, j = rep(1,n), x = as.numeric(z))
+  zSparse <- array(1:9, c(3,3))  
   if(transp == 1){ # use crossprod
     Asparse <- sparseMatrix(i = i, j = j, x = x)
     if(subset[1] < 0){ # No subset
@@ -394,13 +396,13 @@ R_sparse_crossprod <- function(i, j, x, z, n, subset = -1, transp = 1) {
 
 # ROxygen comments ----
 #' nimble_sparse_crossprod
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param z TODO
-#' @param n TODO
-#' @param subset TODO
-#' @param transp TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param z Vector to calculate the cross-product with.
+#' @param n Length of the vector
+#' @param subset Optional vector of rows to include in the calculation.
+#' @param transp Optional indicator of using the transpose
 #' @export
 nimble_sparse_crossprod <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), z = double(1), n = double(), subset = double(1), transp = double()) {},
@@ -410,10 +412,10 @@ nimble_sparse_crossprod <- nimbleRcall(
 
 # ROxygen comments ----
 #' R_sparse_chol
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param n TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param n Length of the vector
 #' @export
 R_sparse_chol <- function(i, j, x, n) {
   Asparse <- sparseMatrix(i = i, j = j, x = x)
@@ -428,10 +430,10 @@ R_sparse_chol <- function(i, j, x, n) {
 
 # ROxygen comments ----
 #' nimble_sparse_chol
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param n TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param n Length of the vector
 #' @export
 nimble_sparse_chol <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), n = double()) {},
@@ -441,10 +443,10 @@ nimble_sparse_chol <- nimbleRcall(
 
 # ROxygen comments ----
 #' nimble_sparse_solve
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param z TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param z Vector to calculate the cross-product with.
 #' @export
 R_sparse_solve <- function(i, j, x, z) {
   # z3 <- solve(V_ord, rev(z2), system = "L")
@@ -456,10 +458,10 @@ R_sparse_solve <- function(i, j, x, z) {
 
 # ROxygen comments ----
 #' nimble_sparse_solve
-#' @param i TODO
-#' @param j TODO
-#' @param x TODO
-#' @param z TODO
+#' @param i Vector of row indices.
+#' @param j Vector of column indices.
+#' @param x Vector of values in the matrix.
+#' @param z Vector to calculate the cross-product with.
 #' @export
 nimble_sparse_solve <- nimbleRcall(
   prototype = function(i = double(1), j = double(1), x = double(1), z = double(1)) {},
@@ -479,14 +481,17 @@ nimble_sparse_solve <- nimbleRcall(
 #' likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
 #' the distributions must be registered within \code{nimble}.
 #' 
-#' @param x TODO
-#' @param mean TODO
-#' @param U TODO
-#' @param N TODO
-#' @param k TODO
-#' @param log TODO
+#' @param x Vector of measurements
+#' @param mean Vector of mean valiues
+#' @param U Matrix of size N x 3; representation of a sparse N x N Cholesky
+#' of the precision matrix. The first two columns contain row and column 
+#' indices, respectively, and the last column is the nonzero elements of the
+#' matrix.
+#' @param N Number of measurements in x
+#' @param k Number of neighbors for the SGV approximation.
+#' @param log Logical; should the density be evaluated on the log scale.
 #' 
-#' @return TODO
+#' @return Returns the SGV approximation to the Gaussian likelihood.
 #'
 #' @examples
 #' # TODO
@@ -524,13 +529,16 @@ dmnorm_sgv <- nimbleFunction(
 #' likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
 #' the distributions must be registered within \code{nimble}.
 #' 
-#' @param n TODO
-#' @param mean TODO
-#' @param U TODO
-#' @param N TODO
-#' @param k TODO
+#' @param x Vector of measurements
+#' @param mean Vector of mean valiues
+#' @param U Matrix of size N x 3; representation of a sparse N x N Cholesky
+#' of the precision matrix. The first two columns contain row and column 
+#' indices, respectively, and the last column is the nonzero elements of the
+#' matrix.
+#' @param N Number of measurements in x
+#' @param k Number of neighbors for the SGV approximation.
 #' 
-#' @return TODO
+#' @return Not applicable.
 #'
 #' @export
 rmnorm_sgv <- nimbleFunction(

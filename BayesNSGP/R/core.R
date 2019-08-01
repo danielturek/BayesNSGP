@@ -480,7 +480,7 @@ matern_corr <- nimble::nimbleFunction(
 #' @param nu Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
 #' to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 #' correlation function.
-#' @param d TODO
+#' @param d Scalar; dimension of the spatial domain.
 #' 
 #' @return A M x N cross-correlation matrix for two fixed sets of stations and 
 #' fixed parameter values.
@@ -785,7 +785,9 @@ nsDist3d <- function(coords, nID, scale_factor = NULL, isotropic = FALSE) {
 #' @param Pcoords M x 2 matrix; contains x-y coordinates of prediction
 #' locations.
 #' @param scale_factor Scalar; optional argument for re-scaling the distances.
-#' @param isotropic TODO
+#' @param isotropic Logical; indicates whether distances should be calculated
+#' using Euclidean distance (\code{isotropic = TRUE}) or using the anisotropic
+#' formulation (\code{isotropic = FALSE}).
 #' 
 #' @return A list of distances matrices, with the following components:
 #' \item{dist1_sq}{M x N matrix; contains values of pairwise squared cross-
@@ -941,7 +943,8 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 # ROxygen comments ----
 #' NIMBLE code for a generic nonstationary GP model
 #' 
-#' TODO: add documentation
+#' This function sets up and compiles a nimble model for a general 
+#' nonstationary Gaussian process.
 #' 
 #' @param tau_model Character; specifies the model to be used for the log(tau) 
 #' process. Options are \code{"constant"} (spatially-constant), 
@@ -968,9 +971,11 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' @param z N-vector; observed vector of the spatial process of interest
 #' @param constants A list of constants required to build the model; depends on
 #' the specific parameter process models chosen.
-#' @param monitorAllSampledNodes TODO
-#' @param returnModelComponents TODO
-#' @param ... TODO
+#' @param monitorAllSampledNodes Logical; indicates whether all sampled nodes 
+#' should be stored (\code{TRUE}) or not (\code{FALSE}).
+#' @param ... Additional arguments can be passed to the function; for example,
+#' as an alternative to the \code{constants} list, items can be passed directly
+#' via this argument.
 #' 
 #' @return A \code{nimbleCode} object.
 #' 
@@ -1010,7 +1015,6 @@ nsgpModel <- function( tau_model   = "constant",
                        z,
                        constants = list(),
                        monitorAllSampledNodes = TRUE,
-                       returnModelComponents = FALSE,
                        ... ) {
   
   ##============================================
@@ -1678,7 +1682,7 @@ nsgpModel <- function( tau_model   = "constant",
   inits_uneval <- do.call("c", unname(lapply(model_selections_list, function(x) x$inits)))
   inits <- lapply(inits_uneval, function(x) eval(x, envir = constants))
   
-  if(returnModelComponents) return(list(code=code, constants=constants, data=data, inits=inits))
+  # if(returnModelComponents) return(list(code=code, constants=constants, data=data, inits=inits))
   
   ## generate the "name" for the nimble model object, containing which submodels were used
   thisName <- paste0(
@@ -1747,7 +1751,9 @@ nsgpModel <- function( tau_model   = "constant",
 #' alternatively, additional arguments can be passed to the function via the
 #' ... argument.
 #' @param seed An optional random seed argument for reproducibility.
-#' @param ... TODO
+#' @param ... Additional arguments can be passed to the function; for example,
+#' as an alternative to the \code{constants} list, items can be passed directly
+#' via this argument.
 #' 
 #' @return The output of the function is a list with two elements: \code{obs},
 #' a matrix of \code{J} posterior predictive samples for the N observed 
@@ -1956,7 +1962,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     M <- dim(Pdist1_3d)[1] # number of prediction locations
     postPredDrawsCols <- M
   } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
-    if(predict.y == FALSE){   ## TODO: is this right??  when predict.y=FALSE, tell the user that "predicton for Z is not available" ??   -DT
+    if(predict.y == FALSE){   
       stop("Prediction for Z(.) not available with SGV.")
     }
     # Extract needed variables from constants
