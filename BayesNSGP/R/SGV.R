@@ -529,7 +529,7 @@ dmnorm_sgv <- nimbleFunction(
 #' likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
 #' the distributions must be registered within \code{nimble}.
 #' 
-#' @param x Vector of measurements
+#' @param n Vector of measurements
 #' @param mean Vector of mean valiues
 #' @param U Matrix of size N x 3; representation of a sparse N x N Cholesky
 #' of the precision matrix. The first two columns contain row and column 
