@@ -591,7 +591,7 @@ nsCrosscorr <- nimble::nimbleFunction(
         if(min(Dist.mat) == 0) {
           for(i in 1:dim(Unscl.corr)[1]) {
             for(j in 1:dim(Unscl.corr)[2]) {
-              if(Unscl.corr[i,j] == Inf)   Unscl.corr[i,j] <- 1
+              if(Dist.mat[i,j] == 0)   Unscl.corr[i,j] <- 1
             }
           }
         }
