@@ -38,12 +38,13 @@ values (z, \code{0}). Calculated in \code{sgvSetup}.}
 
 \item{k}{Scalar; number of nearest neighbors.}
 
-\item{d}{TODO}
+\item{d}{Scalar; dimension of the spatial domain.}
 
-\item{M}{TODO}
+\item{M}{Scalar; number of prediction sites.}
 }
 \value{
-TODO
+Returns a sparse matrix representation of the Cholesky of the
+precision matrix for a fixed set of covariance parameters.
 }
 \description{
 \code{calculateU_ns} calculates the (sparse) matrix U (i.e., the Cholesky 

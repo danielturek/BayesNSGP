@@ -7,13 +7,13 @@
 R_sparse_tcrossprod(i, j, x, subset = -1)
 }
 \arguments{
-\item{i}{TODO}
+\item{i}{Vector of row indices.}
 
-\item{j}{TODO}
+\item{j}{Vector of column indices.}
 
-\item{x}{TODO}
+\item{x}{Vector of values in the matrix.}
 
-\item{subset}{TODO}
+\item{subset}{Optional vector of rows to include in the calculation.}
 }
 \description{
 nimble_sparse_tcrossprod

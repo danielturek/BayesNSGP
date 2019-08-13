@@ -15,7 +15,9 @@ locations.}
 
 \item{scale_factor}{Scalar; optional argument for re-scaling the distances.}
 
-\item{isotropic}{TODO}
+\item{isotropic}{Logical; indicates whether distances should be calculated
+using Euclidean distance (\code{isotropic = TRUE}) or using the anisotropic
+formulation (\code{isotropic = FALSE}).}
 }
 \value{
 A list of distances matrices, with the following components:

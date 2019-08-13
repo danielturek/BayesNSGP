@@ -7,20 +7,23 @@
 dmnorm_sgv(x, mean, U, N, k, log = 1)
 }
 \arguments{
-\item{x}{TODO}
+\item{x}{Vector of measurements}
 
-\item{mean}{TODO}
+\item{mean}{Vector of mean valiues}
 
-\item{U}{TODO}
+\item{U}{Matrix of size N x 3; representation of a sparse N x N Cholesky
+of the precision matrix. The first two columns contain row and column 
+indices, respectively, and the last column is the nonzero elements of the
+matrix.}
 
-\item{N}{TODO}
+\item{N}{Number of measurements in x}
 
-\item{k}{TODO}
+\item{k}{Number of neighbors for the SGV approximation.}
 
-\item{log}{TODO}
+\item{log}{Logical; should the density be evaluated on the log scale.}
 }
 \value{
-TODO
+Returns the SGV approximation to the Gaussian likelihood.
 }
 \description{
 \code{dmnorm_sgv} (and \code{rmnorm_sgv}) calculate the approximate SGV

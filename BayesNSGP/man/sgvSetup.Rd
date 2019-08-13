@@ -14,11 +14,13 @@ sgvSetup(coords, coords_pred = NULL, k = 15, seed = NULL,
 
 \item{k}{Number of neighbors.}
 
-\item{seed}{TODO}
+\item{seed}{Setting the seed for reproducibility of the observed location
+ordering}
 
-\item{pred.seed}{TODO}
+\item{pred.seed}{Setting the seed for reproducibility of the prediction 
+ordering.}
 
-\item{order_coords}{TODO}
+\item{order_coords}{Logical; should the coordinates be ordered.}
 }
 \value{
 A list with the following components:

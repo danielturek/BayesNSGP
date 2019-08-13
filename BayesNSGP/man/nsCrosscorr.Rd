@@ -41,7 +41,7 @@ anisotropy process for each prediction location.}
 to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 correlation function.}
 
-\item{d}{TODO}
+\item{d}{Scalar; dimension of the spatial domain.}
 }
 \value{
 A M x N cross-correlation matrix for two fixed sets of stations and 

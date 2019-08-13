@@ -25,7 +25,9 @@ alternatively, additional arguments can be passed to the function via the
 
 \item{seed}{An optional random seed argument for reproducibility.}
 
-\item{...}{TODO}
+\item{...}{Additional arguments can be passed to the function; for example,
+as an alternative to the \code{constants} list, items can be passed directly
+via this argument.}
 }
 \value{
 The output of the function is a list with two elements: \code{obs},

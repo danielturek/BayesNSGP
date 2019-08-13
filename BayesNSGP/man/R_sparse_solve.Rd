@@ -7,13 +7,13 @@
 R_sparse_solve(i, j, x, z)
 }
 \arguments{
-\item{i}{TODO}
+\item{i}{Vector of row indices.}
 
-\item{j}{TODO}
+\item{j}{Vector of column indices.}
 
-\item{x}{TODO}
+\item{x}{Vector of values in the matrix.}
 
-\item{z}{TODO}
+\item{z}{Vector to calculate the cross-product with.}
 }
 \description{
 nimble_sparse_solve

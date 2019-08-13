@@ -7,13 +7,13 @@
 nimble_sparse_chol(i, j, x, n)
 }
 \arguments{
-\item{i}{TODO}
+\item{i}{Vector of row indices.}
 
-\item{j}{TODO}
+\item{j}{Vector of column indices.}
 
-\item{x}{TODO}
+\item{x}{Vector of values in the matrix.}
 
-\item{n}{TODO}
+\item{n}{Length of the vector}
 }
 \description{
 nimble_sparse_chol

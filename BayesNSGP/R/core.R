@@ -1184,8 +1184,8 @@ nsgpModel <- function( tau_model   = "constant",
       ## 2. Sigma_HP1            Standard deviation for the anisotropy components
       ## 3. Sigma_coef{1,2,3}    Vectors of length p_Sigma; represents the anisotropy components
       code = quote({
-        Sigma11[1:N] <- ones[1:N]*Sigma_coef1[1]
-        Sigma22[1:N] <- ones[1:N]*Sigma_coef1[1]
+        Sigma11[1:N] <- ones[1:N]*Sigma_coef1
+        Sigma22[1:N] <- ones[1:N]*Sigma_coef1
         Sigma12[1:N] <- ones[1:N]*0
         
         Sigma_coef1 ~ dunif(0, Sigma_HP1[1]) # phi1

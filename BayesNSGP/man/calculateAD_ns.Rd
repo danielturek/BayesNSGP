@@ -34,7 +34,7 @@ direction.}
 
 \item{nu}{Scalar; Matern smoothness parameter.}
 
-\item{d}{TODO}
+\item{d}{Scalar; dimension of the spatial domain.}
 }
 \value{
 A N x (k+1) matrix; the first k columns are the 'A' matrix, and the

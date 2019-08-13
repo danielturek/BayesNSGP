@@ -7,7 +7,7 @@
 nsgpModel(tau_model = "constant", sigma_model = "constant",
   Sigma_model = "constant", mu_model = "constant",
   likelihood = "fullGP", coords, z, constants = list(),
-  monitorAllSampledNodes = TRUE, returnModelComponents = FALSE, ...)
+  monitorAllSampledNodes = TRUE, ...)
 }
 \arguments{
 \item{tau_model}{Character; specifies the model to be used for the log(tau) 
@@ -43,17 +43,19 @@ nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"}
 \item{constants}{A list of constants required to build the model; depends on
 the specific parameter process models chosen.}
 
-\item{monitorAllSampledNodes}{TODO}
+\item{monitorAllSampledNodes}{Logical; indicates whether all sampled nodes 
+should be stored (\code{TRUE}) or not (\code{FALSE}).}
 
-\item{returnModelComponents}{TODO}
-
-\item{...}{TODO}
+\item{...}{Additional arguments can be passed to the function; for example,
+as an alternative to the \code{constants} list, items can be passed directly
+via this argument.}
 }
 \value{
 A \code{nimbleCode} object.
 }
 \description{
-TODO: add documentation
+This function sets up and compiles a nimble model for a general 
+nonstationary Gaussian process.
 }
 \examples{
 # Generate some data: stationary/isotropic
