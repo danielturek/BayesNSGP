@@ -15,9 +15,6 @@ library(BayesNSGP)
 # Load data =====================================
 tasRV20_DF_all <- read.csv("data/C20C_DJFtasRV20_trend.csv")
 tasRV20_DF_all <- tasRV20_DF_all[abs(tasRV20_DF_all$latitude) < 85,]
-latShift <- mean(tasRV20_DF_all$latitude)
-latScale <- sd(tasRV20_DF_all$latitude)
-tasRV20_DF_all$Zlatitude <- (tasRV20_DF_all$latitude - latShift)/latScale
 tasRV20_DF_all$rv20[tasRV20_DF_all$rv20 > 310] <- NA
 
 # Regional lengthscale
@@ -37,11 +34,12 @@ tasRV20_DF <- tasRV20_DF_all[!is.na(tasRV20_DF_all$rv20),]
 # tasRV20_DF <- tasRV20_DF[sample(nrow(tasRV20_DF), 1000),]
 
 # Standardize
-z <- (tasRV20_DF$rv20) # - 275)/20
+ # - 275)/20
 
 # Design matrix
 Xmat <- unname(lm(rv20 ~ region, x = TRUE, data = tasRV20_DF)$x)
-N <- nrow(tasRV20_DF)
+# N <- nrow(tasRV20_DF)
+z <- tasRV20_DF$rv20
 
 # Convert lon/lat to x/y/z
 xyz.crds <- matrix(NA,nrow(tasRV20_DF),3)
@@ -56,27 +54,6 @@ for(i in 1:nrow(xyz.crds)){
 coords <- round(xyz.crds, 4)
 # coords <- tasRV20_DF[,1:2]
 
-# # Range
-# library(geoR)
-# range_vec <- rep(NA, 6)
-# kappa_vec <- rep(NA, 6)
-# sigma_vec <- rep(NA, 6)
-# tau_vec <- rep(NA, 6)
-# temp <- tempFitMat <- tempFitExp <- list()
-# for(i in 1:6){
-#   cat(i, " ")
-#   crds <- coords[tasRV20_DF$region == i, ]
-#   dat <- z[tasRV20_DF$region == i ]
-#   temp[[i]] <- variog(coords = crds, data = dat, max.dist = 90)
-#   tempFitMat[[i]] <- variofit(temp[[i]], cov.model = "matern", fix.kappa = TRUE, kappa = 5)
-#   tempFitExp[[i]] <- variofit(temp[[i]], cov.model = "exponential")
-# }
-# par(ask = TRUE)
-# for(i in 1:6){
-#   plot(temp[[i]], main = i)
-#   lines(tempFitExp[[i]], col = 2)
-#   lines(tempFitMat[[i]], col = 4)
-# }
 
 # Constants for NNGP ============================
 constants <- list( 
@@ -91,7 +68,8 @@ constants <- list(
 #================================================
 prt <- proc.time()
 Rmodel <- nsgpModel(likelihood = "NNGP", constants = constants, 
-                    coords = coords, z = z, tau_model = "constant", 
+                    coords = round(xyz.crds, 4), z = tasRV20_DF$rv20, 
+                    tau_model = "constant", 
                     sigma_model = "logLinReg", mu_model = "constant", 
                     Sigma_model = "compRegIso")
 conf <- configureMCMC(Rmodel)
@@ -115,7 +93,7 @@ save(samples, time_mcmc, time_build, file = "app3_alt3_full.RData")
 # tmp <- samples
 # 
 # par(ask=TRUE)
-# for(h in 1:ncol(samples)) plot(samples[,h], type = "l", main = colnames(samples)[h])
+# for(h in 1:ncol(samples)) plot(samples[4001:5000,h], type = "l", main = colnames(samples)[h])
 # par(ask=FALSE)
 
 # Prediction

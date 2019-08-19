@@ -14,7 +14,7 @@ library(BayesNSGP)
 
 # Load data =====================================
 tasRV20_DF_all <- read.csv("data/C20C_DJFtasRV20_trend.csv")
-tasRV20_DF_all <- tasRV20_DF_all[abs(tasRV20_DF_all$latitude) < 80,]
+tasRV20_DF_all <- tasRV20_DF_all[abs(tasRV20_DF_all$latitude) < 85,]
 latShift <- mean(tasRV20_DF_all$latitude)
 latScale <- sd(tasRV20_DF_all$latitude)
 tasRV20_DF_all$Zlatitude <- (tasRV20_DF_all$latitude - latShift)/latScale
@@ -112,6 +112,21 @@ samples <- runMCMC(Cmcmc, niter = 5000, nburnin = 0)
 time_mcmc <- proc.time() - prt
 save(samples, time_mcmc, time_build, file = "app3_alt2.RData")
 
+
+# load("~/Documents/GitHub/BayesNSGP/app3_alt1.RData")
+# samples1 <- samples
+# load("~/Documents/GitHub/BayesNSGP/app3_alt3.RData")
+# samples3 <- samples
 # par(ask=TRUE)
-# for(h in 1:ncol(samples)) plot(samples[-(1:1000),h], type = "l", main = colnames(samples)[h])
+# for(h in 1:ncol(samples)){
+#   plot(samples1[-(1:1000),h], type = "l", main = colnames(samples)[h])
+#   lines(samples3[-(1:2000),h], col = 2)
+# }
 # par(ask=FALSE)
+
+
+
+
+
+
+
