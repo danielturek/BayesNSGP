@@ -44,9 +44,6 @@
 #' same spatial coordinates, ordered by MMD, and (2) the same thing, but with 
 #' any NA values removed.
 #' 
-#' @examples
-#' # TODO
-#' 
 #' @export
 #' 
 calcQF <- nimbleFunction(
@@ -96,9 +93,6 @@ calcQF <- nimbleFunction(
 #' 
 #' @return A N x (k+1) matrix; the first k columns are the 'A' matrix, and the
 #' last column is the 'D' vector.
-#'
-#' @examples
-#' # TODO
 #'
 #' @export
 #' 
@@ -151,9 +145,6 @@ calculateAD_ns <- nimbleFunction(
 #' @param log Scalar; should the density be on the log scale (1) or not (0).
 #' 
 #' @return The NNGP approximate density.
-#'
-#' @examples
-#' # TODO
 #'
 #' @export
 #' 

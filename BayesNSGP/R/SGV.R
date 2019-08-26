@@ -38,9 +38,6 @@
 #' @return A matrix indicating whether the conditioning set for each location 
 #' is on the latent process (y, \code{1}) or the observed values (z, \code{0}).
 #'
-#' @examples
-#' # TODO
-#'
 #' @export
 #' 
 conditionLatentObs <- function( nID, coords_ord, N ){
@@ -106,9 +103,6 @@ conditionLatentObs <- function( nID, coords_ord, N ){
 #' \item{condition_on_y_ord}{A matrix indicating whether the conditioning
 #' set for each (ordered) location is on the latent process (y, \code{1}) or
 #' the observed values (z, \code{0}).}
-#'
-#' @examples
-#' # TODO
 #'
 #' @export
 #' 
@@ -198,9 +192,6 @@ sgvSetup <- function( coords, coords_pred = NULL, k = 15, seed = NULL, pred.seed
 #' 
 #' @return Returns a sparse matrix representation of the Cholesky of the
 #' precision matrix for a fixed set of covariance parameters.
-#'
-#' @examples
-#' # TODO
 #'
 #' @export
 #' 
@@ -492,9 +483,6 @@ nimble_sparse_solve <- nimbleRcall(
 #' @param log Logical; should the density be evaluated on the log scale.
 #' 
 #' @return Returns the SGV approximation to the Gaussian likelihood.
-#'
-#' @examples
-#' # TODO
 #'
 #' @export
 #' 
