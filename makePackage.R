@@ -26,7 +26,7 @@ namespace <- c('import(methods)', namespace)
 namespace <- c('importFrom("stats", "dist", "rnorm")', namespace)
 writeLines(namespace, namespaceFilename)
 system(paste0('R CMD BUILD ', baseDir, 'BayesNSGP'))
-##check(paste0(baseDir, 'BayesNSGP'))
+check(paste0(baseDir, 'BayesNSGP'))
 try(remove.packages('BayesNSGP'), silent = TRUE)
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
 lastTarFile <- tarFiles[length(tarFiles)]
