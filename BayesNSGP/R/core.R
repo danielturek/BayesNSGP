@@ -1765,7 +1765,7 @@ nsgpModel <- function( tau_model   = "constant",
 #' internally, as with \code{nsgpModel}.
 #' 
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # Generate some data: stationary/isotropic
 #' N <- 100
 #' coords <- matrix(runif(2*N), ncol = 2)
@@ -1826,7 +1826,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   
   ## order predCoords for SGV
   if( modelsList$likelihood == "SGV" ) {
-    cat("\nOrdering the prediction locations and determining neighbors/conditioning sets for SGV (this may take a minute).\n")
+    message("\nOrdering the prediction locations and determining neighbors/conditioning sets for SGV (this may take a minute).\n")
     pred.mmd.seed <- sample(1e5, 1)
     predSGV_setup <- sgvSetup(coords = coords, coords_pred = predCoords, k = model_constants$k, 
                               pred.seed = pred.mmd.seed, order_coords = FALSE)
@@ -2003,8 +2003,8 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   # Posterior draws - storage
   postPredDraws <- matrix(NA, nrow = J, ncol = postPredDrawsCols)
   
-  cat("|-------------|-------------|-------------|-------------|")
-  cat("\n|")
+  nimCat("|-------------|-------------|-------------|-------------|")
+  nimCat("\n|")
   for(j in 1:J){ # Loop over MCMC samples
     
     samp_j <- mcmc_samples[j,] 
@@ -2312,9 +2312,9 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     } else stop('')
     
     # Progress
-    if( j %% ceiling(J/56) == 0 ){cat("-")}
+    if( j %% ceiling(J/56) == 0 ){nimCat("-")}
   }
-  cat("|\n")
+  nimCat("|\n")
   
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     output <- list(obs = NULL, pred = postPredDraws, pred.mmd.seed = NULL)
