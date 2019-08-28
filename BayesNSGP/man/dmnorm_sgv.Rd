@@ -30,7 +30,3 @@ Returns the SGV approximation to the Gaussian likelihood.
 likelihood for a fixed set of parameters (i.e., the U matrix). Finally,
 the distributions must be registered within \code{nimble}.
 }
-\examples{
-# TODO
-
-}

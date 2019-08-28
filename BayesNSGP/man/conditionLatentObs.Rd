@@ -22,7 +22,3 @@ is on the latent process (y, \code{1}) or the observed values (z, \code{0}).
 in Katzfuss and Guinness (2018). This function only needs to be run once 
 per SGV analysis.
 }
-\examples{
-# TODO
-
-}

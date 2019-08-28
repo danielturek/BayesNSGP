@@ -44,7 +44,3 @@ last column is the 'D' vector.
 \code{calculateAD_ns} calculates A and D matrices (the Cholesky of the 
 precision matrix) needed for the NNGP approximation.
 }
-\examples{
-# TODO
-
-}

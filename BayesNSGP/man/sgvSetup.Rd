@@ -41,7 +41,3 @@ Three objects are required: (1) ordering the locations, (2) identify nearest
 neighbors, and (3) determine the conditioning set. This function only needs
 to be run once per SGV analysis.
 }
-\examples{
-# TODO
-
-}

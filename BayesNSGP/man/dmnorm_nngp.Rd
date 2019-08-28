@@ -30,7 +30,3 @@ The NNGP approximate density.
 likelihood for a fixed set of parameters (i.e., A and D matrices). Finally,
 the distributions must be registered within \code{nimble}.
 }
-\examples{
-# TODO
-
-}

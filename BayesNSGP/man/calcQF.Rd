@@ -26,7 +26,3 @@ any NA values removed.
 based on the NNGP approximation, for a specific parameter combination. The
 quadratic form is \code{t(u)C^{-1}v}.
 }
-\examples{
-# TODO
-
-}

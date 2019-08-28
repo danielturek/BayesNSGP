@@ -53,7 +53,3 @@ The output only contains non-zero values and is stored as three vectors:
 (1) the row indices, (2) the column indices, and (3) the non-zero values.
 NOTE: this code assumes the all inputs correspond to the ORDERED locations.
 }
-\examples{
-# TODO
-
-}
