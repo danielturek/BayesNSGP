@@ -6,7 +6,7 @@
 \usage{
 nsgpModel(tau_model = "constant", sigma_model = "constant",
   Sigma_model = "constant", mu_model = "constant",
-  likelihood = "fullGP", coords, z, constants = list(),
+  likelihood = "fullGP", coords, data, constants = list(),
   monitorAllSampledNodes = TRUE, ...)
 }
 \arguments{
@@ -38,7 +38,7 @@ nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"}
 
 \item{coords}{N x d matrix of spatial coordinates.}
 
-\item{z}{N-vector; observed vector of the spatial process of interest}
+\item{data}{N-vector; observed vector of the spatial process of interest}
 
 \item{constants}{A list of constants required to build the model; depends on
 the specific parameter process models chosen.}
@@ -75,11 +75,11 @@ Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq,
 Cov_mat <- diag(exp(alpha_vec)) \%*\% Cor_mat \%*\% diag(exp(alpha_vec))
 D_mat <- diag(exp(delta_vec)^2) 
 set.seed(110)
-z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
+data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
 # Set up constants
 constants <- list( nu = 0.5, Sigma_HP1 = 2 )
 # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
 # and Sigma_model = "constant"
-Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, data = data )
 
 }

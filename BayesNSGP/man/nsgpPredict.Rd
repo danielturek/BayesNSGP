@@ -4,8 +4,8 @@
 \alias{nsgpPredict}
 \title{Posterior prediction for the NSGP}
 \usage{
-nsgpPredict(model, samples, coords.predict, predict.y = TRUE, constants,
-  seed = 0, ...)
+nsgpPredict(model, samples, coords.predict, predict.process = TRUE,
+  constants, seed = 0, ...)
 }
 \arguments{
 \item{model}{A NSGP nimble object; the output of \code{nsgpModel}.}
@@ -15,7 +15,7 @@ parameters corresponding to the specification in \code{nsgpModel}.}
 
 \item{coords.predict}{M x d matrix of prediction coordinates.}
 
-\item{predict.y}{Logical; determines whether the prediction corresponds to 
+\item{predict.process}{Logical; determines whether the prediction corresponds to 
 the y(·) process (\code{TRUE}) or z(·) (\code{FALSE}; this would likely 
 only be used for, e.g., cross-validation).}
 
@@ -62,12 +62,12 @@ Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq,
 Cov_mat <- diag(exp(alpha_vec)) \%*\% Cor_mat \%*\% diag(exp(alpha_vec))
 D_mat <- diag(exp(delta_vec)^2) 
 set.seed(110)
-z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
+data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
 # Set up constants
 constants <- list( nu = 0.5, Sigma_HP1 = 2 )
 # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
 # and Sigma_model = "constant"
-Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, data = data )
 conf <- configureMCMC(Rmodel)
 Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
