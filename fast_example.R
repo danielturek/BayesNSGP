@@ -34,7 +34,7 @@ Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq,
 Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
 D_mat <- diag(exp(delta_vec)^2) 
 set.seed(110)
-z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
 predCoords <- as.matrix(expand.grid(seq(0,1,length = sqrt(M)),seq(0,1,length = sqrt(M))))
 Xmat_pred <- cbind(rep(1,M), predCoords[,2])
 
@@ -44,23 +44,23 @@ Xmat_pred <- cbind(rep(1,M), predCoords[,2])
 #######################
 
 ## fullGP likelihood
-Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat)
+Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, data = data, X_sigma = Xmat, X_mu = Xmat)
 
 ## fullGP likelihood, with approxGP for tau model
-Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', tau_model = 'approxGP', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, tau_knot_coords = locs)
+Rmodel <- nsgpModel(likelihood = 'fullGP', sigma_model = 'logLinReg', mu_model = 'linReg', tau_model = 'approxGP', coords = locs, data = data, X_sigma = Xmat, X_mu = Xmat, tau_knot_coords = locs)
 
 ## NNGP likelihood
-Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
+Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, data = data, X_sigma = Xmat, X_mu = Xmat, k = 10)
 Rmodel <- nsgpModel(likelihood = 'NNGP', sigma_model = 'logLinReg', mu_model = 'linReg', 
-                    tau_model = 'approxGP', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, 
+                    tau_model = 'approxGP', coords = locs, data = data, X_sigma = Xmat, X_mu = Xmat, 
                     tau_knot_coords = locs, k = 10)
 # Rmodel <- nsgpModel(likelihood = 'NNGP', tau_model = 'logLinReg', mu_model = 'linReg', 
-#                     sigma_model = 'approxGP', coords = locs, z = z, X_tau = Xmat, X_mu = Xmat, 
+#                     sigma_model = 'approxGP', coords = locs, data = data, X_tau = Xmat, X_mu = Xmat, 
 #                     sigma_knot_coords = locs, k = 10, returnModelComponents = TRUE)
 # test <- nimbleModel(Rmodel$code, Rmodel$constants, Rmodel$data, Rmodel$inits)
 
 ## SGV likelihood
-Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, z = z, X_sigma = Xmat, X_mu = Xmat, k = 10)
+Rmodel <- nsgpModel(likelihood = 'SGV', sigma_model = 'logLinReg', mu_model = 'linReg', coords = locs, data = data, X_sigma = Xmat, X_mu = Xmat, k = 10)
 
 Rmodel$calculate()
 conf <- configureMCMC(Rmodel)
@@ -97,7 +97,7 @@ Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
 D_mat <- diag(exp(rep(log(sqrt(0.05)), N))^2) 
 # Draw data
 set.seed(1)
-z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
 tau_knot_coords  <- as.matrix(expand.grid(seq(0,1,length = 10),seq(0,1,length = 10)))
 
 constants <- list( X_sigma = Xmat1, X_Sigma = Xmat2, X_mu = Xmat1, tau_knot_coords = tau_knot_coords, k = 10 )
@@ -105,7 +105,7 @@ constants <- list( X_sigma = Xmat1, X_Sigma = Xmat2, X_mu = Xmat1, tau_knot_coor
 Rmodel <- nsgpModel( likelihood = "SGV", 
                      sigma_model = "logLinReg", Sigma_model = "compRegIso",
                      mu_model = "linReg", tau_model = "approxGP", 
-                     constants = constants, coords = coords, z = z )
+                     constants = constants, coords = coords, data = data )
 conf <- configureMCMC(Rmodel)
 conf$printSamplers()
 conf$removeSamplers()
@@ -156,7 +156,7 @@ for(n in 1:length(Nvec)){
     Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", 
                                 sigma_model = "logLinReg", Sigma_model = "compRegIso",
                                 mu_model = "linReg", tau_model = "approxGP", 
-                                constants = constants, coords = coords, z = rnorm(N) ) #, returnModelComponents = TRUE )
+                                constants = constants, coords = coords, data = rnorm(N) ) #, returnModelComponents = TRUE )
     fullGPtime[n] <- system.time(Rmodel_fullGP$calculate())[3]
     rm(Rmodel_fullGP)
   }
@@ -165,7 +165,7 @@ for(n in 1:length(Nvec)){
   Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", 
                             sigma_model = "logLinReg", Sigma_model = "compRegIso",
                             mu_model = "linReg", tau_model = "approxGP", 
-                            constants = constants, coords = coords, z = rnorm(N) )
+                            constants = constants, coords = coords, data = rnorm(N) )
   NNGPtime[n] <- system.time(Rmodel_NNGP$calculate())[3]
   rm(Rmodel_NNGP)
   
@@ -173,7 +173,7 @@ for(n in 1:length(Nvec)){
   Rmodel_SGV <- nsgpModel( likelihood = "SGV", 
                            sigma_model = "logLinReg", Sigma_model = "compRegIso",
                            mu_model = "linReg", tau_model = "approxGP", 
-                           constants = constants, coords = coords, z = rnorm(N) )
+                           constants = constants, coords = coords, data = rnorm(N) )
   SGVtime[n] <- system.time(Rmodel_SGV$calculate())[3]
   rm(Rmodel_SGV)
   

@@ -38,13 +38,13 @@ Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
 D_mat <- diag(exp(rep(log(sqrt(0.05)), N))^2) 
 # Draw data
 set.seed(1)
-z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
 tau_knot_coords  <- as.matrix(expand.grid(seq(0,1,length = 10),seq(0,1,length = 10)))
 # Define constants
 constants <- list( X_sigma = Xmat1, X_Sigma = Xmat2, X_mu = Xmat1, tau_knot_coords = tau_knot_coords, k = 10 )
 # Build the model
 Rmodel <- nsgpModel( likelihood = "SGV", sigma_model = "logLinReg", Sigma_model = "compRegIso",
-                     mu_model = "linReg", tau_model = "approxGP", constants = constants, coords = coords, z = z )
+                     mu_model = "linReg", tau_model = "approxGP", constants = constants, coords = coords, data = data )
 # Configure the model
 conf <- configureMCMC(Rmodel) 
 # Adjust the samplers
@@ -84,7 +84,7 @@ pred <- nsgpPredict(model = Rmodel, samples = samples, coords.predict = predCoor
 # Load data and setup
 COprecip <- read.csv("data/COprecip1981.csv")
 coords <- as.matrix(COprecip[,c("Longitude", "Latitude")])
-z <- COprecip$logPrecip
+data <- COprecip$logPrecip
 Xmat <- unname(lm(logPrecip ~ Zelevation*Zslope10, x = TRUE, data = COprecip)$x)
 N <- nrow(COprecip)
 elevMn <- mean(COprecip$Elevation)
@@ -123,7 +123,7 @@ constants_PacScher <- list( nu = 2, Sigma_knot_coords = knot_coords,
                             Sigma_HP4 = c(10,20), maxAnisoDist = 16, mu_HP1 = 10 )
 # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant"
 Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_PacScher, 
-                    coords = coords, z = z, Sigma_model = "npApproxGP")
+                    coords = coords, data = data, Sigma_model = "npApproxGP")
 conf <- configureMCMC(Rmodel)
 conf$printSamplers()
 # Edit latent process samplers
@@ -155,7 +155,7 @@ constants_RisserCalder <- list( nu = 0.5, X_mu = Xmat, mu_HP1 = 10,
                                 X_Sigma = Xmat, Sigma_HP1 = c(10,10), 
                                 Sigma_HP2 = c(2,2), maxAnisoDist = 16)
 # Defaults: tau_model = "constant"
-Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_RisserCalder, coords = coords, z = z, 
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants_RisserCalder, coords = coords, data = data, 
                     mu_model = "linReg", sigma_model = "logLinReg", Sigma_model = "covReg" )
 conf <- configureMCMC(Rmodel)
 conf$removeSamplers( c("psi11", "psi22", "rho") )
@@ -415,7 +415,7 @@ y_max <- max(CONUSprecip[,"latitude"])
 
 # Set up constants and design matrices
 coords <- as.matrix(CONUSprecip[,c("longitude", "latitude")])
-z <- CONUSprecip$logPR
+data <- CONUSprecip$logPR
 elevShift <- mean(CONUSprecip$Xelevation)
 elevScale <- sd(CONUSprecip$Xelevation)
 lonShift <- mean(CONUSprecip$longitude)
@@ -451,7 +451,7 @@ constants <- list(
   maxAnisoDist = max(dist(coords)), X_mu = Xmat2, mu_HP1 = 10 )
 
 # MCMC using the fullGP likelihood
-Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z, tau_model = "constant", 
+Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, data = data, tau_model = "constant", 
                     sigma_model = "approxGP", mu_model = "linReg", Sigma_model = "compReg")
 conf <- configureMCMC(Rmodel)
 conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
@@ -484,7 +484,7 @@ pred_fullGP <- nsgpPredict(model = Rmodel, samples = samples_fullGP[seq(from=300
                         coords.predict = predCoords, PX_Sigma = PXmat1, PX_mu = PXmat2)
 
 # MCMC using the SGV likelihood
-Rmodel <- nsgpModel(likelihood = "SGV", constants = constants, coords = coords, z = z, tau_model = "constant", 
+Rmodel <- nsgpModel(likelihood = "SGV", constants = constants, coords = coords, data = data, tau_model = "constant", 
                     sigma_model = "approxGP", mu_model = "linReg", Sigma_model = "compReg")
 conf <- configureMCMC(Rmodel)
 conf$removeSamplers(c("beta[1]","beta[2]","beta[3]","beta[4]"))
@@ -640,7 +640,7 @@ constants <- list(
   X_Sigma = Xmat, Sigma_HP1 = 10, maxAnisoDist = 20 # maxDist = 22.07 km*1000
 )
 # MCMC using the NNGP likelihood
-Rmodel <- nsgpModel(likelihood = "NNGP", constants = constants, coords = round(xyz.crds, 4), z = tasRV20_DF$rv20, 
+Rmodel <- nsgpModel(likelihood = "NNGP", constants = constants, coords = round(xyz.crds, 4), data = tasRV20_DF$rv20, 
                     tau_model = "constant", sigma_model = "logLinReg", mu_model = "constant", Sigma_model = "compRegIso")
 conf <- configureMCMC(Rmodel)
 conf$removeSamplers(c("alpha[1:6]","Sigma_coef1[1:6]"))
@@ -783,7 +783,7 @@ for(n in 1:length(Nvec)){
   if(N <= 1000){
     Rmodel_fullGP <- nsgpModel( likelihood = "fullGP", sigma_model = "logLinReg", Sigma_model = "compRegIso",
                                 mu_model = "linReg", tau_model = "approxGP", 
-                                constants = constants, coords = coords, z = rnorm(N) ) #, returnModelComponents = TRUE )
+                                constants = constants, coords = coords, data = rnorm(N) ) #, returnModelComponents = TRUE )
     fullGPtime[n] <- system.time(Rmodel_fullGP$calculate())[3]
     rm(Rmodel_fullGP)
   }
@@ -791,14 +791,14 @@ for(n in 1:length(Nvec)){
   # NNGP
   Rmodel_NNGP <- nsgpModel( likelihood = "NNGP", sigma_model = "logLinReg", Sigma_model = "compRegIso",
                             mu_model = "linReg", tau_model = "approxGP", 
-                            constants = constants, coords = coords, z = rnorm(N) )
+                            constants = constants, coords = coords, data = rnorm(N) )
   NNGPtime[n] <- system.time(Rmodel_NNGP$calculate())[3]
   rm(Rmodel_NNGP)
   
   # SGV
   Rmodel_SGV <- nsgpModel( likelihood = "SGV", sigma_model = "logLinReg", Sigma_model = "compRegIso",
                            mu_model = "linReg", tau_model = "approxGP", 
-                           constants = constants, coords = coords, z = rnorm(N) )
+                           constants = constants, coords = coords, data = rnorm(N) )
   SGVtime[n] <- system.time(Rmodel_SGV$calculate())[3]
   rm(Rmodel_SGV)
   

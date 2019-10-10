@@ -968,7 +968,7 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"} 
 #' (the sparse general Vecchia approximate likelihood).
 #' @param coords N x d matrix of spatial coordinates.
-#' @param z N-vector; observed vector of the spatial process of interest
+#' @param data N-vector; observed vector of the spatial process of interest
 #' @param constants A list of constants required to build the model; depends on
 #' the specific parameter process models chosen.
 #' @param monitorAllSampledNodes Logical; indicates whether all sampled nodes 
@@ -997,12 +997,12 @@ nsCrossdist3d <- function(coords, predCoords, P_nID, scale_factor = NULL, isotro
 #' Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
 #' D_mat <- diag(exp(delta_vec)^2) 
 #' set.seed(110)
-#' z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+#' data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
 #' # Set up constants
 #' constants <- list( nu = 0.5, Sigma_HP1 = 2 )
 #' # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
 #' # and Sigma_model = "constant"
-#' Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
+#' Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, data = data )
 #' 
 #' @export
 #' 
@@ -1012,7 +1012,7 @@ nsgpModel <- function( tau_model   = "constant",
                        mu_model    = "constant",
                        likelihood  = "fullGP",
                        coords,
-                       z,
+                       data,
                        constants = list(),
                        monitorAllSampledNodes = TRUE,
                        ... ) {
@@ -1429,7 +1429,7 @@ nsgpModel <- function( tau_model   = "constant",
         sigmaMat[1:N,1:N] <- diag(exp(log_sigma_vec[1:N]))
         Cov[1:N, 1:N] <- sigmaMat[1:N,1:N] %*% Cor[1:N,1:N] %*% sigmaMat[1:N,1:N]
         C[1:N,1:N] <- Cov[1:N, 1:N] + diag(exp(log_tau_vec[1:N])^2)
-        z[1:N] ~ dmnorm(mean = mu[1:N], cov = C[1:N,1:N])
+        data[1:N] ~ dmnorm(mean = mu[1:N], cov = C[1:N,1:N])
       }),
       constants_needed = c("N", "coords", "d", "dist1_sq", "dist2_sq", "dist12", "nu"),                ## keep N, coords, d here
       inits = list()
@@ -1442,7 +1442,7 @@ nsgpModel <- function( tau_model   = "constant",
                                           Sigma11[1:N], Sigma22[1:N], Sigma12[1:N],
                                           log_sigma_vec[1:N], log_tau_vec[1:N],
                                           nID[1:N,1:k], N, k, nu, d)
-        z[1:N] ~ dmnorm_nngp(mu[1:N], AD[1:N,1:(k+1)], nID[1:N,1:k], N, k)
+        data[1:N] ~ dmnorm_nngp(mu[1:N], AD[1:N,1:(k+1)], nID[1:N,1:k], N, k)
       }),
       constants_needed = c("N", "coords", "d", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu"),    ## keep N, coords, d here
       inits = list()
@@ -1455,7 +1455,7 @@ nsgpModel <- function( tau_model   = "constant",
                                           Sigma11[1:N], Sigma22[1:N], Sigma12[1:N],
                                           log_sigma_vec[1:N], log_tau_vec[1:N], 
                                           nu, nID[1:N,1:k], cond_on_y[1:N,1:k], N, k, d )
-        z[1:N] ~ dmnorm_sgv(mu[1:N], U[1:num_NZ,1:3], N, k)
+        data[1:N] ~ dmnorm_sgv(mu[1:N], U[1:num_NZ,1:3], N, k)
       }),
       constants_needed = c("N", "coords", "d", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "cond_on_y", "num_NZ"),    ## keep N, coords, d here
       inits = list()
@@ -1501,8 +1501,8 @@ nsgpModel <- function( tau_model   = "constant",
            LIKELIHOOD_MODEL = model_selections_list$likelihood$code)),
       list(CODE = code_template)))
   
-  if(missing(z)) stop("must provide data as 'z' argument")
-  N <- length(z)
+  if(missing(data)) stop("must provide data as 'data' argument")
+  N <- length(data)
   
   if(missing(coords)) stop("must provide 'coords' argument, array of spatial coordinates")
   d <- ncol(coords)
@@ -1580,7 +1580,7 @@ nsgpModel <- function( tau_model   = "constant",
       coords_mmd <- orderCoordinatesMMD(coords)
       ord <- coords_mmd$orderedIndicesNoNA
       coords <- coords[ord,]
-      z <- z[ord]
+      data <- data[ord]
       # Set neighbors and calculate distances
       nID <- determineNeighbors(coords, constants_to_use$k)
       constants_to_use$nID <- nID
@@ -1595,7 +1595,7 @@ nsgpModel <- function( tau_model   = "constant",
       ord <- setupSGV$ord
       # Re-order the coordinates/data
       coords <- coords[ord,]
-      z <- z[ord]
+      data <- data[ord]
       dist_list <- nsDist3d(coords = coords, nID = setupSGV$nID_ord, isotropic = useIsotropic)
     }
     # Re-order any design matrices
@@ -1676,7 +1676,7 @@ nsgpModel <- function( tau_model   = "constant",
   names(constraints_data) <- constraints_needed
   
   ## data
-  data <- c(list(z = z), constraints_data)
+  data <- c(list(data = data), constraints_data)
   
   ## inits
   inits_uneval <- do.call("c", unname(lapply(model_selections_list, function(x) x$inits)))
@@ -1744,7 +1744,7 @@ nsgpModel <- function( tau_model   = "constant",
 #' @param samples A matrix of \code{J} rows, each is an MCMC sample of the 
 #' parameters corresponding to the specification in \code{nsgpModel}. 
 #' @param coords.predict M x d matrix of prediction coordinates.
-#' @param predict.y Logical; determines whether the prediction corresponds to 
+#' @param predict.process Logical; determines whether the prediction corresponds to 
 #' the y(·) process (\code{TRUE}) or z(·) (\code{FALSE}; this would likely 
 #' only be used for, e.g., cross-validation).
 #' @param constants  An optional list of contants to use for prediction; 
@@ -1783,12 +1783,12 @@ nsgpModel <- function( tau_model   = "constant",
 #' Cov_mat <- diag(exp(alpha_vec)) %*% Cor_mat %*% diag(exp(alpha_vec))
 #' D_mat <- diag(exp(delta_vec)^2) 
 #' set.seed(110)
-#' z <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+#' data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
 #' # Set up constants
 #' constants <- list( nu = 0.5, Sigma_HP1 = 2 )
 #' # Defaults: tau_model = "constant", sigma_model = "constant", mu_model = "constant",
 #' # and Sigma_model = "constant"
-#' Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, z = z )
+#' Rmodel <- nsgpModel(likelihood = "fullGP", constants = constants, coords = coords, data = data )
 #' conf <- configureMCMC(Rmodel)
 #' Rmcmc <- buildMCMC(conf)
 #' Cmodel <- compileNimble(Rmodel)
@@ -1801,7 +1801,7 @@ nsgpModel <- function( tau_model   = "constant",
 #' 
 #' @export
 #' 
-nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, constants, seed = 0, ... ) {
+nsgpPredict <- function(model, samples, coords.predict, predict.process = TRUE, constants, seed = 0, ... ) {
   
   if(!nimble::is.model(model)) stop('first argument must be NSGP NIMBLE model object')
   Rmodel <- if(nimble::is.Rmodel(model)) model else model$Rmodel
@@ -1915,7 +1915,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
   constants <- constants_to_use
   
   d <- constants$d
-  z <- Rmodel$z
+  data <- Rmodel$data
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     # Extract needed variables from constants
     dist1_sq <- constants$dist1_sq
@@ -1962,7 +1962,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
     M <- dim(Pdist1_3d)[1] # number of prediction locations
     postPredDrawsCols <- M
   } else if( modelsList$likelihood == "SGV" ){ # Predictions for the SGV likelihood
-    if(predict.y == FALSE){   
+    if(predict.process == FALSE){   
       stop("Prediction for Z(.) not available with SGV.")
     }
     # Extract needed variables from constants
@@ -2218,7 +2218,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu, d)
       PsigmaMat <- diag(exp(Plog_sigma_vec_j))
       PCov <- PsigmaMat %*% PCor %*% PsigmaMat
-      if(predict.y){ # Do not include the nugget variance
+      if(predict.process){ # Do not include the nugget variance
         PC <- PCov
       } else{ # Include nugget variance
         PC <- PCov + diag(exp(Plog_tau_vec_j)^2)
@@ -2230,7 +2230,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       XCov <- PsigmaMat %*% XCor %*% sigmaMat
       # Conditional mean/covariance
       crscov_covinv <- t(backsolve(C_chol, backsolve(C_chol, t(XCov), transpose = TRUE)))
-      condMean <- Pmu + crscov_covinv %*% (z - mu)
+      condMean <- Pmu + crscov_covinv %*% (data - mu)
       condCov <- PC - crscov_covinv %*% t(XCov)
       condCov_chol <- chol(condCov)
       # Store
@@ -2252,7 +2252,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
         # PCor <- nsCorr(Pdist1_sq, Pdist2_sq, Pdist12, PSigma11_j, PSigma22_j, PSigma12_j, nu)
         PsigmaMat <- exp(Plog_sigma_vec_j[m])
         # PCov <- PsigmaMat %*% Cor %*% PsigmaMat
-        if(predict.y){ # Do not include the nugget variance
+        if(predict.process){ # Do not include the nugget variance
           PC <- exp(Plog_sigma_vec_j[m])^2
         } else{ # Include nugget variance
           PC <- exp(Plog_tau_vec_j[m])^2 + exp(Plog_sigma_vec_j[m])^2
@@ -2268,7 +2268,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
         XCov <- PsigmaMat %*% XCor %*% sigmaMat
         # Conditional mean/covariance
         crscov_covinv <- t(backsolve(C_chol, backsolve(C_chol, t(XCov), transpose = TRUE)))
-        condMean <- Pmu[m] + crscov_covinv %*% (z[P_nID[m,]] - mu[P_nID[m,]])
+        condMean <- Pmu[m] + crscov_covinv %*% (data[P_nID[m,]] - mu[P_nID[m,]])
         condCov <- PC - crscov_covinv %*% t(XCov)
         condCov_chol <- chol(condCov)
         pred_sample <- condMean + t(condCov_chol) %*% rnorm(1)  
@@ -2296,7 +2296,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.y = TRUE, consta
       Vsm <- Asm[,-(1:N)]
       Vsm[1:N,1:N] <- Voo_sm
       # Kriging predictor (mean zero)
-      ABtz <- crossprod(t(Asm), crossprod(Bsm, z - mu))
+      ABtz <- crossprod(t(Asm), crossprod(Bsm, data - mu))
       krigPredictor <- -as.numeric(solve(tcrossprod(Vsm), ABtz))
       # Draw mean zero
       pred_sample <- solve(t(Vsm), rnorm(N+M), system = "L")
