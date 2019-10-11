@@ -1429,7 +1429,7 @@ nsgpModel <- function( tau_model   = "constant",
         sigmaMat[1:N,1:N] <- diag(exp(log_sigma_vec[1:N]))
         Cov[1:N, 1:N] <- sigmaMat[1:N,1:N] %*% Cor[1:N,1:N] %*% sigmaMat[1:N,1:N]
         C[1:N,1:N] <- Cov[1:N, 1:N] + diag(exp(log_tau_vec[1:N])^2)
-        data[1:N] ~ dmnorm(mean = mu[1:N], cov = C[1:N,1:N])
+        z[1:N] ~ dmnorm(mean = mu[1:N], cov = C[1:N,1:N])
       }),
       constants_needed = c("N", "coords", "d", "dist1_sq", "dist2_sq", "dist12", "nu"),                ## keep N, coords, d here
       inits = list()
@@ -1442,7 +1442,7 @@ nsgpModel <- function( tau_model   = "constant",
                                           Sigma11[1:N], Sigma22[1:N], Sigma12[1:N],
                                           log_sigma_vec[1:N], log_tau_vec[1:N],
                                           nID[1:N,1:k], N, k, nu, d)
-        data[1:N] ~ dmnorm_nngp(mu[1:N], AD[1:N,1:(k+1)], nID[1:N,1:k], N, k)
+        z[1:N] ~ dmnorm_nngp(mu[1:N], AD[1:N,1:(k+1)], nID[1:N,1:k], N, k)
       }),
       constants_needed = c("N", "coords", "d", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu"),    ## keep N, coords, d here
       inits = list()
@@ -1455,7 +1455,7 @@ nsgpModel <- function( tau_model   = "constant",
                                           Sigma11[1:N], Sigma22[1:N], Sigma12[1:N],
                                           log_sigma_vec[1:N], log_tau_vec[1:N], 
                                           nu, nID[1:N,1:k], cond_on_y[1:N,1:k], N, k, d )
-        data[1:N] ~ dmnorm_sgv(mu[1:N], U[1:num_NZ,1:3], N, k)
+        z[1:N] ~ dmnorm_sgv(mu[1:N], U[1:num_NZ,1:3], N, k)
       }),
       constants_needed = c("N", "coords", "d", "dist1_3d", "dist2_3d", "dist12_3d", "nID", "k", "nu", "cond_on_y", "num_NZ"),    ## keep N, coords, d here
       inits = list()
@@ -1676,7 +1676,7 @@ nsgpModel <- function( tau_model   = "constant",
   names(constraints_data) <- constraints_needed
   
   ## data
-  data <- c(list(data = data), constraints_data)
+  data <- c(list(z = data), constraints_data)
   
   ## inits
   inits_uneval <- do.call("c", unname(lapply(model_selections_list, function(x) x$inits)))
@@ -1915,7 +1915,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.process = TRUE, 
   constants <- constants_to_use
   
   d <- constants$d
-  data <- Rmodel$data
+  z <- Rmodel$z
   if( modelsList$likelihood == "fullGP" ){ # Predictions for the full GP likelihood
     # Extract needed variables from constants
     dist1_sq <- constants$dist1_sq
@@ -2230,7 +2230,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.process = TRUE, 
       XCov <- PsigmaMat %*% XCor %*% sigmaMat
       # Conditional mean/covariance
       crscov_covinv <- t(backsolve(C_chol, backsolve(C_chol, t(XCov), transpose = TRUE)))
-      condMean <- Pmu + crscov_covinv %*% (data - mu)
+      condMean <- Pmu + crscov_covinv %*% (z - mu)
       condCov <- PC - crscov_covinv %*% t(XCov)
       condCov_chol <- chol(condCov)
       # Store
@@ -2268,7 +2268,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.process = TRUE, 
         XCov <- PsigmaMat %*% XCor %*% sigmaMat
         # Conditional mean/covariance
         crscov_covinv <- t(backsolve(C_chol, backsolve(C_chol, t(XCov), transpose = TRUE)))
-        condMean <- Pmu[m] + crscov_covinv %*% (data[P_nID[m,]] - mu[P_nID[m,]])
+        condMean <- Pmu[m] + crscov_covinv %*% (z[P_nID[m,]] - mu[P_nID[m,]])
         condCov <- PC - crscov_covinv %*% t(XCov)
         condCov_chol <- chol(condCov)
         pred_sample <- condMean + t(condCov_chol) %*% rnorm(1)  
@@ -2296,7 +2296,7 @@ nsgpPredict <- function(model, samples, coords.predict, predict.process = TRUE, 
       Vsm <- Asm[,-(1:N)]
       Vsm[1:N,1:N] <- Voo_sm
       # Kriging predictor (mean zero)
-      ABtz <- crossprod(t(Asm), crossprod(Bsm, data - mu))
+      ABtz <- crossprod(t(Asm), crossprod(Bsm, z - mu))
       krigPredictor <- -as.numeric(solve(tcrossprod(Vsm), ABtz))
       # Draw mean zero
       pred_sample <- solve(t(Vsm), rnorm(N+M), system = "L")
