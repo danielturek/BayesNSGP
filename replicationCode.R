@@ -27,8 +27,8 @@ library(BayesNSGP)
 N <- 100
 set.seed(0)
 coords <- matrix(runif(2*N), ncol = 2)
-Xmat1 <- cbind(rep(1,N),locs[,1])
-Xmat2 <- cbind(rep(1,N),locs[,2])
+Xmat1 <- cbind(rep(1,N),coords[,1])
+Xmat2 <- cbind(rep(1,N),coords[,2])
 mu_vec <- as.numeric(Xmat2 %*% c(0, 2)) # Mean
 alpha_vec <- as.numeric(Xmat1 %*% c(-0.5, 1.5)) # Log process SD
 dist_list <- nsDist(coords)
