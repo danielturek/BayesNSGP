@@ -15,8 +15,8 @@ library(coda)
 library(StatMatch)
 nimbleOptions(verbose = FALSE)
 
-# Install the BayesNSGP package from GitHub
-devtools::install_github("danielturek/BayesNSGP", subdir = "BayesNSGP")
+# Install the BayesNSGP package from CRAN
+install.packages("BayesNSGP")
 library(BayesNSGP)
 
 #================================================
@@ -69,7 +69,7 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 # Run the MCMC
-samples <- runMCMC(Cmcmc, niter = 5000, nburnin = 4000)
+samples <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000, thin = 5)
 # Prediction: generate prediction locations and constants
 M <- 20^2
 predCoords <- as.matrix(expand.grid(seq(0,1,length = sqrt(M)),seq(0,1,length = sqrt(M))))
@@ -332,6 +332,7 @@ points(coords, pch = 16, cex = 0.3, col = "gray50")
 dev.off()
 
 # Environmetrics results
+# Manually coped from Risser and Calder (2015)
 oldResults <- data.frame(
   Parameter = c("beta0", "beta1", "beta2", "beta3", "sigmasq0", "alpha1", "alpha2", "alpha3",
                 "gamma11", "gamma12", "gamma13", "gamma14", "gamma21", "gamma22", "gamma23", "gamma24",
@@ -616,6 +617,7 @@ dev.off()
 #================================================
 # Load data 
 tasRV20_DF_all <- read.csv("data/C20C_DJFtasRV20_trend.csv")
+# Trim extreme poles
 tasRV20_DF_all <- tasRV20_DF_all[abs(tasRV20_DF_all$latitude) < 85,]
 
 # Remove NA's for fitting
@@ -685,7 +687,7 @@ sc <- scale_fill_gradientn( colors = col.pal, name = col.nm, limits = col.lim,
 gd <- guides(fill = guide_colorbar( barheight = 15 ))
 
 #### FIGURE 8
-pdf("~/CASCADE_Projects/bayes_nsgp/paper_draft/tasRV20.pdf", height = 4.5, width = 8.5)
+pdf("tasRV20.pdf", height = 4.5, width = 8.5)
 ggplot(tasRV20_DF_all, aes(x = longitude, y = latitude, fill = color)) +
   geom_tile() + coord_fixed(ratio = 1) +
   geom_polygon( data = map_data("world"), aes(x = long, y = lat, group = group),
@@ -761,7 +763,7 @@ g2 <- ggplot(tasRV20_DF_all, aes(x = longitude, y = latitude, fill = postSD)) +
   gd + xlab(NULL) + ylab(NULL) + theme_bw() + ggtitle("(b) Posterior predictive standard deviation")
 
 #### FIGURE 10
-pdf("~/CASCADE_Projects/bayes_nsgp/paper_draft/app3_preds.pdf", height = 7.75, width = 8)
+pdf("app3_preds.pdf", height = 7.75, width = 8)
 grid.arrange(g1, g2, ncol = 1)
 dev.off()
 
@@ -813,15 +815,3 @@ ggplot(plotDF, aes(x = N, y = Time, color = Likelihood)) + geom_point() + geom_l
   scale_x_continuous(breaks = c(50,1000,2000,5000,10000), name = "Sample size (N)") + 
   scale_color_manual(values = brewer.pal(3,"Set1"))
 dev.off()
-
-
-
-
-
-
-
-
-
-
-
-

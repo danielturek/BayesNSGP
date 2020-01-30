@@ -84,8 +84,8 @@ pred <- nsgpPredict(Rmodel, samples, predCoords, PX_sigma = Xmat_pred, PX_mu = X
 N <- 100
 set.seed(0)
 coords <- matrix(runif(2*N), ncol = 2)
-Xmat1 <- cbind(rep(1,N),locs[,1])
-Xmat2 <- cbind(rep(1,N),locs[,2])
+Xmat1 <- cbind(rep(1,N), coords[,1])
+Xmat2 <- cbind(rep(1,N), coords[,2])
 mu_vec <- as.numeric(Xmat2 %*% c(0, 2)) # Mean
 alpha_vec <- as.numeric(Xmat1 %*% c(-0.5, 1.5)) # Log process SD
 dist_list <- nsDist(coords)
@@ -126,8 +126,9 @@ conf$printSamplers()
 Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
-samples <- runMCMC(Cmcmc, niter = 5000, nburnin = 4000)
 
+samples <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000, thin = 5)
+save(samples, file = "samples.RData")
 
 M <- 20^2
 predCoords <- as.matrix(expand.grid(seq(0,1,length = sqrt(M)),seq(0,1,length = sqrt(M))))
@@ -138,6 +139,7 @@ pred_constants <- list( PX_sigma = Xmat1_pred, PX_Sigma = Xmat2_pred, PX_mu = Xm
 pred <- nsgpPredict(model = Rmodel, samples = samples, 
                     coords.predict = predCoords, 
                     constants = pred_constants)
+save(pred, file = "pred.RData")
 
 ########### MDR example: comparing computational times
 Nvec <- c(50,100,200,500,1000,2000,5000,10000)
