@@ -52,3 +52,16 @@ ggsave('barplots.pdf', width = 4, height = 2)
 tools::texi2pdf('comparisons.tex')
 system('open -a "Google Chrome" comparisons.pdf')
 
+
+
+
+## load('NGP_SGV_samples_time.RData')
+## a <- abs(cor(samples))
+## thresh <- 0.7
+## sum(a > thresh & a < 1)  ## 94
+## ai <- which(a > thresh & a < 1, arr.ind = TRUE)
+## names <- t(apply(ai, 1, function(x) unlist(dimnames(a[x[1], x[2], drop = FALSE]))))
+## dimnames(names) <- NULL
+## names
+      
+
