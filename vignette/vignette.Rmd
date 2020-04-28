@@ -1,0 +1,363 @@
+---
+title: Simulated data example for BayesNSGP
+author: Mark Risser
+date: 10 April 2020 
+output: html_document
+---
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+library(nimble)
+library(coda)
+library(StatMatch)
+nimbleOptions(verbose = FALSE)
+library(BayesNSGP)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+
+if(TRUE){ # Load pre-calculated results
+  M <- 20^2
+  predCoords <- as.matrix(expand.grid(
+    seq(0,10,length = sqrt(M)),
+    seq(0,10,length = sqrt(M))))
+  Xmat1_pred <- cbind(rep(1,M), predCoords[,1])
+  Xmat2_pred <- cbind(rep(1,M), predCoords[,2])
+  pred_constants <- list( PX_sigma = Xmat1_pred, 
+                          PX_Sigma = Xmat2_pred, 
+                          PX_mu = Xmat1_pred )
+  
+  load("samples_scheme1.RData")
+  samples1 <- samples[seq(from=50005,to=100000,by=5),]
+  time1 <- ttm[3]
+  load("samples_scheme2.RData")
+  samples2 <- samples[seq(from=50005,to=100000,by=5),]
+  time2 <- ttm[3]
+  load("samples_scheme3.RData")
+  samples3 <- samples[seq(from=50005,to=100000,by=5),]
+  time3 <- ttm[3]
+
+  load("pred_scheme2.RData")
+}
+```
+
+In order to describe a generic implementation of the methods outlined in this paper, we consider a specific example involving a small, simulated data set, where the spatial coordinates are randomly sampled from the $[0,10] \times [0,10]$ square. We further assume a mean that is linear in the $y$-coordinate; a spatial variance that is log-linear in the $x$-coordinate; a nugget variance that is linear in the $x$- and $y$-coordinates; and a constant anisotropy process. Finally, we use a smoothness of $0.5$, i.e., we use the exponential correlation. (Note: the correlation matrix is calculated using the helper `nsCorr` function.)
+
+```{r}
+N <- 400
+set.seed(0)
+coords <- matrix(runif(2*N, max = 10), ncol = 2)
+coords_z <- coords/10
+Xmat1 <- cbind(rep(1,N), coords_z[,1])
+Xmat2 <- cbind(rep(1,N), coords_z[,2])
+Xmat3 <- cbind(rep(1,N), coords_z[,1], coords_z[,2])
+beta_true <- c(0, 2)
+delta_true <- c(-1.75, 0.75)
+alpha_true <- c(-0.5, 1.5, 0.5)
+mean_vec <- as.numeric(Xmat2 %*% beta_true) # Mean
+logSpatSD_vec <- as.numeric(Xmat3 %*% alpha_true) # Log spatial SD
+logNuggSD_vec <- as.numeric(Xmat1 %*% delta_true) # Log nugget SD
+dist_list <- nsDist(coords)
+Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, 
+                   dist2_sq = dist_list$dist2_sq, dist12 = dist_list$dist12, 
+                   Sigma11 = rep(1, N), Sigma22 = rep(2, N), 
+                   Sigma12 = rep(0, N), nu = 0.5 )
+Cov_mat <- diag(exp(logSpatSD_vec)) %*% Cor_mat %*% diag(exp(logSpatSD_vec))
+D_mat <- diag(exp( logNuggSD_vec )^2) 
+# Draw data
+set.seed(1)
+data <- as.numeric(mean_vec + t(chol(Cov_mat + D_mat)) %*% rnorm(N))
+```
+
+### Model and MCMC setup
+
+Suppose the we would like to fit a nonstationary model to this data set, using a log-linear regression model for $\tau(\cdot)$ (linear in the $x$-coordinate), the spatially-constant model for ${\bf \Sigma}(\cdot)$, linear regression for $\mu(\cdot)$ (linear in the $y$-coordinate), and an approximate GP for $\sigma(\cdot)$ (using a regular grid of $K=16$ knots over the domain). Furthermore, we will use the SGV likelihood with $k=10$ neighbors. The required constants can be set up as
+
+```{r}
+# Set up the knot coordinates
+knot_coords <- expand.grid(x = seq(from = 0, to = 10, length = 4),
+                           y = seq(from = 0, to = 10, length = 4))
+knot_coords_mat <- as.matrix(knot_coords)
+# Other constants for the model
+constants <- list( X_tau = Xmat1, X_mu = Xmat2, Sigma_HP1 = max(dist(coords)),
+                   sigma_knot_coords = knot_coords_mat, 
+                   maxAbsLogSD = 5, k = 10, nu = 0.5 )
+```
+
+(note that we limit the `maxAbsLogSD` to avoid numerically singular covariance matrices) and we can build the model with
+
+```{r}
+Rmodel <- nsgpModel( likelihood = "SGV", sigma_model = "approxGP", 
+                     Sigma_model = "constant", mu_model = "linReg", 
+                     tau_model = "logLinReg", constants = constants, 
+                     coords = coords, data = data )
+```
+
+Once the model has been built, the first step is to configure the MCMC:
+
+```{r}
+conf <- configureMCMC(Rmodel)
+```
+
+The default samplers can be queried with:
+
+```{r}
+conf$printSamplers()
+```
+
+from which we can see that by default most parameters have been assigned univariate random walk samplers, except for the latent knot process values `w_tau[1:16]`, which have been assigned a large block random walk sampler. One of the main benefits of using **nimble** is that it is very easy to group univariate samplers into a single block sampler, or alternatively to swap in different sampler types. To fully reconfigure these default samplers, first remove the existing samplers via
+  
+```{r}
+conf$removeSamplers()
+```
+
+and then gradually reassign samplers as needed. For the sake of our example, we first assign adaptive block Metropolis Hastings random walk samplers to the nugget standard deviation regression coefficients (i.e., `delta[1]` and `delta[2]`), the mean regression coefficients (i.e., `beta[1]` and `beta[2]`), the anisotropy eigenvalues (i.e., `Sigma_coef1` and `Sigma_coef2`), and the range and variance for the latent $\sigma(\cdot)$ process; next, we re-assign univariate random walk samplers for the latent mean `sigmaGP_mu` and anisotropy rotation `Sigma_coef3`: 
+
+```{r, warning = FALSE}
+conf$addSampler(target = c("delta[1]","delta[2]"), type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("beta[1]","beta[2]"), type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("Sigma_coef1","Sigma_coef2"), type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("sigmaGP_phi","sigmaGP_sigma"), type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("Sigma_coef3"), type = "RW")
+conf$addSampler(target = c("sigmaGP_mu"), type = "slice")
+conf$addSampler(target = c("sigmaGP_phi","sigmaGP_sigma"), type = "AF_slice")
+```
+
+Finally, in order to sample the latent process values `w_sigma[1:16]`, a single large block sampler is likely to be ineffective; on the other hand, a large number of univariate samplers (in this case, 16) will slow down the MCMC and be inefficient as these parameters are likely to display a large degree of posterior correlation. Using `nimble`, however, we can quickly compare three different sampling schemes for these values:
+
+1. One large block sampler: sample all 16 parameters simultaneously
+
+2. Two block samplers: split the 16 parameters into two spatial sub-blocks (split along the $y$-coordinate)
+
+3. Four small block samplers: split the 16 parameters into four spatial sub-blocks 
+
+A schematic of the three sampling schemes is
+
+```{r, fig.width=10, fig.height=4, echo = FALSE}
+par(mfrow=c(1,3))
+plot(knot_coords_mat, asp = 1, ylim = c(0,10), xlim = c(0,10), pch = "+", cex = 3, main = "Scheme 1: one large block sampler")
+points(coords, col = "gray", cex = 0.5, pch = 16)
+plot(knot_coords_mat[knot_coords_mat[,2] < 5,], asp = 1, ylim = c(0,10), xlim = c(0,10), pch = "+", cex = 3, main = "Scheme 2: two block samplers")
+points(knot_coords_mat[knot_coords_mat[,2] >= 5,], pch = "+", cex = 3, col = 2)
+points(coords, col = "gray", cex = 0.5, pch = 16)
+plot(knot_coords_mat[knot_coords_mat[,2] < 5 & knot_coords_mat[,1] < 5,], asp = 1, ylim = c(0,10), xlim = c(0,10), pch = "+", cex = 3, main = "Scheme 3: four small block samplers")
+points(knot_coords_mat[knot_coords_mat[,2] >= 5 & knot_coords_mat[,1] < 5,], pch = "+", cex = 3, col = 2)
+points(knot_coords_mat[knot_coords_mat[,2] < 5 & knot_coords_mat[,1] >= 5,], pch = "+", cex = 3, col = 3)
+points(knot_coords_mat[knot_coords_mat[,2] >= 5 & knot_coords_mat[,1] >= 5,], pch = "+", cex = 3, col = 4)
+points(coords, col = "gray", cex = 0.5, pch = 16)
+```
+
+Using the `nimble` functionality, it is straightforward to implement each of these samplers. For example, the second scheme (with two block samplers) can be specified as follows:
+
+```{r}
+# First, subset the coordinates
+groups <- list(which(knot_coords_mat[,2] < 5))
+groups[[2]] <- which(knot_coords_mat[,2] >= 5)
+# Add block samplers
+for(g in 1:length(groups)){
+  conf$addSampler(target = paste0("w_sigma[", groups[[g]], "]"), type = "RW_block", silent = TRUE)
+}
+```
+
+To check the updated samplers, we can again query
+
+```{r}
+conf$printSamplers()
+```
+
+### Run the MCMC
+
+Once the samplers have been sufficiently modified, we can then build the MCMC, compile the model, and compile the MCMC as follows:
+
+```{r}
+Rmcmc <- buildMCMC(conf) # Build the MCMC
+Cmodel <- compileNimble(Rmodel) # Compile the model in C++
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel) # Compile the MCMC in C++
+```
+
+Finally, the MCMC can be run for, say, 100000 iterations (with 50000 discarded as burn-in and storing every fifth sample) using:
+
+```{r, eval = FALSE}
+samples <- runMCMC(Cmcmc, niter = 100000, nburnin = 50000, thin = 5)
+```
+
+The `runMCMC` function is a **nimble** function designed to take an MCMC algorithm and run the MCMC with one or more chains, with optional arguments to burn-in or thin the output (for further information, we refer the reader to the **nimble** help files). 
+
+### Assessing the different MCMC schemes
+
+Actually, we run the MCMC for all three sampling schemes described above; the question is now, which is the most effective at sampling from the posterior? First, we can assess the effective sample size (ESS) of the 10,000 thinned, post burn-in samples. The ESS measures the number of "independent" samples, after accounting for autocorrelation in the MCMC. First, for the mean, nugget variance, anisotropy parameters, and spatial variance hyperparameters:
+
+```{r, echo = FALSE}
+ess1 <- effectiveSize(samples1)
+ess2 <- effectiveSize(samples2)
+ess3 <- effectiveSize(samples3)
+
+data.frame(
+  Parameter = colnames(samples1)[1:10],
+  Scheme1 = round(unname(ess1[1:10]),1),
+  Scheme2 = round(unname(ess2[1:10]),1),
+  Scheme3 = round(unname(ess3[1:10]),1)
+)
+```
+
+and then also for the `w_sigma[.]` parameters:
+
+```{r, fig.width=6, fig.height=4, echo = FALSE}
+ggplot(data.frame( Scheme = factor(rep(1:3, each = 16)), ESS = c(ess1[-(1:10)], ess2[-(1:10)], ess3[-(1:10)]) ),
+       aes(y = ESS, x = Scheme, group = Scheme, fill = Scheme)) + geom_boxplot(width = 0.5)
+```
+
+Of course, the ESS does not take into consideration the time it takes to run each scheme: a single large block sampler requires fewer likelihood evaluations than many small block samplers. For this we can calculate the efficiency, i.e., the effective number of samplers per 10 minutes of compute time. Again, first for the mean, nugget variance, anisotropy parameters, and spatial variance hyperparameters:
+
+```{r, echo = FALSE}
+data.frame(
+  Parameter = colnames(samples1)[1:10],
+  Scheme1 = round(unname(ess1[1:10]/(time1/600)),1),
+  Scheme2 = round(unname(ess2[1:10]/(time2/600)),1),
+  Scheme3 = round(unname(ess3[1:10]/(time3/600)),1)
+)
+```
+
+and again for the `w_sigma[.]` parameters:
+
+```{r, fig.width=6, fig.height=4, echo = FALSE}
+ggplot(data.frame( Scheme = factor(rep(1:3, each = 16)), Efficiency = c(ess1[-(1:10)]/(time1/600), ess2[-(1:10)]/(time2/600), ess3[-(1:10)]/(time3/600)) ),
+       aes(y = Efficiency, x = Scheme, group = Scheme, fill = Scheme)) + geom_boxplot(width = 0.5)
+```
+
+The story is largely the same for both ESS and efficiency: Scheme 2, which compromises between many small blocks and one large block, is the most effective at sampling the highly correlated posterior distribution for the `w_sigma[.]` terms. As such, we will use samples from Scheme 2 in our posterior summaries.
+
+
+### Posterior summaries
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+samples <- samples2
+```
+
+The `samples` object from `runMCMC` is a matrix with one row for each saved MCMC sample (10000 total, thinned from the 50000 post burn-in) and one column for each sampled parameter (26 in this case):
+
+```{r}
+dim(samples)
+head(samples[,1:12])
+```
+
+We can then summarize the low level parameters 
+
+```{r}
+# Posterior means
+apply(samples[,1:10], 2, mean)
+# Posterior standard deviations
+apply(samples[,1:10], 2, sd)
+```
+
+and examine trace plots:
+
+```{r, fig.width=10, fig.height=15}
+par(mfrow=c(5,2))
+for(i in 1:10){
+  plot(samples[,i], type = "l", main = colnames(samples)[i], xlab = "Iteration", ylab = "")
+}
+```
+
+Using these posterior draws, we can also examine how the posterior mean parameter surfaces compare to the truth. We know that the true mean, nugget standard deviation, and spatial standard deviation surfaces are:
+
+```{r}
+gridPlot <- expand.grid(x = seq(0,10,length = 20), y = seq(0,10,length = 20))
+gridPlot_z <- gridPlot/10
+Xmat1 <- cbind(rep(1,nrow(gridPlot)), gridPlot_z[,1])
+Xmat2 <- cbind(rep(1,nrow(gridPlot)), gridPlot_z[,2])
+Xmat3 <- cbind(rep(1,nrow(gridPlot)), gridPlot_z[,1], gridPlot_z[,2])
+mean_true_grid <- as.numeric(Xmat2 %*% beta_true) # Mean
+logNuggSD_true_grid <- as.numeric(Xmat1 %*% delta_true) # Log nugget SD
+logSpatSD_true_grid <- as.numeric(Xmat3 %*% alpha_true) # Log spatial SD
+```
+
+The statistical models for the mean and spatial variance are "correctly specified," in that the same regression models were used to fit the model as those used to generate the data; these posterior surfaces are straightforward: 
+```{r}
+mu_post <- as.numeric(Xmat2 %*% apply(samples[,4:5], 2, mean)) # Mean
+delta_post <- as.numeric(Xmat1 %*% apply(samples[,6:7], 2, mean)) # Log spatial SD
+```
+
+However, the nugget variance model was "mis-specified," in that the true model was a log-linear surface in the $x$- and $y$-coordinates while the fitted model was an approximate GP. Nonetheless, we can calculate the posterior mean surface as follows:
+
+```{r}
+p_sigma <- nrow(knot_coords_mat) 
+sigma_cross_dist_pred <- sqrt(nsCrossdist(knot_coords_mat, gridPlot, isotropic = TRUE)$dist1_sq)
+sigma_HP2 <- 5 # Default sigma_HP2 (smoothness for the approx GP)
+Psigma <- matrix(NA, nrow(gridPlot), nrow(samples))
+for(j in 1:nrow(samples)){
+  w_sigma_j <- samples[j,paste("w_sigma[",1:p_sigma,"]",sep = "")]
+  Pmat_sigma_j <- matern_corr(sigma_cross_dist_pred, samples[j,"sigmaGP_phi"], sigma_HP2)
+  Psigma[,j] <- samples[j,"sigmaGP_mu"]*rep(1,nrow(gridPlot)) + samples[j,"sigmaGP_sigma"] * Pmat_sigma_j %*% w_sigma_j
+}
+alpha_post <- rowMeans(Psigma) # Log nugget SD
+```
+
+The posterior mean surfaces can then be plotted:
+
+```{r, fig.width=10, fig.height=6}
+plotDF <- rbind(gridPlot, gridPlot)
+plotDF$type <- ordered(rep(c("True","Estimate"), each = nrow(gridPlot)), levels = c("True","Estimate"))
+grid.arrange(
+  ggplot(plotDF, aes(x = x, y = y, fill = c(mean_true_grid, mu_post))) + geom_tile() + 
+    scale_fill_gradientn(colors = brewer.pal(9, "RdBu"), name = "") + facet_grid( type ~ . ) +
+    coord_fixed() + ggtitle("Mean") + labs(x = NULL, y = NULL) + 
+    theme(legend.position = "bottom", legend.direction = "horizontal"),
+  ggplot(plotDF, aes(x = x, y = y, fill = c(logSpatSD_true_grid,alpha_post)) ) + geom_tile() + 
+    scale_fill_gradientn(colors = brewer.pal(9, "RdBu"), name = "") + facet_grid( type ~ . ) +
+    coord_fixed() + ggtitle("Log spatial SD") + labs(x = NULL, y = NULL) + 
+    theme(legend.position = "bottom", legend.direction = "horizontal"),
+  ggplot(plotDF, aes(x = x, y = y, fill = c(logNuggSD_true_grid,delta_post)) ) + geom_tile() + 
+    scale_fill_gradientn(colors = brewer.pal(9, "RdBu"), name = "") + facet_grid( type ~ . ) +
+    coord_fixed() + ggtitle("Log nugget SD") + labs(x = NULL, y = NULL) + 
+    theme(legend.position = "bottom", legend.direction = "horizontal"),
+  ncol = 3
+)
+```
+
+### Posterior prediction
+
+Using `samples`, the matrix of posterior samples generated from the MCMC, we can proceed with posterior prediction as follows. Note that we require prediction locations (defined on a grid), as well as corresponding design matrices:
+
+```{r, eval = FALSE}
+M <- 20^2
+predCoords <- as.matrix(expand.grid(seq(0,10,length = sqrt(M)),seq(0,10,length = sqrt(M))))
+Xmat1_pred <- cbind(rep(1,M), predCoords[,1]/10)
+Xmat2_pred <- cbind(rep(1,M), predCoords[,2]/10)
+
+pred_constants <- list( PX_tau = Xmat1_pred, PX_mu = Xmat2_pred )
+pred <- nsgpPredict(model = Rmodel, samples = samples, 
+                    coords.predict = predCoords, 
+                    constants = pred_constants)
+```
+
+The posterior predictive mean and standard deviation surfaces are:
+
+```{r, fig.width=10, fig.height=4}
+dataPlot <- data
+dataPlot[data>=6.2] <- 6.2
+dataPlot[data<=-2.15] <- -2.15
+grid.arrange(
+  ggplot(data.frame(x = coords[,1], y = coords[,2]), 
+         aes(x = x, y = y, color = dataPlot)) + geom_point() + 
+    scale_color_gradientn(colors = brewer.pal(9, "Spectral"), name = "") +
+    coord_fixed() + ggtitle("Raw data"),
+  ggplot(data.frame(x = predCoords[,1], y = predCoords[,2]), 
+         aes(x = x, y = y, fill = apply(pred$pred, 2, mean))) + geom_tile() + 
+    scale_fill_gradientn(colors = brewer.pal(9, "Spectral"), name = "", limits = c(-2.15,6.2)) +
+    coord_fixed() + ggtitle("Posterior mean"),
+  ggplot(data.frame(x = predCoords[,1], y = predCoords[,2]), 
+         aes(x = x, y = y, fill = apply(pred$pred, 2, sd))) + geom_tile() + 
+    scale_fill_gradientn(colors = brewer.pal(9, "Reds"), trans = "log", name = "", breaks = c(0.3,1,2.8)) +
+    coord_fixed() + ggtitle("Posterior SD"),
+  ncol = 3
+)
+```
+
+
+
+
+\ 
+
+\
+
+ 
