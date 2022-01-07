@@ -4,8 +4,19 @@
 \alias{nsCrosscorr}
 \title{Calculate a nonstationary Matern cross-correlation matrix}
 \usage{
-nsCrosscorr(Xdist1_sq, Xdist2_sq, Xdist12, Sigma11, Sigma22, Sigma12,
-  PSigma11, PSigma22, PSigma12, nu, d)
+nsCrosscorr(
+  Xdist1_sq,
+  Xdist2_sq,
+  Xdist12,
+  Sigma11,
+  Sigma22,
+  Sigma12,
+  PSigma11,
+  PSigma22,
+  PSigma12,
+  nu,
+  d
+)
 }
 \arguments{
 \item{Xdist1_sq}{M x N matrix; contains values of pairwise squared cross-distances

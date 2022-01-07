@@ -91,7 +91,7 @@ orderCoordinatesMMD <- function(coords, exact = FALSE) {
           min(sapply(1:(i-1), function(k) sum((coords[availableIndices[j],] - orderedCoords[k,])^2)))
         }))
       iNext <- availableIndices[aIndNext]   ## this indexes rows of the original s[] array
-      orderedS[i,] <- coords[iNext,]
+      orderedCoords[i,] <- coords[iNext,]
       availableIndices <- setdiff(availableIndices, iNext)
     }
     orderedIndicesNoNA <- NULL

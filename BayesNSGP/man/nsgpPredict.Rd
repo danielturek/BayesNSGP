@@ -4,8 +4,15 @@
 \alias{nsgpPredict}
 \title{Posterior prediction for the NSGP}
 \usage{
-nsgpPredict(model, samples, coords.predict, predict.process = TRUE,
-  constants, seed = 0, ...)
+nsgpPredict(
+  model,
+  samples,
+  coords.predict,
+  predict.process = TRUE,
+  constants,
+  seed = 0,
+  ...
+)
 }
 \arguments{
 \item{model}{A NSGP nimble object; the output of \code{nsgpModel}.}

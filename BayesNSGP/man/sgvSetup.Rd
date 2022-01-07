@@ -4,8 +4,14 @@
 \alias{sgvSetup}
 \title{One-time setup wrapper function for the SGV approximation}
 \usage{
-sgvSetup(coords, coords_pred = NULL, k = 15, seed = NULL,
-  pred.seed = NULL, order_coords = TRUE)
+sgvSetup(
+  coords,
+  coords_pred = NULL,
+  k = 15,
+  seed = NULL,
+  pred.seed = NULL,
+  order_coords = TRUE
+)
 }
 \arguments{
 \item{coords}{Matrix of observed locations.}

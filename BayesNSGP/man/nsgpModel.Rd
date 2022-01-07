@@ -4,10 +4,18 @@
 \alias{nsgpModel}
 \title{NIMBLE code for a generic nonstationary GP model}
 \usage{
-nsgpModel(tau_model = "constant", sigma_model = "constant",
-  Sigma_model = "constant", mu_model = "constant",
-  likelihood = "fullGP", coords, data, constants = list(),
-  monitorAllSampledNodes = TRUE, ...)
+nsgpModel(
+  tau_model = "constant",
+  sigma_model = "constant",
+  Sigma_model = "constant",
+  mu_model = "constant",
+  likelihood = "fullGP",
+  coords,
+  data,
+  constants = list(),
+  monitorAllSampledNodes = TRUE,
+  ...
+)
 }
 \arguments{
 \item{tau_model}{Character; specifies the model to be used for the log(tau) 

@@ -4,8 +4,23 @@
 \alias{calculateU_ns}
 \title{Calculate the (sparse) matrix U}
 \usage{
-calculateU_ns(dist1_3d, dist2_3d, dist12_3d, Sigma11, Sigma22, Sigma12,
-  log_sigma_vec, log_tau_vec, nu, nID, cond_on_y, N, k, d, M = 0)
+calculateU_ns(
+  dist1_3d,
+  dist2_3d,
+  dist12_3d,
+  Sigma11,
+  Sigma22,
+  Sigma12,
+  log_sigma_vec,
+  log_tau_vec,
+  nu,
+  nID,
+  cond_on_y,
+  N,
+  k,
+  d,
+  M = 0
+)
 }
 \arguments{
 \item{dist1_3d}{N x (k+1) x (k+1) array of distances in the x-coordinate 

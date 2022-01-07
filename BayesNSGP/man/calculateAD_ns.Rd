@@ -4,8 +4,21 @@
 \alias{calculateAD_ns}
 \title{Calculate A and D matrices for the NNGP approximation}
 \usage{
-calculateAD_ns(dist1_3d, dist2_3d, dist12_3d, Sigma11, Sigma22, Sigma12,
-  log_sigma_vec, log_tau_vec, nID, N, k, nu, d)
+calculateAD_ns(
+  dist1_3d,
+  dist2_3d,
+  dist12_3d,
+  Sigma11,
+  Sigma22,
+  Sigma12,
+  log_sigma_vec,
+  log_tau_vec,
+  nID,
+  N,
+  k,
+  nu,
+  d
+)
 }
 \arguments{
 \item{dist1_3d}{N x (k+1) x (k+1) array of distances in the x-coordinate 

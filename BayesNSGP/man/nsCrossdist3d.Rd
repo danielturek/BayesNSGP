@@ -5,8 +5,13 @@
 \title{Calculate coordinate-specific cross-distance matrices, only for nearest neighbors
 and store in an array}
 \usage{
-nsCrossdist3d(coords, predCoords, P_nID, scale_factor = NULL,
-  isotropic = FALSE)
+nsCrossdist3d(
+  coords,
+  predCoords,
+  P_nID,
+  scale_factor = NULL,
+  isotropic = FALSE
+)
 }
 \arguments{
 \item{coords}{N x d matrix; contains the x-y coordinates of stations.}

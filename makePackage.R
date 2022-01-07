@@ -29,7 +29,7 @@ system(paste0('R CMD BUILD ', baseDir, 'BayesNSGP'))
 check(paste0(baseDir, 'BayesNSGP'))
 try(remove.packages('BayesNSGP'), silent = TRUE)
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
-lastTarFile <- tarFiles[length(tarFiles)]
+(lastTarFile <- tarFiles[length(tarFiles)])
 system(paste0('R CMD install ', lastTarFile))
 
 ## now quit R
