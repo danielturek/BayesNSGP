@@ -15,10 +15,10 @@ determineNeighbors(coords, k)
 An N x k matrix of nearest neighbor indices
 }
 \description{
-\code{determineNeighbors} returns an N x k matrix of the nearest neighbors 
-for spatial locations coords, with the ith row giving indices of the k nearest 
-neighbors to the ith location, which are selected from among the 1,...(i-1) 
-other spatial locations. The first row is -1's, since the first location has 
+\code{determineNeighbors} returns an N x k matrix of the nearest neighbors
+for spatial locations coords, with the ith row giving indices of the k nearest
+neighbors to the ith location, which are selected from among the 1,...(i-1)
+other spatial locations. The first row is -1's, since the first location has
 no neighbors. The i=2 through i=(k+1) rows each necessarily contain 1:i.
 }
 \examples{

@@ -1,0 +1,312 @@
+---
+title: Synthetic data example for BayesNSGP with the gp2Scale likelihood
+author: Mark Risser
+date: 20 Feb 2024 
+output: html_document
+---
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+library(nimble)
+library(coda)
+library(StatMatch)
+nimbleOptions(verbose = FALSE)
+library(BayesNSGP)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+library(viridis)
+library(stringr)
+source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/core.R")
+source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/gp2Scale.R")
+load("vignette_gp2Scale_results.RData")
+
+```
+
+In order to demonstrate how one can use the gp2Scale likelihood option within BayesNSGP, we provide code to draw data from a ground truth function and subsequently conduct inference for a small, one-dimensional simulated data set. Here we use the test case described in Section 4.1 of Risser, Noack, and Luo (2024+).
+
+The synthetic data test proceeds as follows. First, we suppose the ground truth function is a piecewise-constant function on the unit interval, defined as
+\[
+y(x) = \left\{ \begin{array}{cc}
+    -1 & \text{if } x \leq 0.25 \text{ or } 0.5 < x \leq 0.75  \\
+    1 & \text{if } 0.25 < x \leq 0.5 \text{ or } x > 0.75,
+\end{array}\right.
+\]
+and we have $N=50$ noisy measurements from this function for training a Gaussian process. The form of this ground truth function suggests that there should be two sets of two bump functions: $y(x)$ is perfectly correlated in $(0,0.25]$ and $(0.5,0.75]$; furthermore, $y(x)$ is perfectly correlated in $(0.25,0.5]$ and $(0.75,1)$. In other words, $n_1=2$ and $n_2=2$. We then fit our proposed kernel to the noisy data assuming we know nothing about its ground truth. When fitting, we suppose the core kernel is a stationary Mat\'ern with smoothness $\nu=2.5$.
+
+Here, we set up the inputs and draw noisy data from the ground truth function:
+```{r}
+f_ytrue <- function(x, a = -1, b = 1){
+  y <- rep(0,length(x))
+  y[x < 1/4] <- a
+  y[x >= 1/4 & x < 1/2] <- b
+  y[x >= 1/2 & x < 3/4] <- a
+  y[x >= 3/4] <- b
+  return(y)
+}
+
+N_train <- 50
+N_test <- 100
+xmin <- 0
+xmax <- 1
+d <- 1
+x_test <- matrix(seq(from = xmin + 1/78, to = xmax - 1/78, length=N_test), ncol = 1)
+x_train <- matrix(seq(from=xmin, to = xmax, length=N_train), ncol = 1)
+x_all <- rbind(x_train, x_test)
+dist_all <- as.matrix(dist(x_all))
+dists <- nsDist(x_all, isotropic = TRUE)
+
+# Set up constants and design matrices
+coords <- as.matrix(x_train)
+N <- N_train
+# Prediction grid
+predCoords <- x_test
+
+# Draw true function and noisy data
+y <- f_ytrue(x_all)
+set.seed(011)
+z <- as.numeric(y[1:N_train] + rnorm(N_train, sd = 0.075))
+```
+
+```{r, fig.width=8, fig.height=4}
+ggplot() + labs(x = NULL, y = NULL) +
+  geom_line(data = data.frame(x = x_test, y = y[-(1:N_train)]),
+            mapping = aes(x = x, y = y), color = brewer.pal(6, "Set1")[5], linewidth = 0.8) +
+  geom_point(data = data.frame(x = x_train, z = z),
+             mapping = aes(x = x, y = z), size = 1.5, color = brewer.pal(6, "Set1")[2]) +
+  theme_bw() + theme(legend.position = "none") +
+  ggtitle("Ground truth with noisy measurements")
+```
+
+### Model and MCMC setup
+
+We now want to fit the gp2Scale likelihood with a given number of bump functions (for now $n_1=4$ and $n_2=4$) with a stationary core kernel. The required constants can be set up as
+
+```{r}
+# Constants
+n1 <- 4
+n2 <- 4
+# Randomly initialize bump function locations.
+# Must be a matrix of size n2*d x n1
+bumpLocs_init <- matrix(runif(n1*n2*d), ncol = n1)
+constants <- list( 
+  nu = 2.5,             # Matern smoothness
+  tau_HP1 = 10,         # Prior upper bound for noise variance
+  sigma_HP1 = 10,       # Prior upper bound for core kernel signal var.
+  Sigma_HP1 = 100,      # Prior upper bound for core kernel length-scale
+  dists = as.matrix(dist(coords)),
+  n1 = n1, n2 = n2, 
+  bumpLocs_init = bumpLocs_init, 
+  normalize = 1,        # Should sparse kernel have 1's on diagonal
+  bumps_HP = c(1/4,     # Prior upper bound on bump func radii
+               3/10,    # Prior upper bound on compactly supp radius
+               100)     # Prior upper bound on compactly supp scale
+)
+```
+
+and we can build the model with
+
+```{r}
+Rmodel <- nsgpModel(
+          likelihood = "gp2Scale",           # Likelihood model
+          constants = constants,             # Necessary constants (hyperparams, etc.)
+          coords = coords, data = z,         # coords = input locations; data 
+          sparse_model = "bumpPlusSparse",   # Model for sparsity
+          Sigma_model = "constantIso",       # Stat model for anisotropy (Iso = isotropic)
+          sigma_model = "constant",          # Stat model for signal variance
+          tau_model = "constant",            # Stat model for noise variance
+          mu_model = "constant"              # Prior mean
+        )
+```
+
+Once the model has been built, the first step is to configure the MCMC:
+
+```{r}
+conf <- configureMCMC(Rmodel)
+```
+
+The default samplers can be queried with:
+
+```{r}
+conf$printSamplers()
+```
+
+from which we can see that by default most parameters have been assigned univariate random walk samplers, except for the amplitudes `ampls[]`, which have been assigned a binary sampler which, per the documentation, "performs Gibbs sampling for binary-valued (discrete 0/1) nodes." One of the main benefits of using **nimble** is that it is very easy to group univariate samplers into a single block sampler, or alternatively to swap in different sampler types. To reconfigure some of these default samplers, first remove the existing samplers via
+  
+```{r}
+conf$removeSamplers(c("alpha","Sigma_coef1","rads[]","bumpLocs[]","r0","s0","pi[]"))
+```
+
+and then gradually reassign samplers as needed. For our example, it works well to block the hyperparameters for each bump function, as well as the compactly supported and core hyperparameters:  
+
+```{r, warning = FALSE}
+for(j in 1:n1){
+  for(k in 1:n2){
+    conf$addSampler(target = c(paste0(c("rads["),j,", ",k,"]"),
+                               paste0(c("pi["),j,", ",k,"]"),
+                               paste0("bumpLocs[",k,", ",j,"]")), 
+                    type = "RW_block", silent = TRUE)
+  }
+}
+conf$addSampler(target = c("r0","s0"), type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("alpha","Sigma_coef1"), type = "RW_block", silent = TRUE)
+```
+
+The final configuration is then:
+
+```{r}
+conf$printSamplers()
+```
+
+### Run the MCMC
+
+Once the samplers have been sufficiently modified, we can then build the MCMC, compile the model, and compile the MCMC as follows:
+
+```{r, eval = FALSE}
+Rmcmc <- buildMCMC(conf) # Build the MCMC
+Cmodel <- compileNimble(Rmodel) # Compile the model in C++
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel) # Compile the MCMC in C++
+```
+
+Finally, the MCMC can be run for, say, 20000 iterations (with 10000 discarded as burn-in and storing every tenth sample) using:
+
+```{r, eval = FALSE}
+samples <- runMCMC(Cmcmc, niter = 20000, nburnin = 10000, thin = 10)
+```
+
+The `runMCMC` function is a **nimble** function designed to take an MCMC algorithm and run the MCMC with one or more chains, with optional arguments to burn-in or thin the output (for further information, we refer the reader to the **nimble** help files). 
+
+### Posterior summaries
+
+The `samples` object from `runMCMC` is a matrix with one row for each saved MCMC sample (1000 total, thinned from the 10000 post burn-in) and one column for each sampled parameter:
+
+```{r}
+dim(samples)
+head(samples[,1:12])
+```
+
+We can then summarize the bump functions:
+
+```{r, fig.width=8, fig.height=4}
+# Summarize bump functions
+f_bumps <- function(samps, n1, n2, xtest = matrix(seq(from=0,to=1,length=200), ncol = 1)){
+  bump_true <- array(NA, dim = c(n1, length(xtest)))
+  for(j in 1:n1) {
+    g_j <- nimRep(0, length(xtest))
+    for (b in 1:n2) {
+      tmp <- nimRep(0, 200)
+      for (l in 1:d) {
+        rwix <- (n2 * (l - 1) + b)
+        tmp <- tmp + (xtest[, l] - rep(samps[paste0("bumpLocs[", rwix, ", ", j,"]")], length(xtest)))^2
+      }
+      dist_jb <- sqrt(tmp)
+      ind_nz <- which(dist_jb <= samps[paste0("rads[", j, ", ", b,"]")])
+      g_j[ind_nz] <- g_j[ind_nz] + as.numeric(samps[paste0("ampls[", j, ", ", b,"]")] > 0) * exp(1 - 1/(1 - dist_jb[ind_nz]^2/samps[paste0("rads[", j, ", ", b,"]")]^2))
+    }
+    bump_true[j,] <- g_j
+  }
+  return(bump_true)
+}
+
+# Calculate posteriors
+bump_postmed <- NULL
+bumps_post <- array(NA,dim=c(n1,200,1000))
+for(j in 1:1000){
+  bumps_post[,,j] <- f_bumps(samples[j,], n1, n2)
+}
+# Calculate posterior median
+for(i in 1:n1){
+  df <- data.frame(
+    n1 = i,
+    x = matrix(seq(from=0,to=1,length=200)),
+    fi = apply(bumps_post[i,,], 1, median)
+  )
+  bump_postmed <- rbind(bump_postmed, df)
+}
+ggplot(bump_postmed, aes(x = x, y = fi, color = as.factor(n1))) + geom_line() +  
+  theme_bw() + scale_color_manual(values=brewer.pal(4,"Set1"), name = "i") +
+  labs(x = "Input", y = "Bump functions") +
+  ggtitle("Posterior median bump functions")
+```
+
+and posterior correlation / covariance:
+
+```{r, fig.width=8, fig.height=4}
+dist_test <- as.matrix(dist(x_test))
+dists_ns_test <- nsDist(x_test, isotropic = TRUE)
+cov_post <- cor_post <- array(0, dim = c(100,100,1000))
+for(j in 1:1000){
+  c_j <- Cy_dm(  # Generate the kernel in dense format
+      dists = dist_test, coords = x_test, N = nrow(x_test), 
+      d = 1, n1 = n1, n2 = n2, r0 = samples[j,"r0"], s0 = samples[j,"s0"], 
+      cstat_opt = 4, normalize = 1, 
+      bumpLocs = matrix(samples[j,sapply(str_split(colnames(samples), "\\["), function(x){x[1]}) == "bumpLocs"],
+                        nrow = n2, ncol = n1), # array of bump function locations (n2*d x n1)
+      rads = matrix(samples[j,sapply(str_split(colnames(samples), "\\["), function(x){x[1]}) == "rads"],
+                    nrow = n1, ncol = n2),
+      ampls = matrix(samples[j,sapply(str_split(colnames(samples), "\\["), function(x){x[1]}) == "ampls"],
+                     nrow = n1, ncol = n2),
+      shps = matrix(1, nrow = n1, ncol = n2), # matrix of radii, amplitudes, shapes (n1 x n2)
+      dist1_sq = dists_ns_test$dist1_sq, dist2_sq = dists_ns_test$dist2_sq, dist12 = dists_ns_test$dist12,
+      Sigma11 = rep(samples[j,"Sigma_coef1"], 100),
+      Sigma22 = rep(samples[j,"Sigma_coef1"], 100), Sigma12 = rep(0,100),
+      nu = 2.5, log_sigma_vec = rep(log(sqrt(samples[j,"alpha"])), 100),
+      lognuggetSD = rep(log(sqrt(samples[j,"delta"])), 100)
+    )
+  cor_post[,,j] <- diag(1/sqrt(diag(c_j))) %*% c_j %*% diag(1/sqrt(diag(c_j)))
+  cov_post[,,j] <- c_j
+}
+
+cov_postmed <- apply(cov_post, 1:2, median)
+cor_postmed <- apply(cor_post, 1:2, median)
+df <- expand.grid(x1 = (as.numeric(x_test)), x2 = rev(as.numeric(x_test)))
+df$covmed <- c(cov_postmed)
+df$cormed <- c(cor_postmed)
+df$covmed[df$covmed == 0] <- NA
+df$cormed[df$cormed == 0] <- NA
+
+grid.arrange(
+  ggplot(df, aes(x = x1, y = x2, fill = cormed)) + geom_tile() +
+    theme_bw() + labs(x = NULL, y = NULL) +
+    scale_fill_gradientn(colors = viridis_pal(option = "viridis")(8), name = "Correlation",
+                         breaks = c(0,0.25,0.5,0.75,1), limits = c(0,1),
+                         na.value = "gray80") + coord_fixed() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank(),
+          strip.text = element_text(size=12)),
+  ggplot(df, aes(x = x1, y = x2, fill = covmed)) + geom_tile() +
+    theme_bw() + labs(x = NULL, y = NULL) +
+    scale_fill_gradientn(colors = viridis_pal(option = "viridis")(8), name = "Covariance",
+                         breaks = c(0,0.25,0.5,0.75,1,1.25,1.5), limits = c(0,max(df$covmed)),
+                         na.value = "gray80") + coord_fixed() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank(),
+          strip.text = element_text(size=12)),
+  nrow = 1
+)
+```
+
+
+### Posterior prediction
+
+Using `samples`, the matrix of posterior samples generated from the MCMC, we can proceed with posterior prediction as follows:
+```{r, eval = FALSE}
+# Predictions
+pred <- nsgpPredict(model = Rmodel, samples = samples, coords.predict = predCoords )
+```
+
+Finally, we can plot the predictions with uncertainty:
+```{r, fig.width=8, fig.height=4}
+pred_df <- data.frame(
+  x = predCoords[,1], y = y[-(1:N_train)],
+  yhat = colMeans(pred$pred, na.rm = T),
+  ylb = apply(pred$pred, 2, quantile, probs = 0.025, na.rm = T),
+  yub = apply(pred$pred, 2, quantile, probs = 0.975, na.rm = T),
+  ysd = apply(pred$pred, 2, sd, na.rm = T)
+)
+
+ggplot() +
+  geom_line(data = pred_df, mapping = aes(x = x, y = y)) +
+  geom_line(data = pred_df, mapping = aes(x = x, y = yhat), col = 2) +
+  geom_ribbon(data = pred_df, mapping = aes(x = x, ymin = ylb, ymax = yub), fill = 2, alpha = 0.3)  +
+  theme_bw() + coord_cartesian(ylim=c(-1.2,1.2)) +
+  ggtitle("(c) True function (black line) with posterior prediction + UQ (red)") +
+  labs(x = "Input", y = "Output")
+```

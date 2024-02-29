@@ -9,8 +9,8 @@ orderCoordinatesMMD(coords, exact = FALSE)
 \arguments{
 \item{coords}{N x 2 array of N 2-dimensional (x,y) spatial coordinates.}
 
-\item{exact}{Logical; \code{FALSE} uses a fast approximation to MMD ordering 
-(and is almost always recommended), while \code{TRUE} uses exact MMD 
+\item{exact}{Logical; \code{FALSE} uses a fast approximation to MMD ordering
+(and is almost always recommended), while \code{TRUE} uses exact MMD
 ordering but is infeasible for large number of locations.}
 }
 \value{
@@ -21,8 +21,8 @@ as \code{coords}.}
 NA values removed.}
 }
 \description{
-\code{orderCoordinatesMMD} orders an array of (x,y) spatial coordinates 
-according to the "maximum minimum distance" (MMD), as described in Guinness, 
+\code{orderCoordinatesMMD} orders an array of (x,y) spatial coordinates
+according to the "maximum minimum distance" (MMD), as described in Guinness,
 2018. (Points are selected to maximize their minimum distance to already-
 selected points).
 }

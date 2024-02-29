@@ -28,7 +28,7 @@ coordinate dimensions (TRUE). \code{isotropic = FALSE} can only be used for
 two-dimensional coordinate systems.}
 }
 \value{
-Arrays with nearest neighbor distances in each coordinate 
+Arrays with nearest neighbor distances in each coordinate
 direction. When the spatial dimension d > 2, dist1_3d contains squared
 Euclidean distances, and dist2_3d and dist12_3d are empty.
 }

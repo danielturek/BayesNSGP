@@ -1,0 +1,159 @@
+---
+title: Fitting Vecchia approximations using the BayesNSGP software package
+author: Mark Risser
+date: 28 Feb 2024 
+output: html_document
+---
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+library(nimble)
+library(coda)
+library(StatMatch)
+nimbleOptions(verbose = FALSE)
+library(BayesNSGP)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+library(viridis)
+library(stringr)
+library(RcppCNPy)
+library(FNN)
+
+source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/core.R")
+source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/gp2Scale.R")
+source("~/Documents/GitHub/BayesNSGP/BayesNSGP/R/SGV.R")
+
+# Load
+x_train <- npyLoad(paste0("data/x_data_simple.npy"))*100
+z <- npyLoad(paste0("data/y_data_simple.npy"))
+x_test <- npyLoad("data/x_pred.npy")*100 #[seq(from=1,to=1000,by=3)]*100
+y <- npyLoad(paste0("data/f_pred_simple.npy")) #[seq(from=1,to=1000,by=3)]
+d <<- 1
+```
+
+In order to demonstrate how one can use the BayesNSGP package to fit Vecchia approximations, we provide code to train the GP with a small, one-dimensional simulated data set. The synthetic data consist of $n_\text{train} = 100$ training inputs and $n_\text{test}=1000$ test points from the $[0,1]$ interval, and looks like this:
+
+```{r, fig.width=8, fig.height=4}
+ggplot() +
+  geom_line(data = data.frame(x = x_test/100, y = y), mapping = aes(x = x, y = y), color = brewer.pal(6, "Set1")[5]) +
+  geom_point(data = data.frame(x = x_train/100, y = z), mapping = aes(x = x, y = y), color = brewer.pal(6, "Set1")[2]) +
+  theme_bw() + labs(x = "Input", y = "Output")
+```
+
+### Sparse General Vecchia
+
+We can set up a Vecchia approximation for these data as follows: first, we use the Sparse General Vecchia with $k=20$ conditioning points for each data point.
+
+```{r}
+# Setup
+coords <- as.matrix(x_train)
+data <- as.numeric(z)
+N <- nrow(x_train)
+
+# Constants
+constants <-  list( nu = 1.5, k = 20, tau_HP1 = 10, sigma_HP1 = 10,
+                    Sigma_HP1 = 50, minAnisoDet = 1e-2,
+                    maxAnisoDist = max(dist(coords)), N = N, d = 1 )
+
+# MCMC
+Rmodel <- nsgpModel(likelihood = "SGV", Sigma_model = "constantIso",
+                    constants = constants,  coords = coords, data = data )
+conf <- configureMCMC(Rmodel) # Configure the nimble model object
+
+# Update the samplers
+conf$removeSamplers()
+conf$addSampler(target = c(paste0("alpha"), paste0("Sigma_coef1") ),
+                type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("beta"), type = "RW", silent = TRUE)
+conf$addSampler(target = c("delta"), type = "RW", silent = TRUE)
+
+# Build / compile the model and MCMC objects
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+
+# Run: 5000 iterations, discard 2000, save every 30
+samples <- runMCMC(Cmcmc, niter = 5000, nburnin = 2000, thin = 30)
+
+# Posterior prediction
+pred <- nsgpPredict(model = Rmodel, samples = samples, coords.predict = x_test)
+```
+
+We can look at the posterior predictive draws:
+
+```{r, fig.width=8, fig.height=4}
+df <- data.frame(
+  x = x_test, y = y,
+  yhat = colMeans(pred$pred, na.rm = T),
+  yhatlb = apply(pred$pred, 2, quantile, probs = 0.025, na.rm = T),
+  yhatub = apply(pred$pred, 2, quantile, probs = 0.975, na.rm = T),
+  yhatSD = apply(pred$pred, 2, sd, na.rm = T)
+)
+
+ggplot() +
+  geom_line(data = df, mapping = aes(x = x/100, y = y), color = brewer.pal(6, "Set1")[5]) +
+  geom_line(data = df, mapping = aes(x = x/100, y = yhat), color = brewer.pal(6, "Set1")[2]) +
+  geom_ribbon(data = df, mapping = aes(x = x/100, ymin = yhatlb, ymax = yhatub), 
+              fill = brewer.pal(6, "Set1")[2], alpha = 0.3) +
+  theme_bw() + labs(x = "Input", y = "Output") +
+  ggtitle("Posterior predictions: SGV")
+```
+
+### Nearest-neighbor Gaussian process for the Response
+
+Alternatively, we can set up a Vecchia approximation using the Nearest-neighbor Gaussian process for the Response (NNGP-R). The main difference here is that we only condition on the data points. Generally speaking, the NNGP-R is faster computationally but provides a worse approximation to the GP likelihood.
+
+```{r}
+# Setup
+coords <- as.matrix(x_train)
+data <- as.numeric(z)
+N <- nrow(x_train)
+
+# Constants
+constants <-  list( nu = 1.5, k = 20, tau_HP1 = 10, sigma_HP1 = 10,
+                    Sigma_HP1 = 50, minAnisoDet = 1e-2,
+                    maxAnisoDist = max(dist(coords)), N = N, d = 1 )
+
+# MCMC
+Rmodel <- nsgpModel(likelihood = "NNGP", Sigma_model = "constantIso",
+                    constants = constants,  coords = coords, data = data )
+conf <- configureMCMC(Rmodel) # Configure the nimble model object
+
+# Update the samplers
+conf$removeSamplers()
+conf$addSampler(target = c(paste0("alpha"), paste0("Sigma_coef1") ),
+                type = "RW_block", silent = TRUE)
+conf$addSampler(target = c("beta"), type = "RW", silent = TRUE)
+conf$addSampler(target = c("delta"), type = "RW", silent = TRUE)
+
+# Build / compile the model and MCMC objects
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+
+# Run: 5000 iterations, discard 2000, save every 30
+samples <- runMCMC(Cmcmc, niter = 5000, nburnin = 2000, thin = 30)
+
+# Posterior prediction
+pred <- nsgpPredict(model = Rmodel, samples = samples, coords.predict = x_test)
+```
+
+We can again look at the posterior predictive draws:
+
+```{r, fig.width=8, fig.height=4}
+df <- data.frame(
+  x = x_test, y = y,
+  yhat = colMeans(pred$pred, na.rm = T),
+  yhatlb = apply(pred$pred, 2, quantile, probs = 0.025, na.rm = T),
+  yhatub = apply(pred$pred, 2, quantile, probs = 0.975, na.rm = T),
+  yhatSD = apply(pred$pred, 2, sd, na.rm = T)
+)
+
+ggplot() +
+  geom_line(data = df, mapping = aes(x = x/100, y = y), color = brewer.pal(6, "Set1")[5]) +
+  geom_line(data = df, mapping = aes(x = x/100, y = yhat), color = brewer.pal(6, "Set1")[2]) +
+  geom_ribbon(data = df, mapping = aes(x = x/100, ymin = yhatlb, ymax = yhatub), 
+              fill = brewer.pal(6, "Set1")[2], alpha = 0.3) +
+  theme_bw() + labs(x = "Input", y = "Output") +
+  ggtitle("Posterior predictions: NNGP-R")
+```

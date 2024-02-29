@@ -8,6 +8,7 @@ nsgpModel(
   tau_model = "constant",
   sigma_model = "constant",
   Sigma_model = "constant",
+  sparse_model = "none",
   mu_model = "constant",
   likelihood = "fullGP",
   coords,
@@ -18,30 +19,33 @@ nsgpModel(
 )
 }
 \arguments{
-\item{tau_model}{Character; specifies the model to be used for the log(tau) 
-process. Options are \code{"constant"} (spatially-constant), 
-\code{"logLinReg"} (log-linear regression), and \code{"approxGP"} 
+\item{tau_model}{Character; specifies the model to be used for the log(tau)
+process. Options are \code{"constant"} (spatially-constant),
+\code{"logLinReg"} (log-linear regression), and \code{"approxGP"}
 (approximation to a Gaussian process).}
 
-\item{sigma_model}{Character; specifies the model to be used for the 
+\item{sigma_model}{Character; specifies the model to be used for the
 log(sigma) process. See \code{tau_model} for options.}
 
-\item{Sigma_model}{Character; specifies the model to be used for the 
+\item{Sigma_model}{Character; specifies the model to be used for the
 Sigma anisotropy process. Options are \code{"constant"} (spatially-constant),
-\code{"constantIso"} (spatially-constant and isotropic), \code{"covReg"} 
-(covariance regression), \code{"compReg"} (componentwise regression), 
+\code{"constantIso"} (spatially-constant and isotropic), \code{"covReg"}
+(covariance regression), \code{"compReg"} (componentwise regression),
 \code{"compRegIso"} (isotropic componentwise regression), \code{"npApproxGP"}
-(nonparameteric regression via an approximation to a stationary Gaussian 
-process), and \code{"npApproxGPIso"} (isotropic nonparameteric regression 
+(nonparameteric regression via an approximation to a stationary Gaussian
+process), and \code{"npApproxGPIso"} (isotropic nonparameteric regression
 via an approximation to a stationary Gaussian process)}
 
-\item{mu_model}{Character; specifies the model to be used for the mu mean 
+\item{sparse_model}{Character; specifies the model to be used for the sparse
+kernel when using the gp2Scale likelihood. Defaults to \code{"none"}.}
+
+\item{mu_model}{Character; specifies the model to be used for the mu mean
 process. Options are \code{"constant"} (spatially-constant), \code{"linReg"}
 (linear regression), and \code{"zero"} (a fixed zero-mean).}
 
 \item{likelihood}{Character; specifies the likelihood model. Options are
 \code{"fullGP"} (the exact Gaussian process likelihood), \code{"NNGP"} (the
-nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"} 
+nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"}
 (the sparse general Vecchia approximate likelihood).}
 
 \item{coords}{N x d matrix of spatial coordinates.}
@@ -51,7 +55,7 @@ nearest-neighbor GP for the response approximate likelihood), and \code{"SGV"}
 \item{constants}{A list of constants required to build the model; depends on
 the specific parameter process models chosen.}
 
-\item{monitorAllSampledNodes}{Logical; indicates whether all sampled nodes 
+\item{monitorAllSampledNodes}{Logical; indicates whether all sampled nodes
 should be stored (\code{TRUE}) or not (\code{FALSE}).}
 
 \item{...}{Additional arguments can be passed to the function; for example,
@@ -62,7 +66,7 @@ via this argument.}
 A \code{nimbleCode} object.
 }
 \description{
-This function sets up and compiles a nimble model for a general 
+This function sets up and compiles a nimble model for a general
 nonstationary Gaussian process.
 }
 \examples{
@@ -77,11 +81,11 @@ Sigma12_vec <- rep(0, N) # Kernel matrix element 1,2
 mu_vec <- rep(0, N) # Mean
 nu <- 0.5 # Smoothness
 dist_list <- nsDist(coords)
-Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq, 
-                   dist12 = dist_list$dist12, Sigma11 = Sigma11_vec, 
+Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq,
+                   dist12 = dist_list$dist12, Sigma11 = Sigma11_vec,
                    Sigma22 = Sigma22_vec, Sigma12 = Sigma12_vec, nu = nu )
 Cov_mat <- diag(exp(alpha_vec)) \%*\% Cor_mat \%*\% diag(exp(alpha_vec))
-D_mat <- diag(exp(delta_vec)^2) 
+D_mat <- diag(exp(delta_vec)^2)
 set.seed(110)
 data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
 # Set up constants

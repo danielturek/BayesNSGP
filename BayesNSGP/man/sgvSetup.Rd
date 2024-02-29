@@ -10,7 +10,8 @@ sgvSetup(
   k = 15,
   seed = NULL,
   pred.seed = NULL,
-  order_coords = TRUE
+  order_coords = TRUE,
+  order_coords_pred = TRUE
 )
 }
 \arguments{

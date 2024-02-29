@@ -9,7 +9,7 @@ nsgpPredict(
   samples,
   coords.predict,
   predict.process = TRUE,
-  constants,
+  constants = list(),
   seed = 0,
   ...
 )
@@ -17,16 +17,16 @@ nsgpPredict(
 \arguments{
 \item{model}{A NSGP nimble object; the output of \code{nsgpModel}.}
 
-\item{samples}{A matrix of \code{J} rows, each is an MCMC sample of the 
+\item{samples}{A matrix of \code{J} rows, each is an MCMC sample of the
 parameters corresponding to the specification in \code{nsgpModel}.}
 
 \item{coords.predict}{M x d matrix of prediction coordinates.}
 
-\item{predict.process}{Logical; determines whether the prediction corresponds to 
-the y(·) process (\code{TRUE}) or z(·) (\code{FALSE}; this would likely 
+\item{predict.process}{Logical; determines whether the prediction corresponds to
+the y(·) process (\code{TRUE}) or z(·) (\code{FALSE}; this would likely
 only be used for, e.g., cross-validation).}
 
-\item{constants}{An optional list of contants to use for prediction; 
+\item{constants}{An optional list of contants to use for prediction;
 alternatively, additional arguments can be passed to the function via the
 ... argument.}
 
@@ -38,12 +38,12 @@ via this argument.}
 }
 \value{
 The output of the function is a list with two elements: \code{obs},
-a matrix of \code{J} posterior predictive samples for the N observed 
-locations (only for \code{likelihood = "SGV"}, which produces predictions 
-for the observed locations by default; this element is \code{NULL} 
-otherwise); and \code{pred}, a corresponding matrix of posterior predictive 
+a matrix of \code{J} posterior predictive samples for the N observed
+locations (only for \code{likelihood = "SGV"}, which produces predictions
+for the observed locations by default; this element is \code{NULL}
+otherwise); and \code{pred}, a corresponding matrix of posterior predictive
 samples for the prediction locations. Ordering and neighbor selection
-for the prediction coordinates in the SGV likelihood are conducted 
+for the prediction coordinates in the SGV likelihood are conducted
 internally, as with \code{nsgpModel}.
 }
 \description{
@@ -63,11 +63,11 @@ Sigma12_vec <- rep(0, N) # Kernel matrix element 1,2
 mu_vec <- rep(0, N) # Mean
 nu <- 0.5 # Smoothness
 dist_list <- nsDist(coords)
-Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq, 
-                   dist12 = dist_list$dist12, Sigma11 = Sigma11_vec, 
+Cor_mat <- nsCorr( dist1_sq = dist_list$dist1_sq, dist2_sq = dist_list$dist2_sq,
+                   dist12 = dist_list$dist12, Sigma11 = Sigma11_vec,
                    Sigma22 = Sigma22_vec, Sigma12 = Sigma12_vec, nu = nu )
 Cov_mat <- diag(exp(alpha_vec)) \%*\% Cor_mat \%*\% diag(exp(alpha_vec))
-D_mat <- diag(exp(delta_vec)^2) 
+D_mat <- diag(exp(delta_vec)^2)
 set.seed(110)
 data <- as.numeric(mu_vec + t(chol(Cov_mat + D_mat)) \%*\% rnorm(N))
 # Set up constants

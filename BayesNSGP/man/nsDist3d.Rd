@@ -20,7 +20,7 @@ coordinate dimensions (TRUE). \code{isotropic = TRUE} can only be used for
 two-dimensional coordinate systems.}
 }
 \value{
-Arrays with nearest neighbor distances in each coordinate 
+Arrays with nearest neighbor distances in each coordinate
 direction.
 }
 \description{

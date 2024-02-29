@@ -30,42 +30,42 @@ distances between the x- and y-coordinates. The sign of each element is
 important; see \code{nsDist} function for the details of this calculation.
 in the x-coordinate.}
 
-\item{Sigma11}{Vector of length N; contains the 1-1 element of the 
+\item{Sigma11}{Vector of length N; contains the 1-1 element of the
 anisotropy process for each observed location.}
 
-\item{Sigma22}{Vector of length N; contains the 2-2 element of the 
+\item{Sigma22}{Vector of length N; contains the 2-2 element of the
 anisotropy process for each observed location.}
 
-\item{Sigma12}{Vector of length N; contains the 1-2 element of the 
+\item{Sigma12}{Vector of length N; contains the 1-2 element of the
 anisotropy process for each observed location.}
 
-\item{PSigma11}{Vector of length N; contains the 1-1 element of the 
+\item{PSigma11}{Vector of length N; contains the 1-1 element of the
 anisotropy process for each prediction location.}
 
-\item{PSigma22}{Vector of length N; contains the 2-2 element of the 
+\item{PSigma22}{Vector of length N; contains the 2-2 element of the
 anisotropy process for each prediction location.}
 
-\item{PSigma12}{Vector of length N; contains the 1-2 element of the 
+\item{PSigma12}{Vector of length N; contains the 1-2 element of the
 anisotropy process for each prediction location.}
 
-\item{nu}{Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
+\item{nu}{Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds
 to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 correlation function.}
 
 \item{d}{Scalar; dimension of the spatial domain.}
 }
 \value{
-A M x N cross-correlation matrix for two fixed sets of stations and 
+A M x N cross-correlation matrix for two fixed sets of stations and
 fixed parameter values.
 }
 \description{
-\code{nsCrosscorr} calculates a nonstationary cross-correlation matrix 
+\code{nsCrosscorr} calculates a nonstationary cross-correlation matrix
 between two fixed sets of locations (a prediction set with M locations, and
-the observed set with N locations), based on vectors of the unique anisotropy 
-parameters for each station. Since the correlation function uses a 
+the observed set with N locations), based on vectors of the unique anisotropy
+parameters for each station. Since the correlation function uses a
 spatially-varying Mahalanobis distance, this function requires coordinate-
-specific distance matrices (see below). The function is coded as a 
-\code{nimbleFunction} (see the \code{nimble} package) but can also be 
+specific distance matrices (see below). The function is coded as a
+\code{nimbleFunction} (see the \code{nimble} package) but can also be
 used as a regular R function.
 }
 \examples{

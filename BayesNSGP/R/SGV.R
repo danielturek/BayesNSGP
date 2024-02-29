@@ -106,7 +106,7 @@ conditionLatentObs <- function( nID, coords_ord, N ){
 #'
 #' @export
 #' 
-sgvSetup <- function( coords, coords_pred = NULL, k = 15, seed = NULL, pred.seed = NULL, order_coords = TRUE ){
+sgvSetup <- function( coords, coords_pred = NULL, k = 15, seed = NULL, pred.seed = NULL, order_coords = TRUE, order_coords_pred = TRUE ){
   
   if(is.null(seed)) seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
   if(is.null(pred.seed)) pred.seed <- sample(1e5, 1) # Set seed for reproducibility (randomness in orderCoordinatesMMD function)
@@ -134,16 +134,24 @@ sgvSetup <- function( coords, coords_pred = NULL, k = 15, seed = NULL, pred.seed
     coords_ord <- coords[ord_all,]
   } else{
     n_pred <- nrow(coords_pred) # Number of prediction locations
-    set.seed(pred.seed)
-    coords_pred_mmd <- orderCoordinatesMMD(coords_pred)
-    ord_pred <- coords_pred_mmd$orderedIndicesNoNA
-    ord_all <- c(ord, n+ord_pred)
-    coords_ord <- rbind(coords, coords_pred)[ord_all,]
+    if(order_coords_pred){
+      set.seed(pred.seed)
+      coords_pred_mmd <- orderCoordinatesMMD(coords_pred)
+      ord_pred <- coords_pred_mmd$orderedIndicesNoNA
+      ord_all <- c(ord, n+ord_pred)
+      coords_ord <- rbind(coords, coords_pred)[ord_all,]
+    } else{
+      coords_pred_mmd <- coords_pred
+      ord_pred <- 1:n_pred
+      ord_all <- c(ord, n+ord_pred)
+      coords_ord <- rbind(coords, coords_pred)[ord_all,]
+    }
   }
   
   #--------------------------------------------------------
   # Task 2: Get nearest neighbors
   #--------------------------------------------------------
+  coords_ord <- as.matrix(coords_ord, ncol = d)
   nID_ord <- determineNeighbors(coords_ord, k)
   
   #--------------------------------------------------------
@@ -252,6 +260,17 @@ calculateU_ns <- nimbleFunction(  # Create the sparse U matrix for specific thet
       
       # Covariance of conditioning set
       Cor_cond <- nsCorr(d1, d2, d12, xS1, xS2, xS12, nu, d)
+      # if(d == 1){
+      #   if(nNei > 2){
+      #     for(o in 1:(nNei-1)){
+      #       tmp <- Cor_cond[o,(o+1):nNei] 
+      #       tmp[tmp>1-1e-5] <- 1-1e-5
+      #       Cor_cond[o,(o+1):nNei] <- tmp
+      #       Cor_cond[(o+1):nNei,o] <- tmp
+      #     }
+      #       
+      #   }
+      # }
       Cov_cond <- sigmaMat_cond %*% Cor_cond %*% sigmaMat_cond # Formerly pt2
       
       # Covariance of the process at the location

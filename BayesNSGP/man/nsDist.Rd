@@ -27,7 +27,7 @@ distances between the x- and y-coordinates.}
 \item{scale_factor}{Value of the scale factor used to rescale distances.}
 }
 \description{
-\code{nsDist} calculates x, y, and x-y distances for use in the 
+\code{nsDist} calculates x, y, and x-y distances for use in the
 nonstationary correlation calculation. The sign of the cross-distance
 is important. The function contains an optional argument for re-scaling
 the distances such that the coordinates lie in a square.

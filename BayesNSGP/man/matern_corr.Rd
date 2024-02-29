@@ -7,12 +7,12 @@
 matern_corr(dist, rho, nu)
 }
 \arguments{
-\item{dist}{N x N matrix; contains values of pairwise Euclidean distances in 
+\item{dist}{N x N matrix; contains values of pairwise Euclidean distances in
 the x-y plane.}
 
 \item{rho}{Scalar; "range" parameter used to rescale distances}
 
-\item{nu}{Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
+\item{nu}{Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds
 to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 correlation function.}
 }
@@ -21,10 +21,10 @@ A correlation matrix for a fixed set of stations and fixed
 parameter values.
 }
 \description{
-\code{matern_corr} calculates a stationary Matern correlation matrix for a 
-fixed set of locations, based on a range and smoothness parameter. This 
-function is primarily used for the "npGP" and "approxGP" models. The 
-function is coded as a \code{nimbleFunction} (see the \code{nimble} package) 
+\code{matern_corr} calculates a stationary Matern correlation matrix for a
+fixed set of locations, based on a range and smoothness parameter. This
+function is primarily used for the "npGP" and "approxGP" models. The
+function is coded as a \code{nimbleFunction} (see the \code{nimble} package)
 but can also be used as a regular R function.
 }
 \examples{

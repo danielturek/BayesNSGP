@@ -31,11 +31,11 @@ distances between the x- and y-coordinates.}
 }
 \description{
 \code{nsCrossdist} calculates coordinate-specific cross distances in x, y,
-and x-y for use in the nonstationary cross-correlation calculation. This 
+and x-y for use in the nonstationary cross-correlation calculation. This
 function is useful for calculating posterior predictions.
 }
 \examples{
-# Generate some coordinates 
+# Generate some coordinates
 coords <- cbind(runif(100),runif(100))
 Pcoords <- cbind(runif(200),runif(200))
 # Calculate distances
