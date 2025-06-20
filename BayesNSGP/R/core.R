@@ -1488,11 +1488,11 @@ nsgpModel <- function( tau_model   = "constant",
   ##============================================
   mu_model_list <- list(
     constant = list(
-      ## 1. sigma_HP1          Standard deviation for the log-linear standard deviation
-      ## 2. alpha                  Scalar; represents log-linear standard deviation (constant over the domain)
-      ## 3. ones                   N-vector of 1's
+      ## 1. mu_HP1              Standard deviation for the log-linear standard deviation
+      ## 2. beta                Scalar; represents log-linear standard deviation (constant over the domain)
+      ## 3. ones                N-vector of 1's
       code = quote({
-        mu[1:N] <-beta*ones[1:N]
+        mu[1:N] <- beta*ones[1:N]
         beta ~ dnorm(0, sd = mu_HP1)
       }),
       constants_needed = c("ones", "mu_HP1"),
