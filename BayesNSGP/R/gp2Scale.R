@@ -42,9 +42,9 @@
 #' @param cstat_opt Scalar; determines the compactly supported kernel. See Details.
 #' @param normalize Logical; should C_sparse have 1's along the diagonal
 #' @param bumpLocs Array of bump function locations (n2*d x n1)
-#' @param rads Matrix of bump function radii (n1 x n2; denoted r_{ij})
-#' @param ampls Matrix of bump function amplitudes (n1 x n2; denoted a_{ij})
-#' @param shps Matrix of bump function shape parameters (n1 x n2; denoted b_{ij})
+#' @param rads Matrix of bump function radii (n1 x n2; denoted \eqn{r_{ij}})
+#' @param ampls Matrix of bump function amplitudes (n1 x n2; denoted \eqn{a_{ij}})
+#' @param shps Matrix of bump function shape parameters (n1 x n2; denoted \eqn{b_{ij}})
 #' @param dist1_sq N x N matrix; contains values of pairwise squared distances
 #' in the x-coordinate.
 #' @param dist2_sq N x N matrix; contains values of pairwise squared distances
@@ -650,9 +650,9 @@ Cy_dm <- nimbleFunction(  # Generate the sparse kernel in dense format
 #' @param r0 Scalar; length-scale of sparse stationary kernel.
 #' @param cstat_opt Scalar; determines the compactly supported kernel. See Details.
 #' @param bumpLocs Array of bump function locations (n2*d x n1)
-#' @param rads Matrix of bump function radii (n1 x n2; denoted r_{ij})
-#' @param ampls Matrix of bump function amplitudes (n1 x n2; denoted a_{ij})
-#' @param shps Matrix of bump function shape parameters (n1 x n2; denoted b_{ij})
+#' @param rads Matrix of bump function radii (n1 x n2; denoted \eqn{r_{ij}})
+#' @param ampls Matrix of bump function amplitudes (n1 x n2; denoted \eqn{a_{ij}})
+#' @param shps Matrix of bump function shape parameters (n1 x n2; denoted \eqn{b_{ij}})
 #' @param dist1_sq N x N matrix; contains values of pairwise squared distances
 #' in the x-coordinate.
 #' @param dist2_sq N x N matrix; contains values of pairwise squared distances
