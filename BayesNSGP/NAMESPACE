@@ -2,7 +2,7 @@ importFrom("stats", "dist", "rnorm")
 import(methods)
 import(nimble)
 import(FNN)
-import(Matrix)
+importFrom("Matrix", "sparseMatrix")
 import(StatMatch)
 
 export(Cy_sm)
