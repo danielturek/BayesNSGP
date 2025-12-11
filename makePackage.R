@@ -19,7 +19,7 @@ namespaceFilename <- paste0(baseDir, 'BayesNSGP/NAMESPACE')
 namespace <- readLines(namespaceFilename)
 if(length(namespace) >= 2) namespace <- namespace[2:length(namespace)]
 namespace <- c('import(StatMatch)', namespace)
-namespace <- c('import(Matrix)', namespace)
+namespace <- c('importFrom("Matrix", "sparseMatrix")', namespace)
 namespace <- c('import(FNN)', namespace)
 namespace <- c('import(nimble)', namespace)
 namespace <- c('import(methods)', namespace)

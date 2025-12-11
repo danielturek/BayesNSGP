@@ -53,11 +53,11 @@ Cy_sm(
 
 \item{bumpLocs}{Array of bump function locations (n2*d x n1)}
 
-\item{rads}{Matrix of bump function radii (n1 x n2; denoted r_{ij})}
+\item{rads}{Matrix of bump function radii (n1 x n2; denoted \eqn{r_{ij}})}
 
-\item{ampls}{Matrix of bump function amplitudes (n1 x n2; denoted a_{ij})}
+\item{ampls}{Matrix of bump function amplitudes (n1 x n2; denoted \eqn{a_{ij}})}
 
-\item{shps}{Matrix of bump function shape parameters (n1 x n2; denoted b_{ij})}
+\item{shps}{Matrix of bump function shape parameters (n1 x n2; denoted \eqn{b_{ij}})}
 
 \item{dist1_sq}{N x N matrix; contains values of pairwise squared distances
 in the x-coordinate.}
