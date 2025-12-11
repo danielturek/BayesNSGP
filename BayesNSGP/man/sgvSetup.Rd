@@ -28,6 +28,8 @@ ordering}
 ordering.}
 
 \item{order_coords}{Logical; should the coordinates be ordered.}
+
+\item{order_coords_pred}{Logical; should the coordinates be ordered.}
 }
 \value{
 A list with the following components:

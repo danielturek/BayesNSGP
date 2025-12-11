@@ -91,6 +91,7 @@ conditionLatentObs <- function( nID, coords_ord, N ){
 #' @param pred.seed Setting the seed for reproducibility of the prediction 
 #' ordering.
 #' @param order_coords Logical; should the coordinates be ordered.
+#' @param order_coords_pred Logical; should the coordinates be ordered.
 #' 
 #' @return A list with the following components:
 #' \item{ord}{A vector of ordering position for the observed locations.}

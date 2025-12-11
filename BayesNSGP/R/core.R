@@ -1990,7 +1990,7 @@ nsgpModel <- function( tau_model   = "constant",
 #' internally, as with \code{nsgpModel}.
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #' # Generate some data: stationary/isotropic
 #' N <- 100
 #' coords <- matrix(runif(2*N), ncol = 2)

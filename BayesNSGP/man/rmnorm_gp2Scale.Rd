@@ -7,19 +7,15 @@
 rmnorm_gp2Scale(n, mean, Cov, N, Nnz)
 }
 \arguments{
-\item{mean}{Vector of mean valiues}
+\item{n}{Number of realizations to generate}
+
+\item{mean}{Vector of mean values}
+
+\item{Cov}{Matrix of size N x N; sparse kernel}
 
 \item{N}{Number of measurements in x}
 
-\item{x}{Vector of measurements}
-
-\item{Csparse}{Matrix of size N x N; sparse kernel}
-
-\item{Ccore}{Matrix of size N x N; core kernel}
-
-\item{lognuggetSD}{Vector of log nugget (measurement error) standard deviation.}
-
-\item{log}{Logical; should the density be evaluated on the log scale.}
+\item{Nnz}{Number of measurements in x}
 }
 \value{
 Not applicable.

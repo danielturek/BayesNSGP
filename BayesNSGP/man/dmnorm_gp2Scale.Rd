@@ -9,7 +9,7 @@ dmnorm_gp2Scale(x, mean, Cov, N, Nnz, log = 1)
 \arguments{
 \item{x}{Vector of measurements}
 
-\item{mean}{Vector of mean valiues}
+\item{mean}{Vector of mean values}
 
 \item{Cov}{Matrix of size N x N; sparse kernel}
 

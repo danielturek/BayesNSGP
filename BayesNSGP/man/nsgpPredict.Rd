@@ -51,7 +51,7 @@ internally, as with \code{nsgpModel}.
 using nimble and nsgpModel.
 }
 \examples{
-\donttest{
+\dontrun{
 # Generate some data: stationary/isotropic
 N <- 100
 coords <- matrix(runif(2*N), ncol = 2)

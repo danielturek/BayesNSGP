@@ -641,23 +641,25 @@ Cy_dm <- nimbleFunction(  # Generate the sparse kernel in dense format
 #' set of bump function hyperparameters and returns the nonzero entries. Note
 #' that the matrix is calculated and returned in dense format.
 #' 
-#' @param dists N x N matrix of Euclidean distances
+#' @param Xdists N x N matrix of Euclidean distances
 #' @param coords N x d matrix of coordinate/input locations
-#' @param N Scalar; number of data measurements.
+#' @param Pcoords N x d matrix of coordinate/input locations
 #' @param d Scalar; dimension of the spatial domain.
 #' @param n1 Scalar; number of outer products.
 #' @param n2 Scalar; number of bump functions in each outer product.
 #' @param r0 Scalar; length-scale of sparse stationary kernel.
+#' @param s0 Scalar; signal-variance of sparse stationary kernel.
 #' @param cstat_opt Scalar; determines the compactly supported kernel. See Details.
+#' @param normalize Logical; should C_sparse have 1's along the diagonal (1 = TRUE)
 #' @param bumpLocs Array of bump function locations (n2*d x n1)
 #' @param rads Matrix of bump function radii (n1 x n2; denoted \eqn{r_{ij}})
 #' @param ampls Matrix of bump function amplitudes (n1 x n2; denoted \eqn{a_{ij}})
 #' @param shps Matrix of bump function shape parameters (n1 x n2; denoted \eqn{b_{ij}})
-#' @param dist1_sq N x N matrix; contains values of pairwise squared distances
+#' @param Xdist1_sq N x N matrix; contains values of pairwise squared distances
 #' in the x-coordinate.
-#' @param dist2_sq N x N matrix; contains values of pairwise squared distances
+#' @param Xdist2_sq N x N matrix; contains values of pairwise squared distances
 #' in the y-coordinate.
-#' @param dist12 N x N matrix; contains values of pairwise signed cross-
+#' @param Xdist12 N x N matrix; contains values of pairwise signed cross-
 #' distances between the x- and y-coordinates. The sign of each element is
 #' important; see \code{nsDist} function for the details of this calculation.
 #' in the x-coordinate.
@@ -667,11 +669,17 @@ Cy_dm <- nimbleFunction(  # Generate the sparse kernel in dense format
 #' anisotropy process for each station. 
 #' @param Sigma12 Vector of length N; contains the 1-2 element of the 
 #' anisotropy process for each station.
+#' @param PSigma11 Vector of length N; contains the 1-1 element of the 
+#' anisotropy process for each station. 
+#' @param PSigma22 Vector of length N; contains the 2-2 element of the 
+#' anisotropy process for each station. 
+#' @param PSigma12 Vector of length N; contains the 1-2 element of the 
+#' anisotropy process for each station.
 #' @param nu Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
 #' to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 #' correlation function.
 #' @param log_sigma_vec Vector of length N; log of the signal standard deviation.
-#' @param lognuggetSD Vector of length N; log of the error standard deviation.
+#' @param Plog_sigma_vec Vector of length N; log of the signal standard deviation.
 #' 
 #' 
 #' @return Returns a sparse matrix (N x 3) of the nonzero elements of the product 
@@ -1028,7 +1036,7 @@ nimble_sparse_solveMat <- nimbleRcall(
 #' the distributions must be registered within \code{nimble}.
 #' 
 #' @param x Vector of measurements
-#' @param mean Vector of mean valiues
+#' @param mean Vector of mean values
 #' @param Cov Matrix of size N x N; sparse kernel
 #' @param N Number of measurements in x
 #' @param Nnz Number of measurements in x
@@ -1065,13 +1073,11 @@ dmnorm_gp2Scale <- nimbleFunction(
 #' likelihood for a fixed set of parameters (but with sparse matrices). Finally,
 #' the distributions must be registered within \code{nimble}.
 #' 
-#' @param x Vector of measurements
-#' @param mean Vector of mean valiues
-#' @param Csparse Matrix of size N x N; sparse kernel
-#' @param Ccore Matrix of size N x N; core kernel
-#' @param lognuggetSD Vector of log nugget (measurement error) standard deviation. 
+#' @param n Number of realizations to generate
+#' @param mean Vector of mean values
+#' @param Cov Matrix of size N x N; sparse kernel
 #' @param N Number of measurements in x
-#' @param log Logical; should the density be evaluated on the log scale.
+#' @param Nnz Number of measurements in x
 #' 
 #' @return Not applicable.
 #'

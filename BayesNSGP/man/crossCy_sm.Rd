@@ -34,7 +34,11 @@ crossCy_sm(
 )
 }
 \arguments{
+\item{Xdists}{N x N matrix of Euclidean distances}
+
 \item{coords}{N x d matrix of coordinate/input locations}
+
+\item{Pcoords}{N x d matrix of coordinate/input locations}
 
 \item{d}{Scalar; dimension of the spatial domain.}
 
@@ -44,7 +48,11 @@ crossCy_sm(
 
 \item{r0}{Scalar; length-scale of sparse stationary kernel.}
 
+\item{s0}{Scalar; signal-variance of sparse stationary kernel.}
+
 \item{cstat_opt}{Scalar; determines the compactly supported kernel. See Details.}
+
+\item{normalize}{Logical; should C_sparse have 1's along the diagonal (1 = TRUE)}
 
 \item{bumpLocs}{Array of bump function locations (n2*d x n1)}
 
@@ -53,6 +61,17 @@ crossCy_sm(
 \item{ampls}{Matrix of bump function amplitudes (n1 x n2; denoted \eqn{a_{ij}})}
 
 \item{shps}{Matrix of bump function shape parameters (n1 x n2; denoted \eqn{b_{ij}})}
+
+\item{Xdist1_sq}{N x N matrix; contains values of pairwise squared distances
+in the x-coordinate.}
+
+\item{Xdist2_sq}{N x N matrix; contains values of pairwise squared distances
+in the y-coordinate.}
+
+\item{Xdist12}{N x N matrix; contains values of pairwise signed cross-
+distances between the x- and y-coordinates. The sign of each element is
+important; see \code{nsDist} function for the details of this calculation.
+in the x-coordinate.}
 
 \item{Sigma11}{Vector of length N; contains the 1-1 element of the 
 anisotropy process for each station.}
@@ -63,28 +82,22 @@ anisotropy process for each station.}
 \item{Sigma12}{Vector of length N; contains the 1-2 element of the 
 anisotropy process for each station.}
 
+\item{PSigma11}{Vector of length N; contains the 1-1 element of the 
+anisotropy process for each station.}
+
+\item{PSigma22}{Vector of length N; contains the 2-2 element of the 
+anisotropy process for each station.}
+
+\item{PSigma12}{Vector of length N; contains the 1-2 element of the 
+anisotropy process for each station.}
+
 \item{nu}{Scalar; Matern smoothness parameter. \code{nu = 0.5} corresponds 
 to the Exponential correlation; \code{nu = Inf} corresponds to the Gaussian
 correlation function.}
 
 \item{log_sigma_vec}{Vector of length N; log of the signal standard deviation.}
 
-\item{dists}{N x N matrix of Euclidean distances}
-
-\item{N}{Scalar; number of data measurements.}
-
-\item{dist1_sq}{N x N matrix; contains values of pairwise squared distances
-in the x-coordinate.}
-
-\item{dist2_sq}{N x N matrix; contains values of pairwise squared distances
-in the y-coordinate.}
-
-\item{dist12}{N x N matrix; contains values of pairwise signed cross-
-distances between the x- and y-coordinates. The sign of each element is
-important; see \code{nsDist} function for the details of this calculation.
-in the x-coordinate.}
-
-\item{lognuggetSD}{Vector of length N; log of the error standard deviation.}
+\item{Plog_sigma_vec}{Vector of length N; log of the signal standard deviation.}
 }
 \value{
 Returns a sparse matrix (N x 3) of the nonzero elements of the product 
