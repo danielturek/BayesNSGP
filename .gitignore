@@ -2,3 +2,5 @@
 *.RData
 .DS_Store
 .Rapp.history
+BayesNSGP.Rcheck*
+
