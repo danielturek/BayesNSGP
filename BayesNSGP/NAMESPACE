@@ -1,8 +1,8 @@
-importFrom("stats", "dist", "rnorm")
+importFrom('stats', 'dist', 'rnorm')
 import(methods)
 import(nimble)
 import(FNN)
-importFrom("Matrix", "sparseMatrix")
+importFrom('Matrix', 'sparseMatrix')
 import(StatMatch)
 
 export(Cy_sm)
