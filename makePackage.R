@@ -1,36 +1,40 @@
 
 
-## Mark:
-## use this code below to build and re-install the package,
-## when you make changes to the source files.
-
 library(devtools)
 library(roxygen2)
-library(nimble, warn.conflicts = FALSE)
-if('GitHub' %in% list.files('~/Documents')) {   ## this should work for either of us
-    baseDir <- '~/Documents/Github/BayesNSGP/'  ## Risser
-} else { baseDir <- '~/github/BayesNSGP/' }     ## Turek
+library(nimble)
+
+baseDir <- '~/github/BayesNSGP/'
 if(!('makePackage.R' %in% list.files(baseDir))) stop('change baseDir directory')
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
 for(file in tarFiles) system(paste0('rm ', file))
-##system(paste0('rm -f ', paste0(baseDir, 'BayesNSGP/NAMESPACE')))
-##document(paste0(baseDir, 'BayesNSGP'))
-##namespaceFilename <- paste0(baseDir, 'BayesNSGP/NAMESPACE')
-##namespace <- readLines(namespaceFilename)
-##if(length(namespace) >= 2) namespace <- namespace[2:length(namespace)]
-##namespace <- c('import(StatMatch)', namespace)
-##namespace <- c('importFrom("Matrix", "sparseMatrix")', namespace)
-##namespace <- c('import(FNN)', namespace)
-##namespace <- c('import(nimble)', namespace)
-##namespace <- c('import(methods)', namespace)
-##namespace <- c('importFrom("stats", "dist", "rnorm")', namespace)
-##writeLines(namespace, namespaceFilename)
-system(paste0('R CMD BUILD ', baseDir, 'BayesNSGP'))
+
+if(TRUE) {
+    ## remake NAMESPACE
+    system(paste0('rm -f ', paste0(baseDir, 'BayesNSGP/NAMESPACE')))
+    document(paste0(baseDir, 'BayesNSGP'))
+    namespaceFilename <- paste0(baseDir, 'BayesNSGP/NAMESPACE')
+    namespace <- readLines(namespaceFilename)
+    if(length(namespace) >= 2) namespace <- namespace[2:length(namespace)]
+    namespace <- c('importFrom("sf", "st_as_sf", "st_distance")', namespace)
+    namespace <- c('import(ggplot2)', namespace)
+    namespace <- c('import(StatMatch)', namespace)
+    namespace <- c('importFrom("Matrix", "sparseMatrix")', namespace)
+    namespace <- c('import(FNN)', namespace)
+    namespace <- c('import(nimble)', namespace)
+    namespace <- c('import(methods)', namespace)
+    namespace <- c('importFrom("stats", "dist", "rnorm")', namespace)
+    writeLines(namespace, namespaceFilename)
+}
+
+system(paste0('/usr/local/bin/R CMD BUILD ', baseDir, 'BayesNSGP'))
+
 check(paste0(baseDir, 'BayesNSGP'))
+
 try(remove.packages('BayesNSGP'), silent = TRUE)
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
 (lastTarFile <- tarFiles[length(tarFiles)])
-system(paste0('R CMD install ', lastTarFile))
+system(paste0('/usr/local/bin/R CMD install ', lastTarFile))
 
 ## now quit R
 
