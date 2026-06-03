@@ -49,11 +49,10 @@ where \eqn{\Sigma^{-1} \approx (I-A)^\top D^{-1} (I-A)} and allows for
 \eqn{O(M^3)} Cholesky decomposition for large \eqn{M}.
 }
 \examples{
-M <- 4000
-coords <- matrix(runif(M), ncol = 2)
-Nk = 15
+M <- 2000      # number of spatial locations
+coords <- matrix(runif(2*M), ncol = 2)
+Nk <- 15       # number of neighbors
 res <- computeNeighbors(coords, k = Nk)
-\dontrun{
 AD <- computeAD(edist = res$edist_sorted,
                 nid.dist = res$neighbors_dist,
                 neighbors.id = res$neighbor_idx,
@@ -63,7 +62,6 @@ AD <- computeAD(edist = res$edist_sorted,
 w <- rmnorm_NN_GP(n = 1, mu = rep(0, M),
                  AD = AD[1:M, 1:(Nk+1)],
                  neighbors.id = res$neighbor_idx[1:M, 1:Nk])
-}
 
 }
 \references{

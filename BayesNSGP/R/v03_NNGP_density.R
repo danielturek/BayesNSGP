@@ -389,11 +389,10 @@ computeQF <- nimbleFunction(
 #' \doi{10.1002/wics.1574}
 #'
 #' @examples
-#' M <- 4000
-#' coords <- matrix(runif(M), ncol = 2)
-#' Nk = 15
+#' M <- 2000      # number of spatial locations
+#' coords <- matrix(runif(2*M), ncol = 2)
+#' Nk <- 15       # number of neighbors
 #' res <- computeNeighbors(coords, k = Nk)
-#' \dontrun{
 #' AD <- computeAD(edist = res$edist_sorted,
 #'                 nid.dist = res$neighbors_dist,
 #'                 neighbors.id = res$neighbor_idx,
@@ -403,7 +402,6 @@ computeQF <- nimbleFunction(
 #' w <- rmnorm_NN_GP(n = 1, mu = rep(0, M),
 #'                  AD = AD[1:M, 1:(Nk+1)],
 #'                  neighbors.id = res$neighbor_idx[1:M, 1:Nk])
-#' }
 #'
 #' @author Fabian Ketwaroo
 #' 
@@ -502,9 +500,9 @@ rmnorm_NN_GP <- nimbleFunction(
 #' \doi{10.1080/01621459.2015.1044091}
 #' 
 #' @examples
-#' M <- 4000
-#' coords <- matrix(runif(M), ncol = 2)
-#' Nk = 15
+#' M <- 2000      # number of spatial locations
+#' coords <- matrix(runif(2*M), ncol = 2)
+#' Nk <- 15       # number of neighbors
 #' res <- computeNeighbors(coords, k = Nk)
 #' AD <- computeAD(edist = res$edist_sorted,
 #'                 nid.dist = res$neighbors_dist,
@@ -512,7 +510,6 @@ rmnorm_NN_GP <- nimbleFunction(
 #'                 rho = 0.1,
 #'                 sigma2 = 0.3,
 #'                 k = Nk)
-#' \dontrun{
 #' w <- rmnorm_NN_GP(n = 1, mu = rep(0, M),
 #'                  AD = AD[1:M, 1:(Nk+1)],
 #'                  neighbors.id = res$neighbor_idx[1:M, 1:Nk])
@@ -520,7 +517,6 @@ rmnorm_NN_GP <- nimbleFunction(
 #'                        AD = AD[1:M, 1:(Nk+1)],
 #'                        neighbors.id = res$neighbor_idx[1:M, 1:Nk],
 #'                        log = TRUE)
-#' }
 #'
 #' @author Fabian Ketwaroo
 #' 
