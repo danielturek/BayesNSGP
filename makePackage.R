@@ -34,17 +34,13 @@ check(paste0(baseDir, 'BayesNSGP'))
 try(remove.packages('BayesNSGP'), silent = TRUE)
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
 (lastTarFile <- tarFiles[length(tarFiles)])
-system(paste0('/usr/local/bin/R CMD install ', lastTarFile, ' --build-vignettes'))
-
-devtools::install('.', build_vignettes = TRUE)
+system(paste0('/usr/local/bin/R CMD install ', lastTarFile))
 
 q('no')    ## quit R
 
 1          ## restart R
 
 library(BayesNSGP)
-
-browseVignettes('BayesNSGP')
 
 ##
 ## stop here
