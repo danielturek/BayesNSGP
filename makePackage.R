@@ -27,18 +27,24 @@ if(TRUE) {
     writeLines(namespace, namespaceFilename)
 }
 
-system(paste0('/usr/local/bin/R CMD BUILD ', baseDir, 'BayesNSGP'))
+devtools::build(paste0(baseDir, 'BayesNSGP'))
 
 check(paste0(baseDir, 'BayesNSGP'))
 
 try(remove.packages('BayesNSGP'), silent = TRUE)
 tarFiles <- grep('\\.tar\\.gz', list.files(baseDir, include.dirs = TRUE), value = TRUE)
 (lastTarFile <- tarFiles[length(tarFiles)])
-system(paste0('/usr/local/bin/R CMD install ', lastTarFile))
+system(paste0('/usr/local/bin/R CMD install ', lastTarFile, ' --build-vignettes'))
 
-## now quit R
+devtools::install('.', build_vignettes = TRUE)
+
+q('no')    ## quit R
+
+1          ## restart R
 
 library(BayesNSGP)
+
+browseVignettes('BayesNSGP')
 
 ##
 ## stop here

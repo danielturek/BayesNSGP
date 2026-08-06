@@ -11,4 +11,5 @@ Depends: R (>= 3.4.0),nimble
 Imports: FNN,Matrix,methods,StatMatch,sf,ggplot2
 License: GPL-3
 Encoding: UTF-8
+VignetteBuilder: knitr
 RoxygenNote: 7.3.2
