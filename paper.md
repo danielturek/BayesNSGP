@@ -190,7 +190,7 @@ fits a spatial Poisson generalised linear model with a latent NNGP field
 ($M = 1000$ locations, $N = 900$ for training, $P = 100$ for validation,
 $k = 15$) and benchmarks the three sampling strategies. `NIMBLE`'s
 default block sampler left roughly 85% of the 900 spatial random effects
-with $\hat{R} > 1.2$. Assigning scalar random-walk samplers resolved
+with $\widehat{R} > 1.2$. Assigning scalar random-walk samplers resolved
 convergence for every node but ran about 7.5 times slower in wall-clock
 time, for a median gain of about 18-fold in effective sample size per
 second. The `RW_NN_GP` sampler also achieved convergence at every node
