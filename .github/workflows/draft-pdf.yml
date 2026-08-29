@@ -1,0 +1,34 @@
+name: Draft PDF
+
+on:
+  push:
+    paths:
+      - paper.md
+      - paper.bib
+      - .github/workflows/draft-pdf.yml
+  workflow_dispatch:
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    name: Paper Draft
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build draft PDF
+        uses: openjournals/openjournals-draft-action@master
+        with:
+          journal: joss
+          # Path to the paper WITHIN the repo. If paper.md sits in a
+          # subdirectory, change this to e.g. paper/paper.md and update
+          # the paths: filters above and the artifact path below to match.
+          paper-path: paper.md
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          # Pandoc writes the PDF alongside paper.md, so this must be the
+          # same directory as paper-path above.
+          path: paper.pdf
