@@ -84,7 +84,7 @@ efficient within the model they have written.
 
 Several mature implementations of NNGP and related Vecchia-type
 approximations exist. `spNNGP` [@finley2022spnngp] is the reference R
-implementation: it is highly optimised, offers OpenMP parallelization,
+implementation: it is highly optimised, offers OpenMP parallelisation,
 and handles Gaussian responses and binomial responses via a Pólya-Gamma
 augmented Gibbs sampler. Its scope, however, is spatial regression:
 users cannot embed its NNGP inside an arbitrary hierarchical model.
@@ -105,7 +105,7 @@ allowed to vary in space. Prediction follows the same idiom.
 `nsgpPredict()` supports the NNGP likelihood, but operates on a fitted
 `nsgpModel()` object, reading the constants and submodel specification
 that the wrapper encodes. This is a coherent design for the problem it
-addresses. The alternate case, where the process must remain a latent
+addresses. The alternative case, where the process must remain a latent
 field because the observation model is non-Gaussian, calls for different
 machinery: a density which can be evaluated on a latent node, a
 simulator, a sampler suited for updates, and a prediction algorithm that
