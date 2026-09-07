@@ -99,11 +99,10 @@ available samplers against NIMBLE's defaults.
 
 ## Getting help and contributing
 
-* **Questions and bug reports:** please open an issue on the
-  [issue tracker](https://github.com/danielturek/BayesNSGP/issues). For bugs, include a minimal
-  reproducible example and the output of `sessionInfo()`.
-* **Contributions:** pull requests are welcome. For substantial changes, please open an issue
-  first to discuss the proposed approach.
+Questions, bug reports and pull requests are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to report a problem, where to ask usage questions,
+and how to propose a code change. Please also review the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 * **Maintainer:** Daniel Turek (danielturek@gmail.com).
 
 
