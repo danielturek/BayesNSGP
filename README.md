@@ -105,6 +105,20 @@ and how to propose a code change. Please also review the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 * **Maintainer:** Daniel Turek (danielturek@gmail.com).
 
+## Citation
+
+If you use the package, please cite:
+
+Risser, M. D. and Turek, D. (2020). Bayesian inference for high-dimensional nonstationary
+Gaussian processes. *Journal of Statistical Computation and Simulation*.
+[doi:10.1080/00949655.2020.1792472](https://doi.org/10.1080/00949655.2020.1792472)
+
+If you use the NNGP components specifically (neighbor-structure construction, the latent-field
+density and simulator, the `RW_NN_GP` sampler, or `NNGP.pred()`), please also cite:
+
+Ketwaroo, F. R. and Turek, D. (2026). Nearest-neighbor Gaussian processes for Bayesian
+hierarchical models in NIMBLE: Scalable densities, samplers and prediction in BayesNSGP.
+*Journal of Open Source Software* (submitted).
 
 ## License
 
