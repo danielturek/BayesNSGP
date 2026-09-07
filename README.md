@@ -1,5 +1,7 @@
 # BayesNSGP
 
+[![tests](https://github.com/danielturek/BayesNSGP/actions/workflows/tests.yaml/badge.svg)](https://github.com/danielturek/BayesNSGP/actions/workflows/tests.yaml)
+
 R package for Bayesian analysis of non-stationary Gaussian processes using NIMBLE.
 
 The package provides fully Bayesian, nonstationary Gaussian process (GP) modelling, in which
