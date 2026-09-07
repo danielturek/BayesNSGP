@@ -9,6 +9,8 @@ Authors@R: c(person("Daniel", "Turek",    role = c("aut", "cre"), email = "danie
              person("Fabian", "Ketwaroo", role = "aut"))
 Depends: R (>= 3.4.0),nimble
 Imports: FNN,Matrix,methods,StatMatch,sf,ggplot2
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
 License: GPL-3
 Encoding: UTF-8
 Config/roxygen2/version: 8.1.0
