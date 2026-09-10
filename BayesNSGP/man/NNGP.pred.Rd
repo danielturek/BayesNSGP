@@ -69,13 +69,20 @@ M <- 50
 coords <- matrix(runif(M * 2), ncol = 2)
 w_all <- rnorm(M) # Mock spatial realizations
 
-# Predict at a new location using k=5 neighbors
+# coords_sorted and w.x0.all must be aligned to the same x-sorted order
+# that computeNeighbors() would produce, since NNGP.pred() selects
+# neighbors by position in that order.
+ord <- order(coords[, 1])
+coords_sorted <- coords[ord, ]
+w_sorted <- w_all[ord]
+
+# Predict at a new location using k = 5 neighbors
 new_loc <- c(0.5, 0.5)
 pred_draw <- NNGP.pred(x0 = new_loc, 
-                       coords_sorted = coords, 
+                       coords_sorted = coords_sorted, 
                        rho = 0.2, 
                        sigma2 = 1.0, 
-                       w.x0.all = w_all,
+                       w.x0.all = w_sorted,
                        k = 5)
 
 }
