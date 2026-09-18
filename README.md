@@ -47,16 +47,12 @@ installed automatically by the commands below:
 [NIMBLE installation guide](https://r-nimble.org/download) for platform-specific instructions
 (Rtools on Windows, Xcode command line tools on macOS, `g++` on Linux).
 
-### From CRAN (recommended)
+### From GitHub (recommended)
 
-The CRAN release is version 0.3.0, which includes the NNGP components described above:
-
-```r
-install.packages("BayesNSGP")
-library(BayesNSGP)
-```
-
-### From GitHub (development version)
+**CRAN version 0.3.0 contains two known bugs in the NNGP components** (an indexing error in
+`computeNeighbors()` for certain `k`, and an undocumented ordering requirement in
+`NNGP.pred()`). Both are fixed on GitHub. A corrected version has been submitted to CRAN and
+is pending release; until it appears, please install from GitHub:
 
 The package source lives in the `BayesNSGP/` subdirectory of this repository, so `subdir` must
 be given:
@@ -64,7 +60,19 @@ be given:
 ```r
 install.packages("remotes")            # if not already installed
 remotes::install_github("danielturek/BayesNSGP", subdir = "BayesNSGP")
+library(BayesNSGP)
 ```
+
+### From CRAN
+
+```r
+install.packages("BayesNSGP")
+library(BayesNSGP)
+```
+
+This installs version 0.3.0. A fix for the NNGP components has been submitted to CRAN and is
+pending release; see the note above.
+
 
 ## Core functionality
 
