@@ -47,32 +47,30 @@ installed automatically by the commands below:
 [NIMBLE installation guide](https://r-nimble.org/download) for platform-specific instructions
 (Rtools on Windows, Xcode command line tools on macOS, `g++` on Linux).
 
-### From GitHub (recommended)
+### From CRAN (recommended)
 
-**CRAN version 0.3.0 contains two known bugs in the NNGP components** (an indexing error in
-`computeNeighbors()` for certain `k`, and an undocumented ordering requirement in
-`NNGP.pred()`). Both are fixed on GitHub. A corrected version has been submitted to CRAN and
-is pending release; until it appears, please install from GitHub:
-
-The package source lives in the `BayesNSGP/` subdirectory of this repository, so `subdir` must
-be given:
-
-```r
-install.packages("remotes")            # if not already installed
-remotes::install_github("danielturek/BayesNSGP", subdir = "BayesNSGP")
-library(BayesNSGP)
-```
-
-### From CRAN
+The current CRAN release is version 0.3.1, which includes the NNGP components described above:
 
 ```r
 install.packages("BayesNSGP")
 library(BayesNSGP)
 ```
 
-This installs version 0.3.0. A fix for the NNGP components has been submitted to CRAN and is
-pending release; see the note above.
+**If you installed version 0.3.0, please update.** It contains two bugs in the NNGP components
+that are fixed in 0.3.1: an indexing error in `computeNeighbors()` when `k` is close to the
+number of locations, and an ordering requirement in `NNGP.pred()` that was neither enforced nor
+demonstrated in its example.
 
+### From GitHub (development version)
+
+The development version may contain changes that are not yet on CRAN. The package source lives
+in the `BayesNSGP/` subdirectory of this repository, so `subdir` must be given:
+
+```r
+install.packages("remotes")            # if not already installed
+remotes::install_github("danielturek/BayesNSGP", subdir = "BayesNSGP")
+library(BayesNSGP)
+```
 
 ## Core functionality
 
@@ -107,13 +105,38 @@ spatial Poisson generalised linear model with a latent NNGP field, walks through
 construction, model specification, sampler assignment and prediction, and benchmarks the
 available samplers against NIMBLE's defaults.
 
+The source is [`vignette/nngp_RW_sampler.Rmd`](vignette/nngp_RW_sampler.Rmd). Besides
+`BayesNSGP`, `nimble` and `sf`, which are installed with the package, running it requires
+`tidyverse`, `coda` and `MCMCvis`. These are listed under `Suggests` in `DESCRIPTION` and can
+be installed with:
+
+```r
+install.packages(c("tidyverse", "coda", "MCMCvis"))
+```
+
+## Running the tests
+
+The test suite is in `BayesNSGP/tests/testthat/` and runs automatically on every push through
+GitHub Actions. To run it locally, from the root of a clone of this repository:
+
+```r
+install.packages("devtools")   # if not already installed
+devtools::test("BayesNSGP")
+```
+
+The full package check, which includes the tests, is `R CMD build BayesNSGP` followed by
+`R CMD check BayesNSGP_*.tar.gz`. The tests call the NNGP functions uncompiled, so they do not
+compile any NIMBLE models. Whether the `RW_NN_GP` sampler recovers the correct posterior is
+checked by the benchmark in the worked example rather than by the test suite.
+
 ## Getting help and contributing
 
 Questions, bug reports and pull requests are welcome — see
 [CONTRIBUTING.md](CONTRIBUTING.md) for how to report a problem, where to ask usage questions,
 and how to propose a code change. Please also review the
 [Code of Conduct](CODE_OF_CONDUCT.md).
-* **Maintainer:** Daniel Turek (danielturek@gmail.com).
+
+Maintainer: Daniel Turek (danielturek@gmail.com).
 
 ## Citation
 
