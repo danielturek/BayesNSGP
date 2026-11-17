@@ -201,7 +201,7 @@ comparable to those from the generic sampler (median relative bias
 $-0.093$ versus $-0.094$), confirming that the local update targets the
 same posterior, and out-of-sample predictive counts at the 100 held-out
 locations had a median relative bias of $0.031$. Because the per-update
-cost depends on $k$ and not $M$, the advantage grows with dataset size.
+cost depends on $k$ and not $M$, we expect the advantage to grow with dataset size.
 
 These components were developed to meet a concrete research need and are
 already in use. They provide the spatial machinery of a Bayesian
