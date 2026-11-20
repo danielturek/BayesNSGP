@@ -17,7 +17,6 @@ format:
 bibliography: sIPMrefs1.bib
 ---
 
-
 In this vignette, we provide a practical, end-to-end guide to implementing **Nearest-Neighbor Gaussian Process (NNGP)** models within a Bayesian hierarchical framework in `NIMBLE` [@de2017programming] and our package `BayesNSGP`. We begin with a brief conceptual overview of standard Gaussian Processes (GPs) and detail how the NNGP approximation circumvents the traditional computational bottlenecks of large-scale spatial modeling.
 
 Using `NIMBLE` together with `BayesNSGP` custom backend extensions, we walk through the complete workflow of a spatial analysis:
@@ -36,7 +35,7 @@ By the end of this vignette, readers will understand how to use `BayesNSGP` to c
 
 ## 1.1 Gaussian Process (GP)
 
-A Gaussian process (GP) [@williams2006gaussian] is a non-parametric probabilistic modeling framework that defines a probability distribution over possible functions. Formally, for location $s$,
+A Gaussian process (GP) [@williams2006gaussian] is a non-parametric probabilistic modeling framework that defines a probability distribution over possible functions. Formally, for location $s$\$s\$,
 
 $$ \omega(s) \sim \text{GP}(m(s), K(s,s^{\prime}))$$
 
@@ -137,6 +136,11 @@ As mentioned in Section 1.2, an ordering of the spatial locations is required to
 #| label: coords_set_up
 #| cache: FALSE
 #| fig-cap: "Plot of 900 training locations and 100 prediction locations."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # load packages 
 suppressMessages({
@@ -148,6 +152,7 @@ suppressMessages({
   library(MCMCvis)
 })
 
+run_mcmc <- FALSE   # set TRUE to re-run the chains (slow) and FALSE to load saved MCMC output
 
 N <- 900 # training locations
 P <- 100 # prediction plocations
@@ -190,6 +195,10 @@ We use the `computeNeighbors()` function to process our raw coordinates. This 
 ```{r}
 #| label: NNGP_setup
 #| cache: FALSE
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 
 k = 15 # number of nearest neighbors
@@ -217,6 +226,12 @@ Using the `displayNeighbors()` function, we can visually inspect the DAG layou
 ```{r}
 #| label: displayNeighbors
 #| fig-cap: "Plot of neighbor set for a given location based on an ordered Nearest-Neighbor Gaussian Process (NNGP) constructed using Vecchia's approximation."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
+
 
 # Visualize the neighbor graph structure for a specific node
 displayNeighbors(ind = 500, coords.sorted = Neighbors_full$coords_sorted, neighbor_idx = Neighbors_full$neighbor_idx)
@@ -297,6 +312,10 @@ To verify that the NNGP successfully captures the intended spatial structure acr
 ```{r}
 #| label: plot_omega
 #| fig-cap: "Simulated spatial field (omega) across the study region."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 # Organise into a structured data frame for visualization
 y.df <- data.frame(x = Neighbors_full$coords_sorted[, 1],
@@ -319,6 +338,10 @@ ggplot() +
 ```{r}
 #| label: plot_simulated_counts
 #| fig-cap: "Simulated Poisson counts across the study region, showing distinct patterns of spatial autocorrelation."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 ggplot() +
   geom_sf(data = y.sf , aes(col = counts),  size = 2) +
@@ -423,6 +446,8 @@ Before running the MCMC, we initialize the model parameters. To provide a realis
 ```{r}
 #| label: initialize_model
 
+set.seed(2)
+
 # Establish initial values for hyperparameters
 GP.inits <- list(rho = mean(edist.sorted.train)/3, sigma2 = 1)
 
@@ -490,8 +515,7 @@ Modelconf = configureMCMC(Model)
 Modelconf$addMonitors("omega")
 ```
 
-```{r}
-#| eval: FALSE 
+```{r, eval=run_mcmc}
 
 # Build and compile the model components
 Modelmcmc = buildMCMC(Modelconf)
@@ -499,20 +523,20 @@ cModel <- compileNimble(Model)
 Modelmod = compileNimble(Modelmcmc, project = Model, resetFunctions = TRUE)
 
 # Run the MCMC chains and benchmark execution time
-RWblock_time  <- system.time(Modelmcmc.out.RWblock <- runMCMC(Modelmod,niter = 10000, nburnin = 5000,thin = 5, nchains = 2,  samplesAsCodaMCMC = TRUE, summary = TRUE)) 
+RWblock_time  <- system.time(Modelmcmc.out.RWblock <- runMCMC(Modelmod,niter = 15000, nburnin = 10000,thin = 5, nchains = 2, inits = inits, setSeed = TRUE, samplesAsCodaMCMC = TRUE, summary = TRUE)) 
 
 ```
 
-```{r echo = FALSE, eval = FALSE}
+```{r echo = FALSE, eval = run_mcmc}
 ## save the output of the (long) MCMC run.
 ## this does *not* get executed by default, but only manually, when you do the MCMC run again
-save('Modelmcmc.out.RWblock', 'RWblock_time', file = '../cache/RWblock_sampler.RData')
+save('Modelmcmc.out.RWblock', 'RWblock_time', file = '../vignette/cache/RWblock_sampler.RData')
 ```
 
 ```{r echo = FALSE}
 ## now load in the output of the run
 ## this gets executed every time the example is built
-load('../cache/RWblock_sampler.RData')
+load('../vignette/cache/RWblock_sampler.RData')
 ```
 
 ```{r}
@@ -532,6 +556,10 @@ To evaluate how well the spatial field converged under the default blocking sche
 
 ```{r}
 #| label: default_diagnostics
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 # Extract summaries for the spatial field elements
 omega.post.RWblock <- MCMCvis::MCMCsummary(samples.RWblock, params = "omega")
@@ -547,7 +575,7 @@ non_converged_prop <- sum(omega.post.RWblock$Rhat > 1.2) / N
 non_converged_prop
 ```
 
-About 85% of the spatial locations fail to converge. This poor behavior occurs because the massive block proposal is highly inefficient; proposing updates to 900 dimensions at once leads to extremely low acceptance rates.
+About 90% of the spatial locations fail to converge. This poor behavior occurs because the massive block proposal is highly inefficient; proposing updates to 900 dimensions at once leads to extremely low acceptance rates.
 
 ### 5.1.3 **MCMC efficiency**
 
@@ -555,6 +583,11 @@ Finally, we calculate the **MCMC efficiency** (Effective Sample Size per secon
 
 ```{r}
 #| label: default_efficiency
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Calculate effective sample size per second of elapsed wall-clock time
 RWblock.MCMCeff <- omega.post.RWblock$n.eff / RWblock_time[3]
@@ -593,18 +626,18 @@ Modelconf
 
 ```
 
-```{r, eval=FALSE}
+```{r, eval=run_mcmc}
 # Build and compile the modified model
 Modelmcmc = buildMCMC(Modelconf)
 cModel <- compileNimble(Model)
 Modelmod = compileNimble(Modelmcmc, project = Model, resetFunctions = TRUE)
 
 # Run the MCMC chains and benchmark execution time
-RW_time  <- system.time(Modelmcmc.out.RW <- runMCMC(Modelmod,niter = 10000, nburnin = 5000,thin = 5, nchains = 2,  samplesAsCodaMCMC = TRUE, summary = TRUE)) 
+RW_time  <- system.time(Modelmcmc.out.RW <- runMCMC(Modelmod,niter = 15000, nburnin = 10000,thin = 5, nchains = 2, inits = inits, setSeed = TRUE,  samplesAsCodaMCMC = TRUE, summary = TRUE)) 
 
 ```
 
-```{r echo = FALSE, eval = FALSE}
+```{r echo = FALSE, eval = run_mcmc}
 ## save the output of the (long) MCMC run.
 ## this does *not* get executed by default, but only manually, when you do the MCMC run again
 saveRDS(
@@ -612,14 +645,14 @@ saveRDS(
     samples = Modelmcmc.out.RW,
     runtime = RW_time
   ),
-  "../cache/RW_sampler.rds"
+  "../vignette/cache/RW_sampler.rds"
 )
 ```
 
 ```{r echo = FALSE}
 ## now load in the output of the run
 ## this gets executed every time the example is built
-out <- readRDS("../cache/RW_sampler.rds")
+out <- readRDS("../vignette/cache/RW_sampler.rds")
 
 Modelmcmc.out.RW <- out$samples
 RW_time          <- out$runtime
@@ -643,6 +676,11 @@ We isolate the posterior summaries for the spatial field elements to examine how
 
 ```{r}
 #| label: idRW_diagnostics
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Extract spatial field summaries
 omega.post.RWid <- MCMCvis::MCMCsummary(samples.RWid, params = "omega")
@@ -663,6 +701,11 @@ Using individual `RW`samplers, we see a dramatic improvement in convergence and 
 
 ```{r}
 #| label: idRW_efficiency
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 
 # Calculate effective sample size per second for the individual samplers
@@ -683,7 +726,7 @@ median(RWid.MCMCeff / RWblock.MCMCeff)
 
 #### Why the Individual Sampler Wins
 
-The benchmark numbers reveal an important MCMC paradox: even though the individual `RW` configuration is roughly **7.5 times slower** in absolute wall-clock time, it is approximately **18 times more efficient** than the default `RW_block` sampler.
+The benchmark numbers reveal an important MCMC paradox: even though the individual `RW` configuration is roughly **8 times slower** in absolute wall-clock time, it is approximately **16 times more efficient** than the default `RW_block` sampler.
 
 The block sampler scales poorly because evaluating a 900-dimensional proposal forces an all-or-nothing outcome; if a single coordinate is rejected, the entire block is thrown out, leading to stagnant chains. Independent scalar updates take longer to execute mechanically, but their drastically higher proposal acceptance rates yield vastly more uncorrelated posterior samples per second.
 
@@ -728,19 +771,19 @@ for (i in 1:N) {
 Modelconf
 ```
 
-```{r}
-#| eval: FALSE
+```{r, eval=run_mcmc}
+
 # Build and compile the optimized model components
 Modelmcmc = buildMCMC(Modelconf)
 cModel <- compileNimble(Model)
 Modelmod = compileNimble(Modelmcmc, project = Model, resetFunctions = TRUE)
 
 # Run the MCMC chains and benchmark execution time
-RWNNGP_time  <- system.time(Modelmcmc.out.RWNNGP <- runMCMC(Modelmod,niter = 10000, nburnin = 5000,thin = 5, nchains = 2,  samplesAsCodaMCMC = TRUE, summary = TRUE)) 
+RWNNGP_time  <- system.time(Modelmcmc.out.RWNNGP <- runMCMC(Modelmod,niter = 15000, nburnin = 10000,thin = 5, nchains = 2, inits = inits,  setSeed = TRUE, samplesAsCodaMCMC = TRUE, summary = TRUE)) 
 
 ```
 
-```{r echo = FALSE, eval=FALSE}
+```{r echo = FALSE, eval=run_mcmc}
 ## save the output of the (long) MCMC run.
 ## this does *not* get executed by default, but only manually, when you do the MCMC run again
 saveRDS(
@@ -748,19 +791,17 @@ saveRDS(
     samples = Modelmcmc.out.RWNNGP,
     runtime = RWNNGP_time
   ),
-  "../cache/RWNNGP_sampler.rds"
+  "../vignette/cache/RWNNGP_sampler.rds"
 )
 ```
 
 ```{r echo=FALSE}
 ## now load in the output of the run
 ## this gets executed every time the example is built
-out.RWNNGP <- readRDS("../cache/RWNNGP_sampler.rds")
+out.RWNNGP <- readRDS("../vignette/cache/RWNNGP_sampler.rds")
 
 Modelmcmc.out.RWNNGP <- out.RWNNGP$samples
 RWNNGP_time          <- out.RWNNGP$runtime
-
-
 ```
 
 ```{r}
@@ -780,6 +821,11 @@ We extract the posterior summaries for the spatial field elements under the `RW
 
 ```{r}
 #| label: RW_NNGP_diagnostics
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Extract spatial field summaries
 omega.post.RWNNGP <- MCMCvis::MCMCsummary(samples.RWNNGP, params = "omega")
@@ -806,6 +852,11 @@ To finalize our comparison, we directly contrast the sampling efficiency (ESS / 
 
 ```{r}
 #| label: efficiency_comparisons
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Relative efficiency compared to the default RW_block
 hist(RWNNGP.MCMCeff / RWblock.MCMCeff, main = "Efficiency Ratio (RW_NN_GP / RW_block)",
@@ -849,15 +900,15 @@ The performance metrics across our $N = 900$ training locations are summarized b
 
 | Sampling Strategy | Relative Runtime | Convergence Success ($\hat{R} \le 1.2$) | Median MCMC Efficiency (ESS / Sec) | Relative Efficiency Gain |
 |:--------------|:-------------:|:-------------:|:-------------:|:-------------:|
-| **1. Default `RW_block`** | **1x** (Fastest per step) | \~17% | Baseline | Baseline (1x) |
-| **2. Individual `RW`** | \~7.7x Slower | \~100% | Higher | \~17x More Efficient |
-| **3. Custom `RW_NN_GP`** | \~1.9x Slower | \~100% | **Highest** | **\~70x More Efficient** |
+| **1. Default `RW_block`** | **1x** (Fastest per step) | \~10.1% | Baseline | Baseline (1x) |
+| **2. Individual `RW`** | \~7.8x Slower | \~100% | Higher | \~16.4x More Efficient |
+| **3. Custom `RW_NN_GP`** | \~1.9x Slower | \~100% | **Highest** | **\~69x More Efficient** |
 
 ### Key Takeaways
 
 - **RW_block: Fast but poor mixing**
 
-  The default block sampler has the lowest wall-clock runtime per iteration, but exhibits poor mixing in this high-dimensional setting. Jointly proposing updates to all 900 spatial random effects leads to low acceptance rates and poor exploration of the posterior distribution, with only approximately 17% of parameters achieving convergence $(\hat{R}\leq1.2)$.
+  The default block sampler has the lowest wall-clock runtime per iteration, but exhibits poor mixing in this high-dimensional setting. Jointly proposing updates to all 900 spatial random effects leads to low acceptance rates and poor exploration of the posterior distribution, with only approximately 10% of parameters achieving convergence $(\hat{R}\leq1.2)$.
 
 - **RW: Improved mixing at substantial computational cost**
 
@@ -895,10 +946,10 @@ Consequently, prediction scales as $(\mathcal{O}(Pk^3))$, making posterior spati
 
 We iterate through each of our $P = 100$ held-out prediction locations. For every location, we loop through the saved post-burnin MCMC samples to draw a realization of the latent spatial term, convert it to a Poisson intensity ($\lambda$), and generate an out-of-sample count prediction via `rpois()`.
 
-```{r}
+```{r, eval=run_mcmc}
 #| label: NNGP_predict
-#| eval: FALSE
 
+set.seed(1)
 
 # 1. Isolate the out-of-sample prediction coordinates
 coords.predict <- Neighbors_full$coords_sorted[y.df$type =="P",1:2]
@@ -942,16 +993,16 @@ for (i in 1:P) {
 
 ```
 
-```{r echo = FALSE, eval = FALSE}
+```{r echo = FALSE, eval = run_mcmc}
 ## save the output of the (long) NNGP.pred run.
 ## this does *not* get executed by default, but only manually, when you do the NNGP.pred run again
-save('y.pred', file = '../cache/nngp_pred.RData')
+save('y.pred', file = '../vignette/cache/nngp_pred.RData')
 ```
 
 ```{r echo = FALSE}
 ## now load in the output of the run
 ## this gets executed every time the example is built
-load('../cache/nngp_pred.RData')
+load('../vignette/cache/nngp_pred.RData')
 ```
 
 ### 6.3 Predictive Accuracy Validation
@@ -960,6 +1011,11 @@ To evaluate how accurately our spatial model reconstructs unobserved ecological 
 
 ```{r}
 #| label: prediction_bias
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Isolate the true, simulated counts for the testing locations
 y.pred.true <- y.df$counts[y.df$type == "P"]
