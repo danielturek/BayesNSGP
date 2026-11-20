@@ -4,3 +4,4 @@
 .Rapp.history
 BayesNSGP.Rcheck*
 *.tar.gz
+.Rproj.user
