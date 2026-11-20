@@ -136,6 +136,10 @@ As mentioned in Section 1.2, an ordering of the spatial locations is required to
 #| label: coords_set_up
 #| cache: FALSE
 #| fig-cap: "Plot of 900 training locations and 100 prediction locations."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 
 # load packages 
@@ -191,6 +195,10 @@ We use the `computeNeighbors()` function to process our raw coordinates. This 
 ```{r}
 #| label: NNGP_setup
 #| cache: FALSE
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 
 k = 15 # number of nearest neighbors
@@ -218,6 +226,12 @@ Using the `displayNeighbors()` function, we can visually inspect the DAG layou
 ```{r}
 #| label: displayNeighbors
 #| fig-cap: "Plot of neighbor set for a given location based on an ordered Nearest-Neighbor Gaussian Process (NNGP) constructed using Vecchia's approximation."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
+
 
 # Visualize the neighbor graph structure for a specific node
 displayNeighbors(ind = 500, coords.sorted = Neighbors_full$coords_sorted, neighbor_idx = Neighbors_full$neighbor_idx)
@@ -298,6 +312,10 @@ To verify that the NNGP successfully captures the intended spatial structure acr
 ```{r}
 #| label: plot_omega
 #| fig-cap: "Simulated spatial field (omega) across the study region."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 # Organise into a structured data frame for visualization
 y.df <- data.frame(x = Neighbors_full$coords_sorted[, 1],
@@ -320,6 +338,10 @@ ggplot() +
 ```{r}
 #| label: plot_simulated_counts
 #| fig-cap: "Simulated Poisson counts across the study region, showing distinct patterns of spatial autocorrelation."
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 ggplot() +
   geom_sf(data = y.sf , aes(col = counts),  size = 2) +
@@ -534,6 +556,10 @@ To evaluate how well the spatial field converged under the default blocking sche
 
 ```{r}
 #| label: default_diagnostics
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
 
 # Extract summaries for the spatial field elements
 omega.post.RWblock <- MCMCvis::MCMCsummary(samples.RWblock, params = "omega")
@@ -557,6 +583,11 @@ Finally, we calculate the **MCMC efficiency** (Effective Sample Size per secon
 
 ```{r}
 #| label: default_efficiency
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Calculate effective sample size per second of elapsed wall-clock time
 RWblock.MCMCeff <- omega.post.RWblock$n.eff / RWblock_time[3]
@@ -645,6 +676,11 @@ We isolate the posterior summaries for the spatial field elements to examine how
 
 ```{r}
 #| label: idRW_diagnostics
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Extract spatial field summaries
 omega.post.RWid <- MCMCvis::MCMCsummary(samples.RWid, params = "omega")
@@ -665,6 +701,11 @@ Using individual `RW`samplers, we see a dramatic improvement in convergence and 
 
 ```{r}
 #| label: idRW_efficiency
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 
 # Calculate effective sample size per second for the individual samplers
@@ -780,6 +821,11 @@ We extract the posterior summaries for the spatial field elements under the `RW
 
 ```{r}
 #| label: RW_NNGP_diagnostics
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Extract spatial field summaries
 omega.post.RWNNGP <- MCMCvis::MCMCsummary(samples.RWNNGP, params = "omega")
@@ -806,6 +852,11 @@ To finalize our comparison, we directly contrast the sampling efficiency (ESS / 
 
 ```{r}
 #| label: efficiency_comparisons
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Relative efficiency compared to the default RW_block
 hist(RWNNGP.MCMCeff / RWblock.MCMCeff, main = "Efficiency Ratio (RW_NN_GP / RW_block)",
@@ -960,6 +1011,11 @@ To evaluate how accurately our spatial model reconstructs unobserved ecological 
 
 ```{r}
 #| label: prediction_bias
+#| fig.width: 6
+#| fig.height: 5
+#| out.width: "80%"
+#| fig.align: "center"
+
 
 # Isolate the true, simulated counts for the testing locations
 y.pred.true <- y.df$counts[y.df$type == "P"]
