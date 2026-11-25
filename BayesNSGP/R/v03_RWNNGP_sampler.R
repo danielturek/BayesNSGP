@@ -156,7 +156,7 @@ RWNNGP_setup <- function(node_id, AD, neighbors.id, Rneighbors.id, N.neighbors, 
     for (n in 1:NL) {
         
         if(S[n] >0){
-            A.n[n, 1:S[n]] <- paste0("AD[", update_id[n], ",", 1:S[n], "]" )
+          A.n[n, 1:S[n]] <- paste0(AD, "[", update_id[n], ",", 1:S[n], "]" )
             
         }
         
