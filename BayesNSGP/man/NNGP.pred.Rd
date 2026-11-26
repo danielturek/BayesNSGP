@@ -4,7 +4,16 @@
 \alias{NNGP.pred}
 \title{Posterior predictive sampling for NNGP}
 \usage{
-NNGP.pred(x0, coords_sorted, rho, sigma2, w.x0.all, k)
+NNGP.pred(
+  x0,
+  coords_sorted,
+  rho,
+  sigma2,
+  w.x0.all,
+  k,
+  proj = NA,
+  dist.scale = 1
+)
 }
 \arguments{
 \item{x0}{Numeric matrix (\eqn{1 \times 2}) or vector of length 2 representing 
@@ -13,30 +22,49 @@ the coordinates of the new prediction location.}
 \item{coords_sorted}{Numeric matrix (\eqn{M \times 2}) of the observed 
 training locations. Output from \code{computeNeighbors}.}
 
-\item{rho}{Positive numeric scalar. Length-scale parameter \eqn{\rho}.}
+\item{rho}{Positive numeric. Length-scale parameter \eqn{\rho}: a scalar, or
+a vector with one value per posterior draw.}
 
-\item{sigma2}{Positive numeric scalar. Marginal variance parameter \eqn{\sigma^2}.}
+\item{sigma2}{Positive numeric. Marginal variance parameter \eqn{\sigma^2}: a
+scalar, or a vector with one value per posterior draw.}
 
-\item{w.x0.all}{Numeric vector of length \eqn{M}. The realizations of the 
+\item{w.x0.all}{Numeric vector of length \eqn{M} (one draw), or a matrix with
+\eqn{M} columns and one row per posterior draw. The realizations of the 
 spatial process (random effects) at all observed locations, ordered to 
-correspond with \code{coords_sorted}.}
+correspond with \code{coords_sorted}. Rows must come from the same MCMC
+iterations as the corresponding \code{rho} and \code{sigma2} values.}
 
 \item{k}{Integer. The number of nearest neighbors to consider for the 
 prediction approximation.}
+
+\item{proj}{Coordinate reference system used to compute distances (an EPSG
+code or an object accepted by \code{sf::st_crs}), as in
+\code{computeNeighbors}. The default \code{NA} uses plain Euclidean
+distance in the units of the coordinates. Use the same value as in
+\code{computeNeighbors}, otherwise \code{rho} is on a different scale.}
+
+\item{dist.scale}{Positive numeric. Distances are divided by this value, to
+match any rescaling applied to the distances used for fitting (for example
+\code{1000} to convert metres to kilometres). Default \code{1}.}
 }
 \value{
-A numeric scalar representing a posterior predictive draw at location \eqn{x_0}.
+A numeric scalar (when \code{w.x0.all} is a vector) or a numeric
+  vector with one posterior predictive draw per row of \code{w.x0.all}, at location \eqn{x_0}.
 }
 \description{
-Generates a posterior predictive draw at a new location \eqn{x_0} using the
+Generates posterior predictive draws at a new location \eqn{x_0} using the
 Nearest-Neighbor Gaussian Process (NNGP) approximation. This function 
-automatically handles coordinate sorting, neighbor selection, and distance 
-calculations internally following Algorithm 2 of Finley et al. (2019).
+automatically handles neighbor selection and distance calculations 
+internally following Algorithm 2 of Finley et al. (2019). The neighbor 
+search is done once per call, so many posterior draws can be predicted at 
+the same location at almost no extra cost by passing a matrix of spatial 
+effects (one row per draw) together with vectors of \code{rho} and \code{sigma2}.
 }
 \details{
-The function merges the prediction point \eqn{x_0} into the training 
-coordinates and identifies the \eqn{k} nearest neighbors from the set of 
-points that precede it in the x-axis ordering. 
+The function identifies the \eqn{k} nearest neighbors of \eqn{x_0} from the
+training points that precede it in the x-axis ordering (all of them if there
+are fewer than \eqn{k}). If no training point precedes \eqn{x_0}, the draw
+comes from the marginal distribution \eqn{\mathcal{N}(0, \sigma^2)}.
 
 The predictive distribution is Gaussian:
 \deqn{w(x_0) \mid \mathbf{w}_{N_0} \sim \mathcal{N}(m, v)}
@@ -84,6 +112,11 @@ pred_draw <- NNGP.pred(x0 = new_loc,
                        sigma2 = 1.0, 
                        w.x0.all = w_sorted,
                        k = 5)
+
+# Many posterior draws at once: one row of w per draw, and rho, sigma2 per draw
+W <- matrix(rep(w_sorted, each = 100), nrow = 100)   # mock posterior draws
+pred_draws <- NNGP.pred(new_loc, coords_sorted, rho = rep(0.2, 100),
+                        sigma2 = rep(1, 100), w.x0.all = W, k = 5)
 
 }
 \references{
