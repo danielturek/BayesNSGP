@@ -1,4 +1,3 @@
-
 #================================================================================================
 # Functions for computing the joint density of the Nearest-Neighbor Gaussian Process (NNGP)
 # Author: Fabian R. Ketwaroo
@@ -41,22 +40,22 @@
 #'
 #' @export
 expcov <- nimbleFunction(     
-    run = function(edists = double(2), rho = double(0), sigma2 = double(0)) {
-        returnType(double(2))
-        m <- dim(edists)[1]
-        n <- dim(edists)[2]
-        
-        result <- sigma2*exp(-edists/rho)
-        
-        # Only add nugget if the matrix is square (m x m)
-        if (m == n) {
-            nugget <- diag(m) * 1e-06 # add nugget effect for numerical stability
-            return(result + nugget)
-        }
-        
-
-        return(result)
-    })
+  run = function(edists = double(2), rho = double(0), sigma2 = double(0)) {
+    returnType(double(2))
+    m <- dim(edists)[1]
+    n <- dim(edists)[2]
+    
+    result <- sigma2*exp(-edists/rho)
+    
+    # Only add nugget if the matrix is square (m x m)
+    if (m == n) {
+      nugget <- diag(m) * 1e-06 # add nugget effect for numerical stability
+      return(result + nugget)
+    }
+    
+    
+    return(result)
+  })
 
 
 #================================================
@@ -101,17 +100,17 @@ expcov <- nimbleFunction(
 #'
 #' @export
 computeC <- nimbleFunction(
-    run = function(fdist = double(2), ndist = double(1), rho = double(0), sigma2 = double(0) ){
-        returnType(double(2))
-        
-        k1 <- length(ndist)-1
-        C <- matrix(0,k1+1, k1+1 ) 
-        C[1:k1, 1:k1] <- expcov(nimMatrix(fdist,k1,k1), rho, sigma2) # C value between neighbors of i 
-        C[k1+1, 1:(k1+1)] <- sigma2*exp(-ndist/rho) # C value between i and its neighbors
-        C[ k1+1, k1+1 ] <- C[ k1+1, k1+1 ] + 1e-06 # add nugget for computational stability
-        return(C)
-        
-    }
+  run = function(fdist = double(2), ndist = double(1), rho = double(0), sigma2 = double(0) ){
+    returnType(double(2))
+    
+    k1 <- length(ndist)-1
+    C <- matrix(0,k1+1, k1+1 ) 
+    C[1:k1, 1:k1] <- expcov(nimMatrix(fdist,k1,k1), rho, sigma2) # C value between neighbors of i 
+    C[k1+1, 1:(k1+1)] <- sigma2*exp(-ndist/rho) # C value between i and its neighbors
+    C[ k1+1, k1+1 ] <- C[ k1+1, k1+1 ] + 1e-06 # add nugget for computational stability
+    return(C)
+    
+  }
 )
 
 
@@ -207,52 +206,52 @@ computeC <- nimbleFunction(
 #' 
 #' @export
 computeAD <- nimbleFunction(
-    run = function( edist = double(2), nid.dist = double(2), neighbors.id = double(2), rho = double(0), sigma2 = double(0), k = double(0)   ){
-        returnType(double(2))
+  run = function( edist = double(2), nid.dist = double(2), neighbors.id = double(2), rho = double(0), sigma2 = double(0), k = double(0)   ){
+    returnType(double(2))
+    
+    # calculate A and D
+    N <- dim(edist)[1]
+    AD  <- matrix(0, N, k+1)
+    AD[1, k+1] = sigma2 
+    
+    for (i in 1:(N-1)) {
+      
+      if(i < k) {
         
-        # calculate A and D
-        N <- dim(edist)[1]
-        AD  <- matrix(0, N, k+1)
-        AD[1, k+1] = sigma2 
         
-        for (i in 1:(N-1)) {
-            
-            if(i < k) {
-                
-                
-                k1 <- i
-                
-                # Select neighbors of i
-                n.id <- neighbors.id[i+1, 1:k1 ]
-                bdist <- edist[n.id, n.id] # distance between neighbors of i
-                ndist <- nid.dist[i+1, 1:(k1+1)] # distance between i and its neighbors
-                C <- computeC(bdist, ndist , rho, sigma2 )
-                
-                AD[i+1,  1:k1 ] = solve(C[1:k1, 1:k1], C[ i+1, 1:k1])
-                AD[i+1, k+1] =  C[ i+1, k1+1] - inprod(C[i+1, 1:k1], AD[i+1, 1:k1])
-                
-                
-            } else{
-                
-                k1 <- k
-                
-                # Select neighbors of i
-                n.id <- neighbors.id[i+1, 1:k1 ]
-                
-                bdist <- edist[n.id, n.id] # distance between neighbors of i
-                ndist <- nid.dist[i+1, 1:(k1+1)] # distance between i and its neighbors
-                C <- computeC(bdist, ndist , rho, sigma2 )
-                
-                
-                AD[i+1,  1:k1 ] = solve(C[1:k1, 1:k1], C[ k1+1, 1:k1])
-                AD[i+1, k+1] =  C[ k1+1, k1+1] - inprod(C[k1+1, 1:k1], AD[i+1, 1:k1])
-                
-            } 
-        }
+        k1 <- i
         
-        return(AD)
+        # Select neighbors of i
+        n.id <- neighbors.id[i+1, 1:k1 ]
+        bdist <- edist[n.id, n.id] # distance between neighbors of i
+        ndist <- nid.dist[i+1, 1:(k1+1)] # distance between i and its neighbors
+        C <- computeC(bdist, ndist , rho, sigma2 )
         
+        AD[i+1,  1:k1 ] = solve(C[1:k1, 1:k1], C[ i+1, 1:k1])
+        AD[i+1, k+1] =  C[ i+1, k1+1] - inprod(C[i+1, 1:k1], AD[i+1, 1:k1])
+        
+        
+      } else{
+        
+        k1 <- k
+        
+        # Select neighbors of i
+        n.id <- neighbors.id[i+1, 1:k1 ]
+        
+        bdist <- edist[n.id, n.id] # distance between neighbors of i
+        ndist <- nid.dist[i+1, 1:(k1+1)] # distance between i and its neighbors
+        C <- computeC(bdist, ndist , rho, sigma2 )
+        
+        
+        AD[i+1,  1:k1 ] = solve(C[1:k1, 1:k1], C[ k1+1, 1:k1])
+        AD[i+1, k+1] =  C[ k1+1, k1+1] - inprod(C[k1+1, 1:k1], AD[i+1, 1:k1])
+        
+      } 
     }
+    
+    return(AD)
+    
+  }
 )
 
 
@@ -319,22 +318,22 @@ computeAD <- nimbleFunction(
 #' 
 #' @export
 computeQF <- nimbleFunction(
-    run = function(u = double(1), v = double(1), AD = double(2), neighbors.id = double(2) ){
-        returnType(double(0))
-        
-        N <- dim(AD)[1]
-        k <- dim(AD)[2]-1
-        
-        qf = u[1]*v[1]/AD[1,k+1]
-        
-        for(i in 2:N) { 
-            if(i <= k) k1 <- i-1 else k1 <- k
-            qf = qf + (u[i] - inprod(AD[i,1:k1], u[neighbors.id[i,1:k1]]))*(v[i] - inprod(AD[i, 1:k1 ], v[neighbors.id[i,1:k1] ]))/AD[i,k+1] 
-        }
-        
-        return(qf)
-        
+  run = function(u = double(1), v = double(1), AD = double(2), neighbors.id = double(2) ){
+    returnType(double(0))
+    
+    N <- dim(AD)[1]
+    k <- dim(AD)[2]-1
+    
+    qf = u[1]*v[1]/AD[1,k+1]
+    
+    for(i in 2:N) { 
+      if(i <= k) k1 <- i-1 else k1 <- k
+      qf = qf + (u[i] - inprod(AD[i,1:k1], u[neighbors.id[i,1:k1]]))*(v[i] - inprod(AD[i, 1:k1 ], v[neighbors.id[i,1:k1] ]))/AD[i,k+1] 
     }
+    
+    return(qf)
+    
+  }
 )
 
 
@@ -407,31 +406,31 @@ computeQF <- nimbleFunction(
 #' 
 #' @export
 rmnorm_NN_GP <- nimbleFunction(
-    run = function(n = integer(0),  mu = double(1), AD = double(2), neighbors.id = double(2)) {
-        returnType(double(1))
-        
-        M = dim(AD)[1]
-        k = dim(AD)[2]-1
-        A = AD[1:M, 1:k] # with elements b
-        D = AD[1:M, k+1] # with elements f 
-        
-        # Auxiliary variable
-        v = rnorm(M)
-        z <- numeric(M) 
-        
-        z[1] <- v[1]*(D[1]^0.5)
-        
-        for (d in 2:k) {
-            z[d] <- v[d]*(D[d]^0.5) + sum(A[d, (d-1):1]*z[(d-1):1] )
-        }
-        
-        for (d in (k+1):M) {
-            z[d] <- v[d]*(D[d]^0.5) + sum(A[d, ]*z[ neighbors.id[d,] ] )
-        }
-        
-        return(z + mu)
-        
+  run = function(n = integer(0),  mu = double(1), AD = double(2), neighbors.id = double(2)) {
+    returnType(double(1))
+    
+    M = dim(AD)[1]
+    k = dim(AD)[2]-1
+    A = AD[1:M, 1:k] # with elements b
+    D = AD[1:M, k+1] # with elements f 
+    
+    # Auxiliary variable
+    v = rnorm(M)
+    z <- numeric(M) 
+    
+    z[1] <- v[1]*(D[1]^0.5)
+    
+    for (d in 2:k) {
+      z[d] <- v[d]*(D[d]^0.5) + sum(A[d, (d-1):1]*z[(d-1):1] )
     }
+    
+    for (d in (k+1):M) {
+      z[d] <- v[d]*(D[d]^0.5) + sum(A[d, ]*z[ neighbors.id[d,] ] )
+    }
+    
+    return(z + mu)
+    
+  }
 )
 
 
@@ -522,30 +521,30 @@ rmnorm_NN_GP <- nimbleFunction(
 #' 
 #' @export
 dmnorm_NN_GP <- nimbleFunction(
-    run = function( x= double(1), mu = double(1), AD = double(2), neighbors.id = double(2), log = integer(0, default =1) ){
-        returnType(double(0))
-        
-        
-        N = dim(AD)[1]
-        M = dim(AD)[2]
-        u = x- mu
-        v = x - mu
-        qf <- computeQF(u,v, AD, neighbors.id)
-        
-        loglik <- -0.5*(N*1.83787706649  +  sum(log(AD[1:N, M])) + qf )   # log(2pi) = 1.8378770664
-        
-        if(log)return(loglik)
-        return(exp(loglik))
-        
-    }
+  run = function( x= double(1), mu = double(1), AD = double(2), neighbors.id = double(2), log = integer(0, default =1) ){
+    returnType(double(0))
+    
+    
+    N = dim(AD)[1]
+    M = dim(AD)[2]
+    u = x- mu
+    v = x - mu
+    qf <- computeQF(u,v, AD, neighbors.id)
+    
+    loglik <- -0.5*(N*1.83787706649  +  sum(log(AD[1:N, M])) + qf )   # log(2pi) = 1.8378770664
+    
+    if(log)return(loglik)
+    return(exp(loglik))
+    
+  }
 )
 
 
 registerDistributions(list(
-    dmnorm_NN_GP = list(
-        BUGSdist = 'dmnorm_NN_GP(mu, AD, neighbors.id)',
-        types = c('value = double(1)', 'mu = double(1)', 'AD = double(2)', 'neighbors.id = double(2)'),
-        mixedSizes = TRUE)
+  dmnorm_NN_GP = list(
+    BUGSdist = 'dmnorm_NN_GP(mu, AD, neighbors.id)',
+    types = c('value = double(1)', 'mu = double(1)', 'AD = double(2)', 'neighbors.id = double(2)'),
+    mixedSizes = TRUE)
 ), verbose = FALSE)
 
 
@@ -560,29 +559,46 @@ registerDistributions(list(
 
 #' Posterior predictive sampling for NNGP
 #'
-#' Generates a posterior predictive draw at a new location \eqn{x_0} using the
+#' Generates posterior predictive draws at a new location \eqn{x_0} using the
 #' Nearest-Neighbor Gaussian Process (NNGP) approximation. This function 
-#' automatically handles coordinate sorting, neighbor selection, and distance 
-#' calculations internally following Algorithm 2 of Finley et al. (2019).
+#' automatically handles neighbor selection and distance calculations 
+#' internally following Algorithm 2 of Finley et al. (2019). The neighbor 
+#' search is done once per call, so many posterior draws can be predicted at 
+#' the same location at almost no extra cost by passing a matrix of spatial 
+#' effects (one row per draw) together with vectors of \code{rho} and \code{sigma2}.
 #'
 #' @param x0 Numeric matrix (\eqn{1 \times 2}) or vector of length 2 representing 
 #'   the coordinates of the new prediction location.
 #' @param coords_sorted Numeric matrix (\eqn{M \times 2}) of the observed 
 #'   training locations. Output from \code{computeNeighbors}.
-#' @param rho Positive numeric scalar. Length-scale parameter \eqn{\rho}.
-#' @param sigma2 Positive numeric scalar. Marginal variance parameter \eqn{\sigma^2}.
-#' @param w.x0.all Numeric vector of length \eqn{M}. The realizations of the 
+#' @param rho Positive numeric. Length-scale parameter \eqn{\rho}: a scalar, or
+#'   a vector with one value per posterior draw.
+#' @param sigma2 Positive numeric. Marginal variance parameter \eqn{\sigma^2}: a
+#'   scalar, or a vector with one value per posterior draw.
+#' @param w.x0.all Numeric vector of length \eqn{M} (one draw), or a matrix with
+#'   \eqn{M} columns and one row per posterior draw. The realizations of the 
 #'   spatial process (random effects) at all observed locations, ordered to 
-#'   correspond with \code{coords_sorted}.
+#'   correspond with \code{coords_sorted}. Rows must come from the same MCMC
+#'   iterations as the corresponding \code{rho} and \code{sigma2} values.
 #' @param k Integer. The number of nearest neighbors to consider for the 
 #'   prediction approximation.
+#' @param proj Coordinate reference system used to compute distances (an EPSG
+#'   code or an object accepted by \code{sf::st_crs}), as in
+#'   \code{computeNeighbors}. The default \code{NA} uses plain Euclidean
+#'   distance in the units of the coordinates. Use the same value as in
+#'   \code{computeNeighbors}, otherwise \code{rho} is on a different scale.
+#' @param dist.scale Positive numeric. Distances are divided by this value, to
+#'   match any rescaling applied to the distances used for fitting (for example
+#'   \code{1000} to convert metres to kilometres). Default \code{1}.
 #'
-#' @return A numeric scalar representing a posterior predictive draw at location \eqn{x_0}.
+#' @return A numeric scalar (when \code{w.x0.all} is a vector) or a numeric
+#'   vector with one posterior predictive draw per row of \code{w.x0.all}, at location \eqn{x_0}.
 #'
 #' @details
-#' The function merges the prediction point \eqn{x_0} into the training 
-#' coordinates and identifies the \eqn{k} nearest neighbors from the set of 
-#' points that precede it in the x-axis ordering. 
+#' The function identifies the \eqn{k} nearest neighbors of \eqn{x_0} from the
+#' training points that precede it in the x-axis ordering (all of them if there
+#' are fewer than \eqn{k}). If no training point precedes \eqn{x_0}, the draw
+#' comes from the marginal distribution \eqn{\mathcal{N}(0, \sigma^2)}.
 #' 
 #' The predictive distribution is Gaussian:
 #' \deqn{w(x_0) \mid \mathbf{w}_{N_0} \sim \mathcal{N}(m, v)}
@@ -637,58 +653,65 @@ registerDistributions(list(
 #'                        w.x0.all = w_sorted,
 #'                        k = 5)
 #'
+#' # Many posterior draws at once: one row of w per draw, and rho, sigma2 per draw
+#' W <- matrix(rep(w_sorted, each = 100), nrow = 100)   # mock posterior draws
+#' pred_draws <- NNGP.pred(new_loc, coords_sorted, rho = rep(0.2, 100),
+#'                         sigma2 = rep(1, 100), w.x0.all = W, k = 5)
+#'
 #' @author Fabian Ketwaroo
 #' 
 #' @export
-NNGP.pred <- function( x0, coords_sorted, rho, sigma2, w.x0.all, k){
-    
-    Nk <- k
-    M <- dim(coords_sorted)[1]
-    
-    # Add x0 to training locations
-    coords.x0 = rbind(coords_sorted, x0) 
-    
-    # Sort coordinates by x axis 
-    sorted_idx <- order(coords.x0[,1])
-    x0.location = which(sorted_idx == M+1) 
-    coords_sorted =coords.x0[sorted_idx, ]
-    
-    
-    # Compute distance between all points
-    coords.sf <- sf::st_as_sf(data.frame(x = coords_sorted[, 1], y = coords_sorted[, 2]), 
-                              coords = c('x', 'y'))
-    edist <- as.matrix(sf::st_distance(coords.sf))
-    
-    
-    if(x0.location <= (Nk+1)){
-        
-        neighbors_idx.x0 <- as.numeric(1:(x0.location -  1)) # k nearest neighbors of x0 - N0
-        neighbors_dist.x0 <-  edist[x0.location, neighbors_idx.x0] # dist between x0 and its neighbors
-        neighbors_dist.N0 <- edist[neighbors_idx.x0, neighbors_idx.x0 ] # distance between neighbors of x0
-        
-    } else {
-        
-        curr_sorted_idx = order(edist[x0.location, ])
-        curr_sorted_idx = curr_sorted_idx[curr_sorted_idx < x0.location] # take values to the left
-        neighbors_idx.x0 = curr_sorted_idx[1:Nk]
-        neighbors_dist.x0 <-  edist[x0.location, neighbors_idx.x0] # dist between x0 and its neighbors
-        neighbors_dist.N0 <- edist[neighbors_idx.x0, neighbors_idx.x0 ] # distance between neighbors of x0
-        
-    }
-    
-    # Algorithm 2 of Finley et al. (2019).
-    c = expcov(nimMatrix(neighbors_dist.x0), rho = rho, sigma2 = sigma2) # covariance between x0 and its k nearest neighbors
-    if( any(x0.location== c(1,2) ) )  C_N0 = expcov(nimMatrix(neighbors_dist.N0) , rho = rho, sigma2 = sigma2) # covariance betwwen the k nearest neighbors
-    else C_N0 = expcov(neighbors_dist.N0 , rho = rho, sigma2 = sigma2) + (diag( dim(neighbors_dist.N0 )[1] )*1e-06) # covariance betwwen the k nearest neighbors
-    C_x0 = expcov(nimMatrix(0), rho = rho, sigma2 = sigma2) # covariance at prediction point x0
-    
-    w.x0 <- w.x0.all[neighbors_idx.x0]
-    m = inprod(c, solve(C_N0 , w.x0) ) 
-    v = C_x0 - inprod(c, solve(C_N0, c))
-    a = rnorm(1, 0, 1)
-    gp.pred = m + sqrt(v)*a
-    return(gp.pred)
+NNGP.pred <- function( x0, coords_sorted, rho, sigma2, w.x0.all, k, proj = NA, dist.scale = 1){
+  
+  coords_sorted <- as.matrix(coords_sorted)[, 1:2, drop = FALSE]
+  x0 <- as.numeric(x0)[1:2]
+  M  <- nrow(coords_sorted)
+  
+  # One row per posterior draw (a vector is a single draw)
+  W <- if (is.matrix(w.x0.all)) w.x0.all else matrix(w.x0.all, nrow = 1)
+  if (ncol(W) != M) stop("w.x0.all must have one value (vector) or one column (matrix) per row of coords_sorted")
+  ndraw  <- nrow(W)
+  rho    <- rep_len(rho,    ndraw)
+  sigma2 <- rep_len(sigma2, ndraw)
+  a      <- rnorm(ndraw, 0, 1)
+  
+  # Position of x0 in the x-sorted order (ties: x0 goes last, as with order())
+  x0.location <- sum(coords_sorted[, 1] <= x0[1]) + 1
+  n.left      <- x0.location - 1   # training points that precede x0
+  
+  # No preceding point: x0 has no neighbors, so the draw is marginal
+  if (n.left == 0) {
+    gp.pred <- sqrt(sigma2) * a
+    return(if (is.matrix(w.x0.all)) gp.pred else gp.pred[1])
+  }
+  
+  crs <- if (length(proj) == 1 && is.na(proj)) sf::NA_crs_ else proj
+  pts <- function(xy) sf::st_sfc(lapply(seq_len(nrow(xy)), function(i) sf::st_point(xy[i, ])), crs = crs)
+  
+  # Distances from x0 to the preceding points; keep the k nearest
+  left <- coords_sorted[seq_len(n.left), , drop = FALSE]
+  d.left <- as.numeric(sf::st_distance(pts(matrix(x0, 1)), pts(left))) / dist.scale
+  if (n.left <= k) {
+    neighbors_idx.x0 <- seq_len(n.left)
+  } else {
+    neighbors_idx.x0 <- order(d.left)[1:k]
+  }
+  neighbors_dist.x0 <- d.left[neighbors_idx.x0]
+  nb <- coords_sorted[neighbors_idx.x0, , drop = FALSE]
+  neighbors_dist.N0 <- matrix(as.numeric(sf::st_distance(pts(nb))), length(neighbors_idx.x0)) / dist.scale
+  
+  # Algorithm 2 of Finley et al. (2019).
+  gp.pred <- numeric(ndraw)
+  I <- diag(length(neighbors_idx.x0)) * 1e-06   # nugget for numerical stability
+  for (d in seq_len(ndraw)) {
+    c.x0 <- sigma2[d] * exp(-neighbors_dist.x0 / rho[d])                # covariance between x0 and its neighbors
+    C_N0 <- sigma2[d] * exp(-neighbors_dist.N0 / rho[d]) + I           # covariance among the neighbors
+    w.x0 <- W[d, neighbors_idx.x0]
+    sol  <- solve(C_N0, cbind(w.x0, c.x0))
+    m <- sum(c.x0 * sol[, 1])
+    v <- max(sigma2[d] - sum(c.x0 * sol[, 2]), 0)
+    gp.pred[d] <- m + sqrt(v) * a[d]
+  }
+  
+  if (is.matrix(w.x0.all)) gp.pred else gp.pred[1]
 }
-
-
-
